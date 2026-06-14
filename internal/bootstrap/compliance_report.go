@@ -110,6 +110,7 @@ func renderCompliancePDF(payload complianceReportPayload) ([]byte, error) {
 	pdf.SetAutoPageBreak(true, 18)
 	pdf.SetTitle("Aperio Compliance Report", true)
 	pdf.SetAuthor("Aperio", true)
+	tr := pdf.UnicodeTranslatorFromDescriptor("")
 
 	generatedAt := strings.TrimSpace(payload.GeneratedAt)
 	if generatedAt == "" {
@@ -124,7 +125,7 @@ func renderCompliancePDF(payload complianceReportPayload) ([]byte, error) {
 		pdf.SetY(-12)
 		pdf.SetFont("Helvetica", "I", 8)
 		pdf.SetTextColor(140, 140, 140)
-		pdf.CellFormat(0, 8, fmt.Sprintf("Aperio · page %d/{nb}", pdf.PageNo()), "", 0, "C", false, 0, "")
+		pdf.CellFormat(0, 8, tr(fmt.Sprintf("Aperio · page %d/{nb}", pdf.PageNo())), "", 0, "C", false, 0, "")
 	})
 	pdf.AliasNbPages("{nb}")
 
@@ -134,22 +135,22 @@ func renderCompliancePDF(payload complianceReportPayload) ([]byte, error) {
 	// reads well at A4 print scale without relying on custom fonts.
 	pdf.SetFont("Helvetica", "B", 22)
 	pdf.SetTextColor(20, 20, 20)
-	pdf.CellFormat(0, 12, "Compliance posture report", "", 1, "L", false, 0, "")
+	pdf.CellFormat(0, 12, tr("Compliance posture report"), "", 1, "L", false, 0, "")
 
 	pdf.SetFont("Helvetica", "", 10)
 	pdf.SetTextColor(110, 110, 110)
-	pdf.CellFormat(0, 6, fmt.Sprintf("%s · generated %s", organization, generatedAt), "", 1, "L", false, 0, "")
+	pdf.CellFormat(0, 6, tr(fmt.Sprintf("%s · generated %s", organization, generatedAt)), "", 1, "L", false, 0, "")
 	pdf.Ln(4)
 
 	overall := summarizePayload(payload)
-	drawOverallSummary(pdf, overall)
+	drawOverallSummary(pdf, tr, overall)
 	pdf.Ln(4)
 
 	for fi, framework := range payload.Frameworks {
 		if fi > 0 {
 			pdf.AddPage()
 		}
-		drawFrameworkSection(pdf, framework)
+		drawFrameworkSection(pdf, tr, framework)
 	}
 
 	var buf bytes.Buffer
@@ -210,10 +211,10 @@ func summarizePayload(p complianceReportPayload) complianceSummary {
 	return summarizeControls(combined)
 }
 
-func drawOverallSummary(pdf *fpdf.Fpdf, s complianceSummary) {
+func drawOverallSummary(pdf *fpdf.Fpdf, tr func(string) string, s complianceSummary) {
 	pdf.SetFont("Helvetica", "B", 12)
 	pdf.SetTextColor(20, 20, 20)
-	pdf.CellFormat(0, 7, "Overall posture", "", 1, "L", false, 0, "")
+	pdf.CellFormat(0, 7, tr("Overall posture"), "", 1, "L", false, 0, "")
 	pdf.Ln(1)
 
 	// Five tiles laid out side-by-side; widths sum to printable width.
@@ -243,31 +244,31 @@ func drawOverallSummary(pdf *fpdf.Fpdf, s complianceSummary) {
 		pdf.SetXY(x+3, y0+3)
 		pdf.SetFont("Helvetica", "", 8)
 		pdf.SetTextColor(110, 110, 110)
-		pdf.CellFormat(tileW-6, 4, strings.ToUpper(t.label), "", 0, "L", false, 0, "")
+		pdf.CellFormat(tileW-6, 4, tr(strings.ToUpper(t.label)), "", 0, "L", false, 0, "")
 
 		pdf.SetXY(x+3, y0+9)
 		pdf.SetFont("Helvetica", "B", 16)
 		pdf.SetTextColor(t.r, t.g, t.b)
-		pdf.CellFormat(tileW-6, 9, t.value, "", 0, "L", false, 0, "")
+		pdf.CellFormat(tileW-6, 9, tr(t.value), "", 0, "L", false, 0, "")
 	}
 	pdf.SetXY(x0, y0+tileH+2)
 }
 
-func drawFrameworkSection(pdf *fpdf.Fpdf, framework complianceReportFramework) {
+func drawFrameworkSection(pdf *fpdf.Fpdf, tr func(string) string, framework complianceReportFramework) {
 	s := summarizeFramework(framework)
 
 	pdf.SetFont("Helvetica", "B", 16)
 	pdf.SetTextColor(20, 20, 20)
-	pdf.CellFormat(0, 9, framework.Name, "", 1, "L", false, 0, "")
+	pdf.CellFormat(0, 9, tr(framework.Name), "", 1, "L", false, 0, "")
 
 	pdf.SetFont("Helvetica", "I", 9)
 	pdf.SetTextColor(110, 110, 110)
-	pdf.CellFormat(0, 5, strings.TrimSpace(framework.Version), "", 1, "L", false, 0, "")
+	pdf.CellFormat(0, 5, tr(strings.TrimSpace(framework.Version)), "", 1, "L", false, 0, "")
 
 	if strings.TrimSpace(framework.Description) != "" {
 		pdf.SetFont("Helvetica", "", 10)
 		pdf.SetTextColor(60, 60, 60)
-		pdf.MultiCell(0, 5, framework.Description, "", "L", false)
+		pdf.MultiCell(0, 5, tr(framework.Description), "", "L", false)
 	}
 	pdf.Ln(2)
 
@@ -275,34 +276,34 @@ func drawFrameworkSection(pdf *fpdf.Fpdf, framework complianceReportFramework) {
 	pdf.SetTextColor(20, 20, 20)
 	r, g, b := scoreRGB(s.Score)
 	pdf.SetTextColor(r, g, b)
-	pdf.CellFormat(40, 6, fmt.Sprintf("Score: %d%%", s.Score), "", 0, "L", false, 0, "")
+	pdf.CellFormat(40, 6, tr(fmt.Sprintf("Score: %d%%", s.Score)), "", 0, "L", false, 0, "")
 	pdf.SetTextColor(60, 60, 60)
 	pdf.SetFont("Helvetica", "", 9)
-	pdf.CellFormat(0, 6, fmt.Sprintf("Pass %d · Partial %d · Fail %d · N/A %d · Evidence %d",
-		s.Pass, s.Partial, s.Fail, s.NA, s.Evidence), "", 1, "L", false, 0, "")
+	pdf.CellFormat(0, 6, tr(fmt.Sprintf("Pass %d · Partial %d · Fail %d · N/A %d · Evidence %d",
+		s.Pass, s.Partial, s.Fail, s.NA, s.Evidence)), "", 1, "L", false, 0, "")
 	pdf.Ln(2)
 
 	for _, group := range framework.Groups {
-		drawGroupTable(pdf, group)
+		drawGroupTable(pdf, tr, group)
 		pdf.Ln(3)
 	}
 }
 
-func drawGroupTable(pdf *fpdf.Fpdf, group complianceReportGroup) {
+func drawGroupTable(pdf *fpdf.Fpdf, tr func(string) string, group complianceReportGroup) {
 	gs := summarizeControls(group.Controls)
 	r, g, b := scoreRGB(gs.Score)
 
 	pdf.SetFont("Helvetica", "B", 11)
 	pdf.SetTextColor(20, 20, 20)
-	pdf.CellFormat(0, 6, fmt.Sprintf("%s — %s", group.ID, group.Title), "", 1, "L", false, 0, "")
+	pdf.CellFormat(0, 6, tr(fmt.Sprintf("%s — %s", group.ID, group.Title)), "", 1, "L", false, 0, "")
 
 	pdf.SetFont("Helvetica", "", 9)
 	pdf.SetTextColor(110, 110, 110)
-	pdf.CellFormat(0, 5, group.Description, "", 1, "L", false, 0, "")
+	pdf.CellFormat(0, 5, tr(group.Description), "", 1, "L", false, 0, "")
 	pdf.SetTextColor(r, g, b)
 	pdf.SetFont("Helvetica", "", 9)
-	pdf.CellFormat(0, 5, fmt.Sprintf("Group score %d%% — %d pass · %d partial · %d fail · %d N/A",
-		gs.Score, gs.Pass, gs.Partial, gs.Fail, gs.NA), "", 1, "L", false, 0, "")
+	pdf.CellFormat(0, 5, tr(fmt.Sprintf("Group score %d%% — %d pass · %d partial · %d fail · %d N/A",
+		gs.Score, gs.Pass, gs.Partial, gs.Fail, gs.NA)), "", 1, "L", false, 0, "")
 	pdf.Ln(1)
 
 	// Column widths (printable width is 180mm at A4 with 15mm margins).
@@ -322,7 +323,7 @@ func drawGroupTable(pdf *fpdf.Fpdf, group complianceReportGroup) {
 	pdf.SetTextColor(50, 50, 50)
 	pdf.SetFont("Helvetica", "B", 9)
 	for _, c := range cols {
-		pdf.CellFormat(c.width, 6, c.header, "1", 0, c.align, true, 0, "")
+		pdf.CellFormat(c.width, 6, tr(c.header), "1", 0, c.align, true, 0, "")
 	}
 	pdf.Ln(-1)
 
@@ -334,14 +335,14 @@ func drawGroupTable(pdf *fpdf.Fpdf, group complianceReportGroup) {
 			pdf.SetFillColor(255, 255, 255)
 		}
 		pdf.SetTextColor(40, 40, 40)
-		pdf.CellFormat(cols[0].width, 6, ctrl.ID, "1", 0, cols[0].align, true, 0, "")
+		pdf.CellFormat(cols[0].width, 6, tr(ctrl.ID), "1", 0, cols[0].align, true, 0, "")
 		// Truncate over-long titles so the table never wraps and breaks alignment.
-		pdf.CellFormat(cols[1].width, 6, truncate(ctrl.Title, 70), "1", 0, cols[1].align, true, 0, "")
+		pdf.CellFormat(cols[1].width, 6, tr(truncate(ctrl.Title, 70)), "1", 0, cols[1].align, true, 0, "")
 
 		sr, sg, sb := statusRGB(ctrl.Status)
 		pdf.SetTextColor(sr, sg, sb)
 		pdf.SetFont("Helvetica", "B", 9)
-		pdf.CellFormat(cols[2].width, 6, normalizeStatus(ctrl.Status), "1", 0, cols[2].align, true, 0, "")
+		pdf.CellFormat(cols[2].width, 6, tr(normalizeStatus(ctrl.Status)), "1", 0, cols[2].align, true, 0, "")
 		pdf.SetFont("Helvetica", "", 9)
 		pdf.SetTextColor(40, 40, 40)
 
@@ -349,8 +350,8 @@ func drawGroupTable(pdf *fpdf.Fpdf, group complianceReportGroup) {
 		if ctrl.EvidenceCount > 0 {
 			evidence = fmt.Sprintf("%d", ctrl.EvidenceCount)
 		}
-		pdf.CellFormat(cols[3].width, 6, evidence, "1", 0, cols[3].align, true, 0, "")
-		pdf.CellFormat(cols[4].width, 6, truncate(ctrl.Owner, 18), "1", 0, cols[4].align, true, 0, "")
+		pdf.CellFormat(cols[3].width, 6, tr(evidence), "1", 0, cols[3].align, true, 0, "")
+		pdf.CellFormat(cols[4].width, 6, tr(truncate(ctrl.Owner, 18)), "1", 0, cols[4].align, true, 0, "")
 		pdf.Ln(-1)
 	}
 }
