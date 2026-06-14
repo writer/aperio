@@ -359,6 +359,50 @@ func TestCompatCreateMemberResetRequiresOwnerForPrivilegedTargets(t *testing.T) 
 	}
 }
 
+func TestCompatUpdateMemberRolePreventsAdminPrivilegeEscalation(t *testing.T) {
+	app, base := newTestDBApp(t)
+	ctx := context.Background()
+	admin := seedOrgUserWithPassword(t, app, base.OrganizationID, "ADMIN", "role-admin-"+randomBase36(10)+"@example.com", "admin-password-123")
+	owner := seedOrgUserWithPassword(t, app, base.OrganizationID, "OWNER", "role-owner-"+randomBase36(10)+"@example.com", "owner-password-123")
+	peerAdmin := seedOrgUserWithPassword(t, app, base.OrganizationID, "ADMIN", "role-peer-"+randomBase36(10)+"@example.com", "peer-password-123")
+	viewer := seedOrgUserWithPassword(t, app, base.OrganizationID, "VIEWER", "role-viewer-"+randomBase36(10)+"@example.com", "viewer-password-123")
+
+	for name, targetID := range map[string]string{
+		"self":       admin.UserID,
+		"owner":      owner.UserID,
+		"peer admin": peerAdmin.UserID,
+		"viewer":     viewer.UserID,
+	} {
+		if _, err := app.compatUpdateMemberRole(ctx, targetID, map[string]any{"roleName": "OWNER"}, admin); connect.CodeOf(err) != connect.CodePermissionDenied {
+			t.Fatalf("admin OWNER update for %s code = %v, want PermissionDenied", name, connect.CodeOf(err))
+		}
+	}
+	if _, err := app.compatUpdateMemberRole(ctx, peerAdmin.UserID, map[string]any{"roleName": "VIEWER"}, admin); connect.CodeOf(err) != connect.CodePermissionDenied {
+		t.Fatalf("admin demote of peer admin code = %v, want PermissionDenied", connect.CodeOf(err))
+	}
+	if _, err := app.compatUpdateMemberRole(ctx, owner.UserID, map[string]any{"roleName": "ADMIN"}, owner); connect.CodeOf(err) != connect.CodePermissionDenied {
+		t.Fatalf("owner self role update code = %v, want PermissionDenied", connect.CodeOf(err))
+	}
+	if _, err := app.compatUpdateMemberRole(ctx, viewer.UserID, map[string]any{"roleName": "ADMIN"}, admin); err != nil {
+		t.Fatalf("admin update of viewer failed: %v", err)
+	}
+	if _, err := app.compatUpdateMemberRole(ctx, peerAdmin.UserID, map[string]any{"roleName": "VIEWER"}, owner); err != nil {
+		t.Fatalf("owner update of peer admin failed: %v", err)
+	}
+
+	for userID, wantRole := range map[string]string{
+		admin.UserID:     "ADMIN",
+		owner.UserID:     "OWNER",
+		peerAdmin.UserID: "VIEWER",
+		viewer.UserID:    "ADMIN",
+	} {
+		role := scanString(t, app, `SELECT r.name::text FROM users u JOIN roles r ON r.id = u.role_id WHERE u.id = $1`, userID)
+		if role != wantRole {
+			t.Fatalf("role for %s = %q, want %q", userID, role, wantRole)
+		}
+	}
+}
+
 func TestPublicForgotPasswordDoesNotExposeResetToken(t *testing.T) {
 	app, base := newTestDBApp(t)
 	ctx := context.Background()

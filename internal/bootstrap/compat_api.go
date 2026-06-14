@@ -2331,7 +2331,7 @@ func (a *App) compatUpdateMemberRole(ctx context.Context, userID string, body ma
 		return nil, err
 	}
 	newRoleName := requiredString(body, "roleName")
-	roleID, _ := a.ensureCompatRole(ctx, auth.OrganizationID, newRoleName)
+	normalizedNewRole := strings.ToUpper(strings.TrimSpace(newRoleName))
 
 	// Capture the pre-update role + email so the audit row can express the
 	// transition. Scoped to the caller's organization to preserve tenant
@@ -2340,10 +2340,24 @@ func (a *App) compatUpdateMemberRole(ctx context.Context, userID string, body ma
 		previousRole string
 		targetEmail  string
 	)
-	_ = a.db.QueryRowContext(ctx,
+	targetErr := a.db.QueryRowContext(ctx,
 		`SELECT COALESCE(r.name::text, ''), u.email FROM users u LEFT JOIN roles r ON r.id = u.role_id WHERE u.id = $1 AND u.organization_id = $2`,
 		userID, auth.OrganizationID,
 	).Scan(&previousRole, &targetEmail)
+	if targetErr != nil && !errors.Is(targetErr, sql.ErrNoRows) {
+		return nil, connect.NewError(connect.CodeInternal, targetErr)
+	}
+	if targetErr == nil {
+		previousRole = strings.ToUpper(strings.TrimSpace(previousRole))
+		if userID == auth.UserID {
+			return nil, connect.NewError(connect.CodePermissionDenied, errors.New("cannot modify your own role"))
+		}
+		if auth.Role != "OWNER" && (normalizedNewRole == "OWNER" || previousRole == "OWNER" || previousRole == "ADMIN") {
+			return nil, connect.NewError(connect.CodePermissionDenied, errors.New("only owners can change privileged member roles"))
+		}
+	}
+
+	roleID, _ := a.ensureCompatRole(ctx, auth.OrganizationID, normalizedNewRole)
 
 	res, err := a.db.ExecContext(ctx, `UPDATE users SET role_id = $1, updated_at = NOW() WHERE id = $2 AND organization_id = $3`, roleID, userID, auth.OrganizationID)
 	if err != nil {
@@ -2353,7 +2367,7 @@ func (a *App) compatUpdateMemberRole(ctx context.Context, userID string, body ma
 		a.writeCompatAudit(ctx, auth, "member.role.update", "user", userID, map[string]any{
 			"targetUserEmail": targetEmail,
 			"fromRole":        previousRole,
-			"toRole":          strings.ToUpper(strings.TrimSpace(newRoleName)),
+			"toRole":          normalizedNewRole,
 		})
 	}
 
