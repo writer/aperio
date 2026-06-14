@@ -556,6 +556,7 @@ model SecurityFinding {
   @@index([organizationId, integrationId])
   @@index([organizationId, detectedAt])
   @@index([organizationId, assetId])
+  @@index([tags], type: Gin)
   @@map("security_findings")
 }
 
