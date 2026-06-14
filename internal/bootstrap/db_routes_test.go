@@ -2049,6 +2049,71 @@ func TestDBGoogleMailboxScanConfig(t *testing.T) {
 	}
 }
 
+func TestDBGoogleWorkspaceBigQueryConfig(t *testing.T) {
+	app, baseAuth := newTestDBApp(t)
+	auth := seedOrgAdmin(t, app, baseAuth.OrganizationID)
+	ctx := context.Background()
+	header := seedSessionHeader(t, app, auth)
+
+	created, err := app.compatCreateIntegration(ctx, map[string]any{
+		"provider":          "GOOGLE_WORKSPACE",
+		"displayName":       "Google Workspace",
+		"externalAccountId": "bigquery.example.com",
+		"mode":              "READ_ONLY",
+		"credentials":       map[string]any{"accessToken": "google-workspace-token"},
+	}, auth)
+	if err != nil {
+		t.Fatalf("create google integration: %v", err)
+	}
+	integrationID := dataMap(t, created)["id"].(string)
+
+	config := dataMap(t, mustCall(t, func() (any, error) {
+		return app.compatUpdateGoogleWorkspaceBigQueryConfig(ctx, integrationID, map[string]any{
+			"enabled":                  true,
+			"projectId":                "example-project",
+			"rawDatasetId":             "workspace_logs",
+			"datasetId":                "aperio_workspace_views",
+			"location":                 "US",
+			"serviceAccountEmail":      "aperio-bq-reader@example-project.iam.gserviceaccount.com",
+			"workloadIdentityProvider": "projects/123456789/locations/global/workloadIdentityPools/aperio-workloads/providers/aperio-oidc",
+			"accessMode":               "views",
+		}, auth)
+	}))
+	if config["enabled"] != true || optionalStringFromAny(config["datasetId"]) != "aperio_workspace_views" || optionalStringFromAny(config["accessMode"]) != "views" {
+		t.Fatalf("unexpected BigQuery config: %v", config)
+	}
+
+	if _, err := app.compatUpdateGoogleWorkspaceBigQueryConfig(ctx, integrationID, map[string]any{
+		"enabled":                  true,
+		"projectId":                "example-project",
+		"rawDatasetId":             "workspace_logs",
+		"datasetId":                "workspace_logs",
+		"location":                 "US",
+		"serviceAccountEmail":      "aperio-bq-reader@example-project.iam.gserviceaccount.com",
+		"workloadIdentityProvider": "projects/123456789/locations/global/workloadIdentityPools/aperio-workloads/providers/aperio-oidc",
+		"accessMode":               "views",
+	}, auth); connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Fatalf("same raw/read dataset code = %v (%v), want invalid argument", connect.CodeOf(err), err)
+	}
+
+	typedReq := connect.NewRequest(&aperiov1.GetGoogleWorkspaceBigQueryConfigRequest{IntegrationId: integrationID})
+	copyCompatHeaders(typedReq.Header(), header)
+	typed, err := app.GetGoogleWorkspaceBigQueryConfig(ctx, typedReq)
+	if err != nil {
+		t.Fatalf("typed get BigQuery config: %v", err)
+	}
+	if !typed.Msg.Data.Enabled || typed.Msg.Data.WorkloadIdentityProvider == "" {
+		t.Fatalf("unexpected typed BigQuery config: %v", typed.Msg.Data)
+	}
+
+	cleared := dataMap(t, mustCall(t, func() (any, error) {
+		return app.compatUpdateGoogleWorkspaceBigQueryConfig(ctx, integrationID, map[string]any{"enabled": false}, auth)
+	}))
+	if cleared["enabled"] != false || optionalStringFromAny(cleared["projectId"]) != "" {
+		t.Fatalf("unexpected cleared BigQuery config: %v", cleared)
+	}
+}
+
 func TestDBSecurityOverview(t *testing.T) {
 	app, auth := newTestDBApp(t)
 	ctx := context.Background()

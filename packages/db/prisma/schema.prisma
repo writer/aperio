@@ -334,6 +334,13 @@ model IntegrationConnection {
   encryptedWebhookSecret String?           @map("encrypted_webhook_secret") @db.Text
   googleMailboxScanClientEmail String?     @map("google_mailbox_scan_client_email") @db.VarChar(255)
   encryptedGoogleMailboxScanPrivateKey String? @map("encrypted_google_mailbox_scan_private_key") @db.Text
+  googleWorkspaceBigQueryProjectId String? @map("google_workspace_bigquery_project_id") @db.VarChar(255)
+  googleWorkspaceBigQueryRawDatasetId String? @map("google_workspace_bigquery_raw_dataset_id") @db.VarChar(255)
+  googleWorkspaceBigQueryDatasetId String? @map("google_workspace_bigquery_dataset_id") @db.VarChar(255)
+  googleWorkspaceBigQueryLocation String? @map("google_workspace_bigquery_location") @db.VarChar(64)
+  googleWorkspaceBigQueryServiceAccountEmail String? @map("google_workspace_bigquery_service_account_email") @db.VarChar(320)
+  googleWorkspaceBigQueryWifProvider String? @map("google_workspace_bigquery_wif_provider") @db.VarChar(500)
+  googleWorkspaceBigQueryAccessMode String? @map("google_workspace_bigquery_access_mode") @db.VarChar(32)
   tokenKeyVersion        String            @default("v1") @map("token_key_version") @db.VarChar(32)
   status                 IntegrationStatus @default(CONNECTED)
   mode                   IntegrationMode   @default(READ_ONLY)

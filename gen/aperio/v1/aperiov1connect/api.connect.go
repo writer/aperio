@@ -122,6 +122,12 @@ const (
 	// AperioServiceUpdateGoogleMailboxScanConfigProcedure is the fully-qualified name of the
 	// AperioService's UpdateGoogleMailboxScanConfig RPC.
 	AperioServiceUpdateGoogleMailboxScanConfigProcedure = "/aperio.v1.AperioService/UpdateGoogleMailboxScanConfig"
+	// AperioServiceGetGoogleWorkspaceBigQueryConfigProcedure is the fully-qualified name of the
+	// AperioService's GetGoogleWorkspaceBigQueryConfig RPC.
+	AperioServiceGetGoogleWorkspaceBigQueryConfigProcedure = "/aperio.v1.AperioService/GetGoogleWorkspaceBigQueryConfig"
+	// AperioServiceUpdateGoogleWorkspaceBigQueryConfigProcedure is the fully-qualified name of the
+	// AperioService's UpdateGoogleWorkspaceBigQueryConfig RPC.
+	AperioServiceUpdateGoogleWorkspaceBigQueryConfigProcedure = "/aperio.v1.AperioService/UpdateGoogleWorkspaceBigQueryConfig"
 	// AperioServiceStartGoogleWorkspaceOAuthProcedure is the fully-qualified name of the
 	// AperioService's StartGoogleWorkspaceOAuth RPC.
 	AperioServiceStartGoogleWorkspaceOAuthProcedure = "/aperio.v1.AperioService/StartGoogleWorkspaceOAuth"
@@ -247,6 +253,8 @@ type AperioServiceClient interface {
 	DeleteCustomRule(context.Context, *connect.Request[v1.DeleteCustomRuleRequest]) (*connect.Response[v1.DeleteCustomRuleResponse], error)
 	GetGoogleMailboxScanConfig(context.Context, *connect.Request[v1.GetGoogleMailboxScanConfigRequest]) (*connect.Response[v1.GetGoogleMailboxScanConfigResponse], error)
 	UpdateGoogleMailboxScanConfig(context.Context, *connect.Request[v1.UpdateGoogleMailboxScanConfigRequest]) (*connect.Response[v1.UpdateGoogleMailboxScanConfigResponse], error)
+	GetGoogleWorkspaceBigQueryConfig(context.Context, *connect.Request[v1.GetGoogleWorkspaceBigQueryConfigRequest]) (*connect.Response[v1.GetGoogleWorkspaceBigQueryConfigResponse], error)
+	UpdateGoogleWorkspaceBigQueryConfig(context.Context, *connect.Request[v1.UpdateGoogleWorkspaceBigQueryConfigRequest]) (*connect.Response[v1.UpdateGoogleWorkspaceBigQueryConfigResponse], error)
 	StartGoogleWorkspaceOAuth(context.Context, *connect.Request[v1.StartGoogleWorkspaceOAuthRequest]) (*connect.Response[v1.StartGoogleWorkspaceOAuthResponse], error)
 	GetIntegrationOAuthClient(context.Context, *connect.Request[v1.GetIntegrationOAuthClientRequest]) (*connect.Response[v1.GetIntegrationOAuthClientResponse], error)
 	SetIntegrationOAuthClient(context.Context, *connect.Request[v1.SetIntegrationOAuthClientRequest]) (*connect.Response[v1.SetIntegrationOAuthClientResponse], error)
@@ -476,6 +484,18 @@ func NewAperioServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(aperioServiceMethods.ByName("UpdateGoogleMailboxScanConfig")),
 			connect.WithClientOptions(opts...),
 		),
+		getGoogleWorkspaceBigQueryConfig: connect.NewClient[v1.GetGoogleWorkspaceBigQueryConfigRequest, v1.GetGoogleWorkspaceBigQueryConfigResponse](
+			httpClient,
+			baseURL+AperioServiceGetGoogleWorkspaceBigQueryConfigProcedure,
+			connect.WithSchema(aperioServiceMethods.ByName("GetGoogleWorkspaceBigQueryConfig")),
+			connect.WithClientOptions(opts...),
+		),
+		updateGoogleWorkspaceBigQueryConfig: connect.NewClient[v1.UpdateGoogleWorkspaceBigQueryConfigRequest, v1.UpdateGoogleWorkspaceBigQueryConfigResponse](
+			httpClient,
+			baseURL+AperioServiceUpdateGoogleWorkspaceBigQueryConfigProcedure,
+			connect.WithSchema(aperioServiceMethods.ByName("UpdateGoogleWorkspaceBigQueryConfig")),
+			connect.WithClientOptions(opts...),
+		),
 		startGoogleWorkspaceOAuth: connect.NewClient[v1.StartGoogleWorkspaceOAuthRequest, v1.StartGoogleWorkspaceOAuthResponse](
 			httpClient,
 			baseURL+AperioServiceStartGoogleWorkspaceOAuthProcedure,
@@ -661,67 +681,69 @@ func NewAperioServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 
 // aperioServiceClient implements AperioServiceClient.
 type aperioServiceClient struct {
-	callApi                       *connect.Client[v1.CallApiRequest, v1.CallApiResponse]
-	signup                        *connect.Client[v1.SignupRequest, v1.SignupResponse]
-	login                         *connect.Client[v1.LoginRequest, v1.LoginResponse]
-	getCurrentSession             *connect.Client[v1.GetCurrentSessionRequest, v1.GetCurrentSessionResponse]
-	logoutCurrentSession          *connect.Client[v1.LogoutCurrentSessionRequest, v1.LogoutCurrentSessionResponse]
-	listWorkspaces                *connect.Client[v1.ListWorkspacesRequest, v1.ListWorkspacesResponse]
-	switchWorkspace               *connect.Client[v1.SwitchWorkspaceRequest, v1.SwitchWorkspaceResponse]
-	requestPasswordReset          *connect.Client[v1.RequestPasswordResetRequest, v1.RequestPasswordResetResponse]
-	resetPassword                 *connect.Client[v1.ResetPasswordRequest, v1.ResetPasswordResponse]
-	acceptInvite                  *connect.Client[v1.AcceptInviteRequest, v1.AcceptInviteResponse]
-	beginMfaEnrollment            *connect.Client[v1.BeginMfaEnrollmentRequest, v1.BeginMfaEnrollmentResponse]
-	enableMfa                     *connect.Client[v1.EnableMfaRequest, v1.EnableMfaResponse]
-	disableMfa                    *connect.Client[v1.DisableMfaRequest, v1.DisableMfaResponse]
-	checkHealth                   *connect.Client[v1.CheckHealthRequest, v1.CheckHealthResponse]
-	getDashboardMetrics           *connect.Client[v1.GetDashboardMetricsRequest, v1.GetDashboardMetricsResponse]
-	listFindings                  *connect.Client[v1.ListFindingsRequest, v1.ListFindingsResponse]
-	getFinding                    *connect.Client[v1.GetFindingRequest, v1.GetFindingResponse]
-	updateFindingStatus           *connect.Client[v1.UpdateFindingStatusRequest, v1.UpdateFindingStatusResponse]
-	remediateFinding              *connect.Client[v1.RemediateFindingRequest, v1.RemediateFindingResponse]
-	listConnectorCatalog          *connect.Client[v1.ListConnectorCatalogRequest, v1.ListConnectorCatalogResponse]
-	listIntegrations              *connect.Client[v1.ListIntegrationsRequest, v1.ListIntegrationsResponse]
-	createIntegration             *connect.Client[v1.CreateIntegrationRequest, v1.CreateIntegrationResponse]
-	deleteIntegration             *connect.Client[v1.DeleteIntegrationRequest, v1.DeleteIntegrationResponse]
-	getIntegrationChecks          *connect.Client[v1.GetIntegrationChecksRequest, v1.GetIntegrationChecksResponse]
-	updateIntegrationChecks       *connect.Client[v1.UpdateIntegrationChecksRequest, v1.UpdateIntegrationChecksResponse]
-	listConnectorRules            *connect.Client[v1.ListConnectorRulesRequest, v1.ListConnectorRulesResponse]
-	createCustomRule              *connect.Client[v1.CreateCustomRuleRequest, v1.CreateCustomRuleResponse]
-	updateCustomRule              *connect.Client[v1.UpdateCustomRuleRequest, v1.UpdateCustomRuleResponse]
-	deleteCustomRule              *connect.Client[v1.DeleteCustomRuleRequest, v1.DeleteCustomRuleResponse]
-	getGoogleMailboxScanConfig    *connect.Client[v1.GetGoogleMailboxScanConfigRequest, v1.GetGoogleMailboxScanConfigResponse]
-	updateGoogleMailboxScanConfig *connect.Client[v1.UpdateGoogleMailboxScanConfigRequest, v1.UpdateGoogleMailboxScanConfigResponse]
-	startGoogleWorkspaceOAuth     *connect.Client[v1.StartGoogleWorkspaceOAuthRequest, v1.StartGoogleWorkspaceOAuthResponse]
-	getIntegrationOAuthClient     *connect.Client[v1.GetIntegrationOAuthClientRequest, v1.GetIntegrationOAuthClientResponse]
-	setIntegrationOAuthClient     *connect.Client[v1.SetIntegrationOAuthClientRequest, v1.SetIntegrationOAuthClientResponse]
-	clearIntegrationOAuthClient   *connect.Client[v1.ClearIntegrationOAuthClientRequest, v1.ClearIntegrationOAuthClientResponse]
-	forceSyncIntegration          *connect.Client[v1.ForceSyncIntegrationRequest, v1.ForceSyncIntegrationResponse]
-	listSiemCatalog               *connect.Client[v1.ListSiemCatalogRequest, v1.ListSiemCatalogResponse]
-	listSiemDestinations          *connect.Client[v1.ListSiemDestinationsRequest, v1.ListSiemDestinationsResponse]
-	createSiemDestination         *connect.Client[v1.CreateSiemDestinationRequest, v1.CreateSiemDestinationResponse]
-	deleteSiemDestination         *connect.Client[v1.DeleteSiemDestinationRequest, v1.DeleteSiemDestinationResponse]
-	testSiemDestination           *connect.Client[v1.TestSiemDestinationRequest, v1.TestSiemDestinationResponse]
-	listShadowItOauthApps         *connect.Client[v1.ListShadowItOauthAppsRequest, v1.ListShadowItOauthAppsResponse]
-	listShadowItOauthAppGrants    *connect.Client[v1.ListShadowItOauthAppGrantsRequest, v1.ListShadowItOauthAppGrantsResponse]
-	getTenantSettings             *connect.Client[v1.GetTenantSettingsRequest, v1.GetTenantSettingsResponse]
-	updateTenantSettings          *connect.Client[v1.UpdateTenantSettingsRequest, v1.UpdateTenantSettingsResponse]
-	listTenantMembers             *connect.Client[v1.ListTenantMembersRequest, v1.ListTenantMembersResponse]
-	createTenantMember            *connect.Client[v1.CreateTenantMemberRequest, v1.CreateTenantMemberResponse]
-	createMemberResetLink         *connect.Client[v1.CreateMemberResetLinkRequest, v1.CreateMemberResetLinkResponse]
-	updateMemberRole              *connect.Client[v1.UpdateMemberRoleRequest, v1.UpdateMemberRoleResponse]
-	listAuditLogs                 *connect.Client[v1.ListAuditLogsRequest, v1.ListAuditLogsResponse]
-	getSecurityOverview           *connect.Client[v1.GetSecurityOverviewRequest, v1.GetSecurityOverviewResponse]
-	listSecurityAssets            *connect.Client[v1.ListSecurityAssetsRequest, v1.ListSecurityAssetsResponse]
-	createSecurityAsset           *connect.Client[v1.CreateSecurityAssetRequest, v1.CreateSecurityAssetResponse]
-	updateSecurityAsset           *connect.Client[v1.UpdateSecurityAssetRequest, v1.UpdateSecurityAssetResponse]
-	listRiskExceptions            *connect.Client[v1.ListRiskExceptionsRequest, v1.ListRiskExceptionsResponse]
-	createRiskException           *connect.Client[v1.CreateRiskExceptionRequest, v1.CreateRiskExceptionResponse]
-	updateRiskException           *connect.Client[v1.UpdateRiskExceptionRequest, v1.UpdateRiskExceptionResponse]
-	listExecutiveReports          *connect.Client[v1.ListExecutiveReportsRequest, v1.ListExecutiveReportsResponse]
-	getExecutiveReport            *connect.Client[v1.GetExecutiveReportRequest, v1.GetExecutiveReportResponse]
-	createExecutiveReport         *connect.Client[v1.CreateExecutiveReportRequest, v1.CreateExecutiveReportResponse]
-	deleteExecutiveReport         *connect.Client[v1.DeleteExecutiveReportRequest, v1.DeleteExecutiveReportResponse]
+	callApi                             *connect.Client[v1.CallApiRequest, v1.CallApiResponse]
+	signup                              *connect.Client[v1.SignupRequest, v1.SignupResponse]
+	login                               *connect.Client[v1.LoginRequest, v1.LoginResponse]
+	getCurrentSession                   *connect.Client[v1.GetCurrentSessionRequest, v1.GetCurrentSessionResponse]
+	logoutCurrentSession                *connect.Client[v1.LogoutCurrentSessionRequest, v1.LogoutCurrentSessionResponse]
+	listWorkspaces                      *connect.Client[v1.ListWorkspacesRequest, v1.ListWorkspacesResponse]
+	switchWorkspace                     *connect.Client[v1.SwitchWorkspaceRequest, v1.SwitchWorkspaceResponse]
+	requestPasswordReset                *connect.Client[v1.RequestPasswordResetRequest, v1.RequestPasswordResetResponse]
+	resetPassword                       *connect.Client[v1.ResetPasswordRequest, v1.ResetPasswordResponse]
+	acceptInvite                        *connect.Client[v1.AcceptInviteRequest, v1.AcceptInviteResponse]
+	beginMfaEnrollment                  *connect.Client[v1.BeginMfaEnrollmentRequest, v1.BeginMfaEnrollmentResponse]
+	enableMfa                           *connect.Client[v1.EnableMfaRequest, v1.EnableMfaResponse]
+	disableMfa                          *connect.Client[v1.DisableMfaRequest, v1.DisableMfaResponse]
+	checkHealth                         *connect.Client[v1.CheckHealthRequest, v1.CheckHealthResponse]
+	getDashboardMetrics                 *connect.Client[v1.GetDashboardMetricsRequest, v1.GetDashboardMetricsResponse]
+	listFindings                        *connect.Client[v1.ListFindingsRequest, v1.ListFindingsResponse]
+	getFinding                          *connect.Client[v1.GetFindingRequest, v1.GetFindingResponse]
+	updateFindingStatus                 *connect.Client[v1.UpdateFindingStatusRequest, v1.UpdateFindingStatusResponse]
+	remediateFinding                    *connect.Client[v1.RemediateFindingRequest, v1.RemediateFindingResponse]
+	listConnectorCatalog                *connect.Client[v1.ListConnectorCatalogRequest, v1.ListConnectorCatalogResponse]
+	listIntegrations                    *connect.Client[v1.ListIntegrationsRequest, v1.ListIntegrationsResponse]
+	createIntegration                   *connect.Client[v1.CreateIntegrationRequest, v1.CreateIntegrationResponse]
+	deleteIntegration                   *connect.Client[v1.DeleteIntegrationRequest, v1.DeleteIntegrationResponse]
+	getIntegrationChecks                *connect.Client[v1.GetIntegrationChecksRequest, v1.GetIntegrationChecksResponse]
+	updateIntegrationChecks             *connect.Client[v1.UpdateIntegrationChecksRequest, v1.UpdateIntegrationChecksResponse]
+	listConnectorRules                  *connect.Client[v1.ListConnectorRulesRequest, v1.ListConnectorRulesResponse]
+	createCustomRule                    *connect.Client[v1.CreateCustomRuleRequest, v1.CreateCustomRuleResponse]
+	updateCustomRule                    *connect.Client[v1.UpdateCustomRuleRequest, v1.UpdateCustomRuleResponse]
+	deleteCustomRule                    *connect.Client[v1.DeleteCustomRuleRequest, v1.DeleteCustomRuleResponse]
+	getGoogleMailboxScanConfig          *connect.Client[v1.GetGoogleMailboxScanConfigRequest, v1.GetGoogleMailboxScanConfigResponse]
+	updateGoogleMailboxScanConfig       *connect.Client[v1.UpdateGoogleMailboxScanConfigRequest, v1.UpdateGoogleMailboxScanConfigResponse]
+	getGoogleWorkspaceBigQueryConfig    *connect.Client[v1.GetGoogleWorkspaceBigQueryConfigRequest, v1.GetGoogleWorkspaceBigQueryConfigResponse]
+	updateGoogleWorkspaceBigQueryConfig *connect.Client[v1.UpdateGoogleWorkspaceBigQueryConfigRequest, v1.UpdateGoogleWorkspaceBigQueryConfigResponse]
+	startGoogleWorkspaceOAuth           *connect.Client[v1.StartGoogleWorkspaceOAuthRequest, v1.StartGoogleWorkspaceOAuthResponse]
+	getIntegrationOAuthClient           *connect.Client[v1.GetIntegrationOAuthClientRequest, v1.GetIntegrationOAuthClientResponse]
+	setIntegrationOAuthClient           *connect.Client[v1.SetIntegrationOAuthClientRequest, v1.SetIntegrationOAuthClientResponse]
+	clearIntegrationOAuthClient         *connect.Client[v1.ClearIntegrationOAuthClientRequest, v1.ClearIntegrationOAuthClientResponse]
+	forceSyncIntegration                *connect.Client[v1.ForceSyncIntegrationRequest, v1.ForceSyncIntegrationResponse]
+	listSiemCatalog                     *connect.Client[v1.ListSiemCatalogRequest, v1.ListSiemCatalogResponse]
+	listSiemDestinations                *connect.Client[v1.ListSiemDestinationsRequest, v1.ListSiemDestinationsResponse]
+	createSiemDestination               *connect.Client[v1.CreateSiemDestinationRequest, v1.CreateSiemDestinationResponse]
+	deleteSiemDestination               *connect.Client[v1.DeleteSiemDestinationRequest, v1.DeleteSiemDestinationResponse]
+	testSiemDestination                 *connect.Client[v1.TestSiemDestinationRequest, v1.TestSiemDestinationResponse]
+	listShadowItOauthApps               *connect.Client[v1.ListShadowItOauthAppsRequest, v1.ListShadowItOauthAppsResponse]
+	listShadowItOauthAppGrants          *connect.Client[v1.ListShadowItOauthAppGrantsRequest, v1.ListShadowItOauthAppGrantsResponse]
+	getTenantSettings                   *connect.Client[v1.GetTenantSettingsRequest, v1.GetTenantSettingsResponse]
+	updateTenantSettings                *connect.Client[v1.UpdateTenantSettingsRequest, v1.UpdateTenantSettingsResponse]
+	listTenantMembers                   *connect.Client[v1.ListTenantMembersRequest, v1.ListTenantMembersResponse]
+	createTenantMember                  *connect.Client[v1.CreateTenantMemberRequest, v1.CreateTenantMemberResponse]
+	createMemberResetLink               *connect.Client[v1.CreateMemberResetLinkRequest, v1.CreateMemberResetLinkResponse]
+	updateMemberRole                    *connect.Client[v1.UpdateMemberRoleRequest, v1.UpdateMemberRoleResponse]
+	listAuditLogs                       *connect.Client[v1.ListAuditLogsRequest, v1.ListAuditLogsResponse]
+	getSecurityOverview                 *connect.Client[v1.GetSecurityOverviewRequest, v1.GetSecurityOverviewResponse]
+	listSecurityAssets                  *connect.Client[v1.ListSecurityAssetsRequest, v1.ListSecurityAssetsResponse]
+	createSecurityAsset                 *connect.Client[v1.CreateSecurityAssetRequest, v1.CreateSecurityAssetResponse]
+	updateSecurityAsset                 *connect.Client[v1.UpdateSecurityAssetRequest, v1.UpdateSecurityAssetResponse]
+	listRiskExceptions                  *connect.Client[v1.ListRiskExceptionsRequest, v1.ListRiskExceptionsResponse]
+	createRiskException                 *connect.Client[v1.CreateRiskExceptionRequest, v1.CreateRiskExceptionResponse]
+	updateRiskException                 *connect.Client[v1.UpdateRiskExceptionRequest, v1.UpdateRiskExceptionResponse]
+	listExecutiveReports                *connect.Client[v1.ListExecutiveReportsRequest, v1.ListExecutiveReportsResponse]
+	getExecutiveReport                  *connect.Client[v1.GetExecutiveReportRequest, v1.GetExecutiveReportResponse]
+	createExecutiveReport               *connect.Client[v1.CreateExecutiveReportRequest, v1.CreateExecutiveReportResponse]
+	deleteExecutiveReport               *connect.Client[v1.DeleteExecutiveReportRequest, v1.DeleteExecutiveReportResponse]
 }
 
 // CallApi calls aperio.v1.AperioService.CallApi.
@@ -877,6 +899,17 @@ func (c *aperioServiceClient) GetGoogleMailboxScanConfig(ctx context.Context, re
 // UpdateGoogleMailboxScanConfig calls aperio.v1.AperioService.UpdateGoogleMailboxScanConfig.
 func (c *aperioServiceClient) UpdateGoogleMailboxScanConfig(ctx context.Context, req *connect.Request[v1.UpdateGoogleMailboxScanConfigRequest]) (*connect.Response[v1.UpdateGoogleMailboxScanConfigResponse], error) {
 	return c.updateGoogleMailboxScanConfig.CallUnary(ctx, req)
+}
+
+// GetGoogleWorkspaceBigQueryConfig calls aperio.v1.AperioService.GetGoogleWorkspaceBigQueryConfig.
+func (c *aperioServiceClient) GetGoogleWorkspaceBigQueryConfig(ctx context.Context, req *connect.Request[v1.GetGoogleWorkspaceBigQueryConfigRequest]) (*connect.Response[v1.GetGoogleWorkspaceBigQueryConfigResponse], error) {
+	return c.getGoogleWorkspaceBigQueryConfig.CallUnary(ctx, req)
+}
+
+// UpdateGoogleWorkspaceBigQueryConfig calls
+// aperio.v1.AperioService.UpdateGoogleWorkspaceBigQueryConfig.
+func (c *aperioServiceClient) UpdateGoogleWorkspaceBigQueryConfig(ctx context.Context, req *connect.Request[v1.UpdateGoogleWorkspaceBigQueryConfigRequest]) (*connect.Response[v1.UpdateGoogleWorkspaceBigQueryConfigResponse], error) {
+	return c.updateGoogleWorkspaceBigQueryConfig.CallUnary(ctx, req)
 }
 
 // StartGoogleWorkspaceOAuth calls aperio.v1.AperioService.StartGoogleWorkspaceOAuth.
@@ -1062,6 +1095,8 @@ type AperioServiceHandler interface {
 	DeleteCustomRule(context.Context, *connect.Request[v1.DeleteCustomRuleRequest]) (*connect.Response[v1.DeleteCustomRuleResponse], error)
 	GetGoogleMailboxScanConfig(context.Context, *connect.Request[v1.GetGoogleMailboxScanConfigRequest]) (*connect.Response[v1.GetGoogleMailboxScanConfigResponse], error)
 	UpdateGoogleMailboxScanConfig(context.Context, *connect.Request[v1.UpdateGoogleMailboxScanConfigRequest]) (*connect.Response[v1.UpdateGoogleMailboxScanConfigResponse], error)
+	GetGoogleWorkspaceBigQueryConfig(context.Context, *connect.Request[v1.GetGoogleWorkspaceBigQueryConfigRequest]) (*connect.Response[v1.GetGoogleWorkspaceBigQueryConfigResponse], error)
+	UpdateGoogleWorkspaceBigQueryConfig(context.Context, *connect.Request[v1.UpdateGoogleWorkspaceBigQueryConfigRequest]) (*connect.Response[v1.UpdateGoogleWorkspaceBigQueryConfigResponse], error)
 	StartGoogleWorkspaceOAuth(context.Context, *connect.Request[v1.StartGoogleWorkspaceOAuthRequest]) (*connect.Response[v1.StartGoogleWorkspaceOAuthResponse], error)
 	GetIntegrationOAuthClient(context.Context, *connect.Request[v1.GetIntegrationOAuthClientRequest]) (*connect.Response[v1.GetIntegrationOAuthClientResponse], error)
 	SetIntegrationOAuthClient(context.Context, *connect.Request[v1.SetIntegrationOAuthClientRequest]) (*connect.Response[v1.SetIntegrationOAuthClientResponse], error)
@@ -1285,6 +1320,18 @@ func NewAperioServiceHandler(svc AperioServiceHandler, opts ...connect.HandlerOp
 		AperioServiceUpdateGoogleMailboxScanConfigProcedure,
 		svc.UpdateGoogleMailboxScanConfig,
 		connect.WithSchema(aperioServiceMethods.ByName("UpdateGoogleMailboxScanConfig")),
+		connect.WithHandlerOptions(opts...),
+	)
+	aperioServiceGetGoogleWorkspaceBigQueryConfigHandler := connect.NewUnaryHandler(
+		AperioServiceGetGoogleWorkspaceBigQueryConfigProcedure,
+		svc.GetGoogleWorkspaceBigQueryConfig,
+		connect.WithSchema(aperioServiceMethods.ByName("GetGoogleWorkspaceBigQueryConfig")),
+		connect.WithHandlerOptions(opts...),
+	)
+	aperioServiceUpdateGoogleWorkspaceBigQueryConfigHandler := connect.NewUnaryHandler(
+		AperioServiceUpdateGoogleWorkspaceBigQueryConfigProcedure,
+		svc.UpdateGoogleWorkspaceBigQueryConfig,
+		connect.WithSchema(aperioServiceMethods.ByName("UpdateGoogleWorkspaceBigQueryConfig")),
 		connect.WithHandlerOptions(opts...),
 	)
 	aperioServiceStartGoogleWorkspaceOAuthHandler := connect.NewUnaryHandler(
@@ -1531,6 +1578,10 @@ func NewAperioServiceHandler(svc AperioServiceHandler, opts ...connect.HandlerOp
 			aperioServiceGetGoogleMailboxScanConfigHandler.ServeHTTP(w, r)
 		case AperioServiceUpdateGoogleMailboxScanConfigProcedure:
 			aperioServiceUpdateGoogleMailboxScanConfigHandler.ServeHTTP(w, r)
+		case AperioServiceGetGoogleWorkspaceBigQueryConfigProcedure:
+			aperioServiceGetGoogleWorkspaceBigQueryConfigHandler.ServeHTTP(w, r)
+		case AperioServiceUpdateGoogleWorkspaceBigQueryConfigProcedure:
+			aperioServiceUpdateGoogleWorkspaceBigQueryConfigHandler.ServeHTTP(w, r)
 		case AperioServiceStartGoogleWorkspaceOAuthProcedure:
 			aperioServiceStartGoogleWorkspaceOAuthHandler.ServeHTTP(w, r)
 		case AperioServiceGetIntegrationOAuthClientProcedure:
@@ -1722,6 +1773,14 @@ func (UnimplementedAperioServiceHandler) GetGoogleMailboxScanConfig(context.Cont
 
 func (UnimplementedAperioServiceHandler) UpdateGoogleMailboxScanConfig(context.Context, *connect.Request[v1.UpdateGoogleMailboxScanConfigRequest]) (*connect.Response[v1.UpdateGoogleMailboxScanConfigResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("aperio.v1.AperioService.UpdateGoogleMailboxScanConfig is not implemented"))
+}
+
+func (UnimplementedAperioServiceHandler) GetGoogleWorkspaceBigQueryConfig(context.Context, *connect.Request[v1.GetGoogleWorkspaceBigQueryConfigRequest]) (*connect.Response[v1.GetGoogleWorkspaceBigQueryConfigResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("aperio.v1.AperioService.GetGoogleWorkspaceBigQueryConfig is not implemented"))
+}
+
+func (UnimplementedAperioServiceHandler) UpdateGoogleWorkspaceBigQueryConfig(context.Context, *connect.Request[v1.UpdateGoogleWorkspaceBigQueryConfigRequest]) (*connect.Response[v1.UpdateGoogleWorkspaceBigQueryConfigResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("aperio.v1.AperioService.UpdateGoogleWorkspaceBigQueryConfig is not implemented"))
 }
 
 func (UnimplementedAperioServiceHandler) StartGoogleWorkspaceOAuth(context.Context, *connect.Request[v1.StartGoogleWorkspaceOAuthRequest]) (*connect.Response[v1.StartGoogleWorkspaceOAuthResponse], error) {
