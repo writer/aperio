@@ -776,6 +776,49 @@ func (a *App) UpdateGoogleMailboxScanConfig(
 	return connect.NewResponse(&aperiov1.UpdateGoogleMailboxScanConfigResponse{Data: googleMailboxScanConfigFromMap(data)}), nil
 }
 
+func (a *App) GetGoogleWorkspaceBigQueryConfig(
+	ctx context.Context,
+	req *connect.Request[aperiov1.GetGoogleWorkspaceBigQueryConfigRequest],
+) (*connect.Response[aperiov1.GetGoogleWorkspaceBigQueryConfigResponse], error) {
+	auth, err := a.compatAuthFromSession(ctx, req.Header())
+	if err != nil {
+		return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("unauthorized"))
+	}
+	config, err := a.googleWorkspaceBigQueryConfigProto(ctx, strings.TrimSpace(req.Msg.IntegrationId), auth)
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(&aperiov1.GetGoogleWorkspaceBigQueryConfigResponse{Data: config}), nil
+}
+
+func (a *App) UpdateGoogleWorkspaceBigQueryConfig(
+	ctx context.Context,
+	req *connect.Request[aperiov1.UpdateGoogleWorkspaceBigQueryConfigRequest],
+) (*connect.Response[aperiov1.UpdateGoogleWorkspaceBigQueryConfigResponse], error) {
+	auth, err := a.compatAuthFromSession(ctx, req.Header())
+	if err != nil {
+		return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("unauthorized"))
+	}
+	if err := requireCompatRole(auth, "OWNER", "ADMIN"); err != nil {
+		return nil, err
+	}
+	result, err := a.compatUpdateGoogleWorkspaceBigQueryConfig(ctx, strings.TrimSpace(req.Msg.IntegrationId), map[string]any{
+		"enabled":                  req.Msg.Enabled,
+		"projectId":                req.Msg.ProjectId,
+		"rawDatasetId":             req.Msg.RawDatasetId,
+		"datasetId":                req.Msg.DatasetId,
+		"location":                 req.Msg.Location,
+		"serviceAccountEmail":      req.Msg.ServiceAccountEmail,
+		"workloadIdentityProvider": req.Msg.WorkloadIdentityProvider,
+		"accessMode":               req.Msg.AccessMode,
+	}, auth)
+	if err != nil {
+		return nil, err
+	}
+	data := asMap(asMap(result)["data"])
+	return connect.NewResponse(&aperiov1.UpdateGoogleWorkspaceBigQueryConfigResponse{Data: googleWorkspaceBigQueryConfigFromMap(data)}), nil
+}
+
 func (a *App) StartGoogleWorkspaceOAuth(
 	ctx context.Context,
 	req *connect.Request[aperiov1.StartGoogleWorkspaceOAuthRequest],
@@ -952,6 +995,28 @@ func googleMailboxScanConfigFromMap(data map[string]any) *aperiov1.GoogleMailbox
 	return &aperiov1.GoogleMailboxScanConfig{
 		Enabled:                   boolFromAny(data["enabled"]),
 		ServiceAccountClientEmail: optionalStringFromAny(data["serviceAccountClientEmail"]),
+	}
+}
+
+func (a *App) googleWorkspaceBigQueryConfigProto(ctx context.Context, id string, auth compatAuth) (*aperiov1.GoogleWorkspaceBigQueryConfig, error) {
+	result, err := a.compatGoogleWorkspaceBigQueryConfig(ctx, id, auth)
+	if err != nil {
+		return nil, err
+	}
+	return googleWorkspaceBigQueryConfigFromMap(asMap(asMap(result)["data"])), nil
+}
+
+func googleWorkspaceBigQueryConfigFromMap(data map[string]any) *aperiov1.GoogleWorkspaceBigQueryConfig {
+	return &aperiov1.GoogleWorkspaceBigQueryConfig{
+		Enabled:                  boolFromAny(data["enabled"]),
+		ProjectId:                optionalStringFromAny(data["projectId"]),
+		RawDatasetId:             optionalStringFromAny(data["rawDatasetId"]),
+		DatasetId:                optionalStringFromAny(data["datasetId"]),
+		Location:                 optionalStringFromAny(data["location"]),
+		ServiceAccountEmail:      optionalStringFromAny(data["serviceAccountEmail"]),
+		WorkloadIdentityProvider: optionalStringFromAny(data["workloadIdentityProvider"]),
+		AccessMode:               optionalStringFromAny(data["accessMode"]),
+		UpdatedAt:                optionalStringFromAny(data["updatedAt"]),
 	}
 }
 

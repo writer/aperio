@@ -141,6 +141,18 @@ export type GoogleMailboxScanConfig = {
   serviceAccountClientEmail: string | null;
 };
 
+export type GoogleWorkspaceBigQueryConfig = {
+  enabled: boolean;
+  projectId: string;
+  rawDatasetId: string;
+  datasetId: string;
+  location: string;
+  serviceAccountEmail: string;
+  workloadIdentityProvider: string;
+  accessMode: "views" | "dataset" | "";
+  updatedAt: string | null;
+};
+
 export type IntegrationCheckState = {
   integrationId: string;
   disabledChecks: string[];
@@ -411,6 +423,31 @@ export async function updateGoogleMailboxScanConfig(
     integrationId,
     payload
   ) as Promise<{ data: GoogleMailboxScanConfig }>;
+}
+
+export async function fetchGoogleWorkspaceBigQueryConfig(integrationId: string) {
+  return aperioConnectClient.getGoogleWorkspaceBigQueryConfig(
+    integrationId
+  ) as Promise<{ data: GoogleWorkspaceBigQueryConfig }>;
+}
+
+export async function updateGoogleWorkspaceBigQueryConfig(
+  integrationId: string,
+  payload: {
+    enabled: boolean;
+    projectId?: string;
+    rawDatasetId?: string;
+    datasetId?: string;
+    location?: string;
+    serviceAccountEmail?: string;
+    workloadIdentityProvider?: string;
+    accessMode?: "views" | "dataset";
+  }
+) {
+  return aperioConnectClient.updateGoogleWorkspaceBigQueryConfig(
+    integrationId,
+    payload
+  ) as Promise<{ data: GoogleWorkspaceBigQueryConfig }>;
 }
 
 export async function startGoogleWorkspaceOAuth(mode: IntegrationMode) {

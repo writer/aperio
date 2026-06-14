@@ -177,7 +177,9 @@
       "rationale": "These commands are limited to frontend development or local setup and do not execute backend, worker, or MCP TypeScript runtimes.",
       "evidence": [
         "source:apps/web",
-        "source:scripts/dev.mjs"
+        "source:scripts/dev.mjs",
+        "source:packages/shared/src/google-workspace-bigquery-wif.ts",
+        "test:tests/google-workspace-bigquery-wif-setup.test.ts"
       ]
     },
     {
