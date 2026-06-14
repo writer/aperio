@@ -6,6 +6,7 @@ toolchain go1.26.4
 
 require (
 	connectrpc.com/connect v1.20.0
+	github.com/go-pdf/fpdf v0.9.0
 	github.com/jackc/pgx/v5 v5.10.0
 	github.com/nats-io/nats.go v1.52.0
 	golang.org/x/crypto v0.53.0
@@ -13,7 +14,6 @@ require (
 )
 
 require (
-	github.com/go-pdf/fpdf v0.9.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect

@@ -2131,12 +2131,23 @@ func (a *App) compatCreateMemberReset(ctx context.Context, userID string, auth c
 	if err := requireCompatRole(auth, "OWNER", "ADMIN"); err != nil {
 		return nil, err
 	}
-	var exists bool
-	if err := a.db.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM users WHERE id = $1 AND organization_id = $2)`, userID, auth.OrganizationID).Scan(&exists); err != nil {
+	if userID == auth.UserID {
+		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("use account recovery to reset your own password"))
+	}
+	var targetEmail, targetRole string
+	if err := a.db.QueryRowContext(ctx, `
+		SELECT u.email, r.name::text
+		FROM users u
+		JOIN roles r ON r.id = u.role_id
+		WHERE u.id = $1 AND u.organization_id = $2
+	`, userID, auth.OrganizationID).Scan(&targetEmail, &targetRole); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, connect.NewError(connect.CodeNotFound, errors.New("member not found"))
+		}
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
-	if !exists {
-		return nil, connect.NewError(connect.CodeNotFound, errors.New("member not found"))
+	if auth.Role != "OWNER" && (targetRole == "OWNER" || targetRole == "ADMIN") {
+		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("only owners can reset privileged member accounts"))
 	}
 	token, tokenHash := compatToken()
 	expires := time.Now().Add(2 * time.Hour)
@@ -2145,8 +2156,6 @@ func (a *App) compatCreateMemberReset(ctx context.Context, userID string, auth c
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
-	var targetEmail string
-	_ = a.db.QueryRowContext(ctx, `SELECT email FROM users WHERE id = $1 AND organization_id = $2`, userID, auth.OrganizationID).Scan(&targetEmail)
 	a.writeCompatAudit(ctx, auth, "member.reset_link.create", "user", userID, map[string]any{
 		"targetUserEmail": targetEmail,
 		"expiresAt":       expires.UTC().Format(time.RFC3339Nano),

@@ -30,7 +30,7 @@ const (
 
 	// data.* — surfaces or paths through which tenant data can leave
 	// the boundary.
-	TagDataExternalShare = "data.external_share"
+	TagDataExternalShare  = "data.external_share"
 	TagDataPublicExposure = "data.public_exposure"
 	TagDataAccess         = "data.access"
 

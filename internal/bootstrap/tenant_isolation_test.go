@@ -299,7 +299,7 @@ func TestTenantIsolationMemberResetLinkRejectsForeignUser(t *testing.T) {
 	ctx := context.Background()
 
 	createdMember := mustCall(t, func() (any, error) {
-		return app.compatCreateMember(ctx, map[string]any{"email": "reset-victim@example.com", "roleName": "ADMIN"}, victim)
+		return app.compatCreateMember(ctx, map[string]any{"email": "reset-victim@example.com", "roleName": "VIEWER"}, victim)
 	})
 	victimUserID := createdMember.(map[string]any)["data"].(map[string]any)["id"].(string)
 
@@ -323,6 +323,39 @@ func TestTenantIsolationMemberResetLinkRejectsForeignUser(t *testing.T) {
 	}
 	if leaked != 1 {
 		t.Fatalf("same-tenant reset expected 1 token, got %d", leaked)
+	}
+}
+
+func TestCompatCreateMemberResetRequiresOwnerForPrivilegedTargets(t *testing.T) {
+	app, base := newTestDBApp(t)
+	ctx := context.Background()
+	admin := seedOrgUserWithPassword(t, app, base.OrganizationID, "ADMIN", "reset-admin-"+randomBase36(10)+"@example.com", "admin-password-123")
+	owner := seedOrgUserWithPassword(t, app, base.OrganizationID, "OWNER", "reset-owner-"+randomBase36(10)+"@example.com", "owner-password-123")
+	peerAdmin := seedOrgUserWithPassword(t, app, base.OrganizationID, "ADMIN", "reset-peer-"+randomBase36(10)+"@example.com", "peer-password-123")
+	viewer := seedOrgUserWithPassword(t, app, base.OrganizationID, "VIEWER", "reset-viewer-"+randomBase36(10)+"@example.com", "viewer-password-123")
+
+	if _, err := app.compatCreateMemberReset(ctx, owner.UserID, admin); connect.CodeOf(err) != connect.CodePermissionDenied {
+		t.Fatalf("admin reset of owner code = %v, want PermissionDenied", connect.CodeOf(err))
+	}
+	if _, err := app.compatCreateMemberReset(ctx, peerAdmin.UserID, admin); connect.CodeOf(err) != connect.CodePermissionDenied {
+		t.Fatalf("admin reset of peer admin code = %v, want PermissionDenied", connect.CodeOf(err))
+	}
+	if _, err := app.compatCreateMemberReset(ctx, admin.UserID, admin); connect.CodeOf(err) != connect.CodePermissionDenied {
+		t.Fatalf("admin self reset code = %v, want PermissionDenied", connect.CodeOf(err))
+	}
+	if _, err := app.compatCreateMemberReset(ctx, viewer.UserID, admin); err != nil {
+		t.Fatalf("admin reset of viewer failed: %v", err)
+	}
+	if _, err := app.compatCreateMemberReset(ctx, peerAdmin.UserID, owner); err != nil {
+		t.Fatalf("owner reset of admin failed: %v", err)
+	}
+
+	var privilegedTokens int
+	if err := app.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM auth_tokens WHERE user_id IN ($1, $2) AND created_by_user_id = $3 AND purpose = 'PASSWORD_RESET'`, owner.UserID, peerAdmin.UserID, admin.UserID).Scan(&privilegedTokens); err != nil {
+		t.Fatalf("count privileged reset tokens: %v", err)
+	}
+	if privilegedTokens != 0 {
+		t.Fatalf("admin reset minted %d privileged password-reset token(s)", privilegedTokens)
 	}
 }
 

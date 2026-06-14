@@ -19,8 +19,8 @@ import (
 // compliance store lands, the server can substitute its own data source
 // without changing the rendering or the URL.
 type complianceReportPayload struct {
-	GeneratedAt  string                    `json:"generatedAt"`
-	Organization string                    `json:"organization"`
+	GeneratedAt  string                      `json:"generatedAt"`
+	Organization string                      `json:"organization"`
 	Frameworks   []complianceReportFramework `json:"frameworks"`
 }
 

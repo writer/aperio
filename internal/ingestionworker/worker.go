@@ -1358,13 +1358,6 @@ func nestedNumber(value map[string]any, path ...string) (float64, bool) {
 	}
 }
 
-func minInt(a int, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 func DedupeKey(payload JobPayload, finding Finding) string {
 	dedupeTarget := finding.Target
 	if strings.TrimSpace(finding.DedupeTarget) != "" {
