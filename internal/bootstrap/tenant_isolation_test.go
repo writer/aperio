@@ -403,6 +403,52 @@ func TestCompatUpdateMemberRolePreventsAdminPrivilegeEscalation(t *testing.T) {
 	}
 }
 
+func TestCompatCreateMemberPreventsAdminOwnerInviteEscalation(t *testing.T) {
+	app, base := newTestDBApp(t)
+	ctx := context.Background()
+	admin := seedOrgUserWithPassword(t, app, base.OrganizationID, "ADMIN", "invite-admin-"+randomBase36(10)+"@example.com", "admin-password-123")
+	owner := seedOrgUserWithPassword(t, app, base.OrganizationID, "OWNER", "invite-owner-"+randomBase36(10)+"@example.com", "owner-password-123")
+	newOwnerEmail := "invite-new-owner-" + randomBase36(10) + "@example.com"
+	newAdminEmail := "invite-new-admin-" + randomBase36(10) + "@example.com"
+
+	if _, err := app.compatCreateMember(ctx, map[string]any{"email": admin.Email, "roleName": "OWNER"}, admin); connect.CodeOf(err) != connect.CodePermissionDenied {
+		t.Fatalf("admin self re-invite as OWNER code = %v, want PermissionDenied", connect.CodeOf(err))
+	}
+	if _, err := app.compatCreateMember(ctx, map[string]any{"email": owner.Email, "roleName": "VIEWER"}, admin); connect.CodeOf(err) != connect.CodePermissionDenied {
+		t.Fatalf("admin re-invite of owner code = %v, want PermissionDenied", connect.CodeOf(err))
+	}
+	if _, err := app.compatCreateMember(ctx, map[string]any{"email": newOwnerEmail, "roleName": "OWNER"}, admin); connect.CodeOf(err) != connect.CodePermissionDenied {
+		t.Fatalf("admin invite of new owner code = %v, want PermissionDenied", connect.CodeOf(err))
+	}
+	if _, err := app.compatCreateMember(ctx, map[string]any{"email": newAdminEmail, "roleName": "ADMIN"}, admin); err != nil {
+		t.Fatalf("admin invite of new admin failed: %v", err)
+	}
+
+	for userID, wantRole := range map[string]string{
+		admin.UserID: "ADMIN",
+		owner.UserID: "OWNER",
+	} {
+		role := scanString(t, app, `SELECT r.name::text FROM users u JOIN roles r ON r.id = u.role_id WHERE u.id = $1`, userID)
+		if role != wantRole {
+			t.Fatalf("role for %s = %q, want %q", userID, role, wantRole)
+		}
+	}
+	var ownerInvites int
+	if err := app.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM users WHERE organization_id = $1 AND email = $2`, base.OrganizationID, newOwnerEmail).Scan(&ownerInvites); err != nil {
+		t.Fatalf("count denied owner invite: %v", err)
+	}
+	if ownerInvites != 0 {
+		t.Fatalf("admin owner invite created %d user(s)", ownerInvites)
+	}
+	var newAdminRole string
+	if err := app.db.QueryRowContext(ctx, `SELECT r.name::text FROM users u JOIN roles r ON r.id = u.role_id WHERE u.organization_id = $1 AND u.email = $2`, base.OrganizationID, newAdminEmail).Scan(&newAdminRole); err != nil {
+		t.Fatalf("fetch new admin role: %v", err)
+	}
+	if newAdminRole != "ADMIN" {
+		t.Fatalf("new admin invite role = %q, want ADMIN", newAdminRole)
+	}
+}
+
 func TestPublicForgotPasswordDoesNotExposeResetToken(t *testing.T) {
 	app, base := newTestDBApp(t)
 	ctx := context.Background()

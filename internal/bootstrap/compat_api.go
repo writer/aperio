@@ -2260,7 +2260,29 @@ func (a *App) compatCreateMember(ctx context.Context, body map[string]any, auth 
 		return nil, err
 	}
 	email, roleName := strings.ToLower(requiredString(body, "email")), stringDefault(body, "roleName", "VIEWER")
-	roleID, _ := a.ensureCompatRole(ctx, auth.OrganizationID, roleName)
+	normalizedRoleName := strings.ToUpper(strings.TrimSpace(roleName))
+	var existingUserID, existingRole string
+	existingErr := a.db.QueryRowContext(ctx, `
+		SELECT u.id, COALESCE(r.name::text, '')
+		FROM users u
+		LEFT JOIN roles r ON r.id = u.role_id
+		WHERE u.organization_id = $1 AND u.email = $2
+	`, auth.OrganizationID, email).Scan(&existingUserID, &existingRole)
+	if existingErr != nil && !errors.Is(existingErr, sql.ErrNoRows) {
+		return nil, connect.NewError(connect.CodeInternal, existingErr)
+	}
+	if existingErr == nil {
+		existingRole = strings.ToUpper(strings.TrimSpace(existingRole))
+		if existingUserID == auth.UserID {
+			return nil, connect.NewError(connect.CodePermissionDenied, errors.New("cannot modify your own role"))
+		}
+		if auth.Role != "OWNER" && (normalizedRoleName == "OWNER" || existingRole == "OWNER" || existingRole == "ADMIN") {
+			return nil, connect.NewError(connect.CodePermissionDenied, errors.New("only owners can change privileged member roles"))
+		}
+	} else if auth.Role != "OWNER" && normalizedRoleName == "OWNER" {
+		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("only owners can assign owner role"))
+	}
+	roleID, _ := a.ensureCompatRole(ctx, auth.OrganizationID, normalizedRoleName)
 	insertedUserID := compatID("usr")
 	var userID string
 	err := a.db.QueryRowContext(
@@ -2281,7 +2303,7 @@ func (a *App) compatCreateMember(ctx context.Context, body map[string]any, auth 
 
 	a.writeCompatAudit(ctx, auth, "member.invite", "user", userID, map[string]any{
 		"email": email,
-		"role":  strings.ToUpper(strings.TrimSpace(roleName)),
+		"role":  normalizedRoleName,
 	})
 
 	members, _ := a.compatMembers(ctx, auth)
