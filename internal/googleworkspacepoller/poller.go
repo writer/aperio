@@ -455,6 +455,10 @@ func (p *Poller) recordError(ctx context.Context, integrationID, application str
 // If all three are empty the classifier stays conservative and refuses to
 // fire on target-email or target-domain signals.
 func (p *Poller) enqueueEvent(ctx context.Context, integ integrationRow, application string, activity reportsActivity, event reportsEvent) error {
+	return enqueueGoogleWorkspaceEvent(ctx, p.db, integ, application, activity, event)
+}
+
+func enqueueGoogleWorkspaceEvent(ctx context.Context, db *sql.DB, integ integrationRow, application string, activity reportsActivity, event reportsEvent) error {
 	ownerDomain := resolveOwnerDomain(integ, activity, event.Parameters)
 	mapped := MapEventType(application, event.Name, event.Parameters, ownerDomain)
 	if mapped == "" {
@@ -472,14 +476,14 @@ func (p *Poller) enqueueEvent(ctx context.Context, integ integrationRow, applica
 	}
 	source := "google.reports." + application
 	legacyID := googleWorkspaceLegacyJobID(activity, event)
-	err = p.insertIngestionJob(ctx, legacyID, integ, mapped, source, activity, payloadJSON)
+	err = insertGoogleWorkspaceIngestionJob(ctx, db, legacyID, integ, mapped, source, activity, payloadJSON)
 	if err == nil {
 		return nil
 	}
 	if !isUniqueViolation(err) {
 		return err
 	}
-	matchesExisting, lookupErr := p.legacyJobMatches(ctx, legacyID, integ, mapped, source, activity)
+	matchesExisting, lookupErr := googleWorkspaceLegacyJobMatches(ctx, db, legacyID, integ, mapped, source, activity)
 	if lookupErr != nil {
 		return lookupErr
 	}
@@ -488,15 +492,15 @@ func (p *Poller) enqueueEvent(ctx context.Context, integ integrationRow, applica
 		// keeps the worker queue idempotent and preserves pre-scoped job IDs.
 		return nil
 	}
-	err = p.insertIngestionJob(ctx, googleWorkspaceScopedJobID(integ, application, activity, event), integ, mapped, source, activity, payloadJSON)
+	err = insertGoogleWorkspaceIngestionJob(ctx, db, googleWorkspaceScopedJobID(integ, application, activity, event), integ, mapped, source, activity, payloadJSON)
 	if err != nil && isUniqueViolation(err) {
 		return nil
 	}
 	return err
 }
 
-func (p *Poller) insertIngestionJob(ctx context.Context, id string, integ integrationRow, mapped, source string, activity reportsActivity, payloadJSON []byte) error {
-	_, err := p.db.ExecContext(ctx, `
+func insertGoogleWorkspaceIngestionJob(ctx context.Context, db *sql.DB, id string, integ integrationRow, mapped, source string, activity reportsActivity, payloadJSON []byte) error {
+	_, err := db.ExecContext(ctx, `
 		INSERT INTO ingestion_jobs (
 			id, organization_id, integration_id, provider, event_type, source, actor,
 			occurred_at, payload, status, attempts, max_attempts, next_attempt_at, created_at, updated_at
@@ -515,9 +519,9 @@ func (p *Poller) insertIngestionJob(ctx context.Context, id string, integ integr
 	return err
 }
 
-func (p *Poller) legacyJobMatches(ctx context.Context, id string, integ integrationRow, mapped, source string, activity reportsActivity) (bool, error) {
+func googleWorkspaceLegacyJobMatches(ctx context.Context, db *sql.DB, id string, integ integrationRow, mapped, source string, activity reportsActivity) (bool, error) {
 	var existingOrg, existingIntegration, existingEventType, existingSource, existingSourceEventID string
-	err := p.db.QueryRowContext(ctx, `
+	err := db.QueryRowContext(ctx, `
 		SELECT organization_id, integration_id, event_type, source, payload->>'sourceEventId'
 		FROM ingestion_jobs
 		WHERE id = $1

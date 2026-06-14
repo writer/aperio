@@ -153,6 +153,19 @@ export type GoogleWorkspaceBigQueryConfig = {
   updatedAt: string | null;
 };
 
+export type GoogleWorkspaceBigQueryValidation = {
+  integrationId: string;
+  ok: boolean;
+  message: string;
+  projectId: string;
+  datasetId: string;
+  activityTable: string;
+  tableFound: boolean;
+  sampleRows: number;
+  estimatedBytes: bigint;
+  runtimeTokenPresent: boolean;
+};
+
 export type IntegrationCheckState = {
   integrationId: string;
   disabledChecks: string[];
@@ -448,6 +461,12 @@ export async function updateGoogleWorkspaceBigQueryConfig(
     integrationId,
     payload
   ) as Promise<{ data: GoogleWorkspaceBigQueryConfig }>;
+}
+
+export async function validateGoogleWorkspaceBigQueryConfig(integrationId: string) {
+  return aperioConnectClient.validateGoogleWorkspaceBigQueryConfig(
+    integrationId
+  ) as Promise<{ data: GoogleWorkspaceBigQueryValidation }>;
 }
 
 export async function startGoogleWorkspaceOAuth(mode: IntegrationMode) {

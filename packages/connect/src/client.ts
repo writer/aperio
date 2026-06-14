@@ -8,6 +8,7 @@ import {
   type Finding as ProtoFinding,
   type GoogleMailboxScanConfig as ProtoGoogleMailboxScanConfig,
   type GoogleWorkspaceBigQueryConfig as ProtoGoogleWorkspaceBigQueryConfig,
+  type GoogleWorkspaceBigQueryValidation as ProtoGoogleWorkspaceBigQueryValidation,
   type IntegrationCheckState as ProtoIntegrationCheckState,
   type IntegrationConnection as ProtoIntegrationConnection,
   type InvitationResult as ProtoInvitationResult,
@@ -202,6 +203,19 @@ export type ConnectGoogleWorkspaceBigQueryConfig = {
   workloadIdentityProvider: string;
   accessMode: "views" | "dataset" | "";
   updatedAt: string | null;
+};
+
+export type ConnectGoogleWorkspaceBigQueryValidation = {
+  integrationId: string;
+  ok: boolean;
+  message: string;
+  projectId: string;
+  datasetId: string;
+  activityTable: string;
+  tableFound: boolean;
+  sampleRows: number;
+  estimatedBytes: bigint;
+  runtimeTokenPresent: boolean;
 };
 
 export type ConnectIntegrationCheckState = {
@@ -859,6 +873,23 @@ function googleWorkspaceBigQueryConfigFromProto(
     workloadIdentityProvider: config.workloadIdentityProvider,
     accessMode,
     updatedAt: config.updatedAt || null
+  };
+}
+
+function googleWorkspaceBigQueryValidationFromProto(
+  validation: ProtoGoogleWorkspaceBigQueryValidation
+): ConnectGoogleWorkspaceBigQueryValidation {
+  return {
+    integrationId: validation.integrationId,
+    ok: validation.ok,
+    message: validation.message,
+    projectId: validation.projectId,
+    datasetId: validation.datasetId,
+    activityTable: validation.activityTable,
+    tableFound: validation.tableFound,
+    sampleRows: validation.sampleRows,
+    estimatedBytes: validation.estimatedBytes,
+    runtimeTokenPresent: validation.runtimeTokenPresent
   };
 }
 
@@ -1645,6 +1676,17 @@ export const aperioConnectClient = {
       throw new Error("Google Workspace BigQuery config update failed");
     }
     return { data: googleWorkspaceBigQueryConfigFromProto(response.data) };
+  },
+  async validateGoogleWorkspaceBigQueryConfig(
+    integrationId: string
+  ): Promise<{ data: ConnectGoogleWorkspaceBigQueryValidation }> {
+    const response = await client.validateGoogleWorkspaceBigQueryConfig({
+      integrationId
+    });
+    if (!response.data) {
+      throw new Error("Google Workspace BigQuery validation unavailable");
+    }
+    return { data: googleWorkspaceBigQueryValidationFromProto(response.data) };
   },
   async startGoogleWorkspaceOAuth(
     mode: "READ_ONLY" | "REMEDIATION"

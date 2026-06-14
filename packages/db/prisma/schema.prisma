@@ -355,6 +355,7 @@ model IntegrationConnection {
   oauthAppGrants         OauthAppGrant[]
   ingestionJobs          IngestionJob[]
   googleWorkspaceSyncCursors GoogleWorkspaceSyncCursor[]
+  googleWorkspaceBigQuerySyncCursors GoogleWorkspaceBigQuerySyncCursor[]
   googleWorkspaceDirectorySyncCursor GoogleWorkspaceDirectorySyncCursor?
   googleWorkspaceOauthSyncCursor GoogleWorkspaceOauthSyncCursor?
   customFindingRules         CustomFindingRule[]
@@ -383,6 +384,20 @@ model GoogleWorkspaceSyncCursor {
 
   @@id([integrationId, application])
   @@map("google_workspace_sync_cursors")
+}
+
+model GoogleWorkspaceBigQuerySyncCursor {
+  integrationId  String                @map("integration_id")
+  recordType     String                @map("record_type") @db.VarChar(64)
+  lastEventTime  DateTime              @map("last_event_time")
+  lastRowHash    String                @default("") @map("last_row_hash") @db.VarChar(64)
+  lastPolledAt   DateTime              @default(now()) @map("last_polled_at")
+  lastRowCount   Int                   @default(0) @map("last_row_count")
+  lastError      String?               @map("last_error") @db.VarChar(500)
+  integration    IntegrationConnection @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+
+  @@id([integrationId, recordType])
+  @@map("google_workspace_bigquery_sync_cursors")
 }
 
 // Per-integration cursor for the Google Workspace Directory API sync. The

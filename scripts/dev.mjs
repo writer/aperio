@@ -27,6 +27,7 @@ const children = [
   startWorker("ingestion", "./cmd/ingestion-worker"),
   startWorker("siem", "./cmd/siem-dispatcher"),
   startWorker("google", "./cmd/google-workspace-poller"),
+  startWorker("google-bigquery", "./cmd/google-workspace-bigquery-sync"),
   startWorker("google-directory", "./cmd/google-workspace-directory-sync"),
   startWorker("google-oauth", "./cmd/google-workspace-oauth-sync")
 ];

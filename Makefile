@@ -131,6 +131,14 @@ worker-google: require-env ## Run the Go Google Workspace audit-log poller
 .PHONY: worker-google-go
 worker-google-go: worker-google ## Alias for the Go Google Workspace poller
 
+.PHONY: worker-google-bigquery
+worker-google-bigquery: require-env ## Run the Go Google Workspace BigQuery sync
+	@$(MAKE) --no-print-directory db-up
+	@$(LOAD_ENV) DATABASE_URL="$$(node $(DEV_CONFIG) go-database-url)" go run ./cmd/google-workspace-bigquery-sync $(GO_WORKER_ARGS)
+
+.PHONY: worker-google-bigquery-go
+worker-google-bigquery-go: worker-google-bigquery ## Alias for the Go Google Workspace BigQuery sync
+
 .PHONY: worker-google-directory
 worker-google-directory: require-env ## Run the Go Google Workspace directory sync
 	@$(MAKE) --no-print-directory db-up

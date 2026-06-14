@@ -28,6 +28,7 @@ import {
   saveIntegrationOAuthClient,
   startGoogleWorkspaceOAuth,
   updateGoogleWorkspaceBigQueryConfig,
+  validateGoogleWorkspaceBigQueryConfig,
   type ConnectIntegrationPayload,
   type ConnectorDefinition,
   type IntegrationConnection,
@@ -53,7 +54,8 @@ import { formatRelative, providerLabel } from "../../lib/format";
 import {
   buildGoogleWorkspaceBigQueryWifSetupScript,
   googleWorkspaceBigQueryWifDefaults,
-  type GoogleWorkspaceBigQueryWifAccessMode
+  type GoogleWorkspaceBigQueryWifAccessMode,
+  type GoogleWorkspaceBigQueryWifOutputMode
 } from "@aperio/shared/google-workspace-bigquery-wif";
 
 type StatusFilter = "ALL" | IntegrationConnection["status"];
@@ -534,6 +536,7 @@ function GoogleWorkspaceBigQuerySetupDialog({
   const issuerId = useId();
   const audienceId = useId();
   const subjectId = useId();
+  const attributeConditionId = useId();
   const serviceAccountNameId = useId();
   const connectorDatasetId = useId();
   const serviceAccountEmailId = useId();
@@ -552,11 +555,17 @@ function GoogleWorkspaceBigQuerySetupDialog({
     useState<GoogleWorkspaceBigQueryWifAccessMode>(
       googleWorkspaceBigQueryWifDefaults.accessMode
     );
+  const [outputMode, setOutputMode] =
+    useState<GoogleWorkspaceBigQueryWifOutputMode>(
+      googleWorkspaceBigQueryWifDefaults.outputMode
+    );
   const [oidcIssuerUri, setOidcIssuerUri] = useState("");
   const [oidcAudience, setOidcAudience] = useState<string>(
     googleWorkspaceBigQueryWifDefaults.oidcAudience
   );
   const [principalSubject, setPrincipalSubject] = useState("");
+  const [providerAttributeCondition, setProviderAttributeCondition] =
+    useState("");
   const [serviceAccountName, setServiceAccountName] =
     useState<string>(googleWorkspaceBigQueryWifDefaults.serviceAccountName);
   const [workloadIdentityProvider, setWorkloadIdentityProvider] = useState("");
@@ -564,6 +573,9 @@ function GoogleWorkspaceBigQuerySetupDialog({
   const [configSaving, setConfigSaving] = useState(false);
   const [configMessage, setConfigMessage] = useState("");
   const [configError, setConfigError] = useState("");
+  const [validationMessage, setValidationMessage] = useState("");
+  const [validationError, setValidationError] = useState("");
+  const [validating, setValidating] = useState(false);
   const [copied, setCopied] = useState(false);
   const integrationId = integration?.id ?? "";
 
@@ -578,13 +590,17 @@ function GoogleWorkspaceBigQuerySetupDialog({
     setReadDataset(googleWorkspaceBigQueryWifDefaults.readDatasetId);
     setLocation(googleWorkspaceBigQueryWifDefaults.location);
     setAccessMode(googleWorkspaceBigQueryWifDefaults.accessMode);
+    setOutputMode(googleWorkspaceBigQueryWifDefaults.outputMode);
     setOidcIssuerUri("");
     setOidcAudience(googleWorkspaceBigQueryWifDefaults.oidcAudience);
     setPrincipalSubject("");
+    setProviderAttributeCondition("");
     setServiceAccountName(googleWorkspaceBigQueryWifDefaults.serviceAccountName);
     setWorkloadIdentityProvider("");
     setConfigMessage("");
     setConfigError("");
+    setValidationMessage("");
+    setValidationError("");
     setCopied(false);
     if (!integrationId) return;
     let cancelled = false;
@@ -648,7 +664,10 @@ function GoogleWorkspaceBigQuerySetupDialog({
           oidcAudience: oidcAudience.trim() || "aperio",
           principalSubject:
             principalSubject.trim() || "<trusted-aperio-workload-subject>",
-          accessMode
+          accessMode,
+          outputMode,
+          providerAttributeCondition:
+            providerAttributeCondition.trim() || undefined
         }),
         error: ""
       };
@@ -663,8 +682,10 @@ function GoogleWorkspaceBigQuerySetupDialog({
     location,
     oidcAudience,
     oidcIssuerUri,
+    outputMode,
     principalSubject,
     projectId,
+    providerAttributeCondition,
     rawDatasetValue,
     readDatasetValue,
     serviceAccountName
@@ -682,6 +703,8 @@ function GoogleWorkspaceBigQuerySetupDialog({
     if (!integrationId || configSaving) return;
     setConfigMessage("");
     setConfigError("");
+    setValidationMessage("");
+    setValidationError("");
     if (setupScriptError) {
       setConfigError(setupScriptError);
       return;
@@ -711,6 +734,31 @@ function GoogleWorkspaceBigQuerySetupDialog({
       );
     } finally {
       setConfigSaving(false);
+    }
+  }
+
+  async function validateBigQueryConfig() {
+    if (!integrationId || validating) return;
+    setValidationMessage("");
+    setValidationError("");
+    setConfigError("");
+    setValidating(true);
+    try {
+      const { data } = await validateGoogleWorkspaceBigQueryConfig(integrationId);
+      const details = data.tableFound
+        ? `Found ${data.activityTable} (${data.sampleRows} sample rows, ${data.estimatedBytes.toString()} estimated bytes).`
+        : "Activity table was not found.";
+      if (data.ok) {
+        setValidationMessage(`${data.message || "Validation succeeded."} ${details}`);
+      } else {
+        setValidationError(`${data.message || "Validation failed."} ${details}`);
+      }
+    } catch (err) {
+      setValidationError(
+        err instanceof Error ? err.message : "Unable to validate BigQuery settings"
+      );
+    } finally {
+      setValidating(false);
     }
   }
 
@@ -763,8 +811,8 @@ function GoogleWorkspaceBigQuerySetupDialog({
                 </h3>
                 <p className="mt-1 text-xs text-muted-foreground">
                   Point Aperio at the smallest readable dataset, not the raw export
-                  unless that is intentional. The generated views start with
-                  `SELECT *` so teams can narrow columns before running them.
+                  unless that is intentional. The generated views preserve
+                  partition metadata so Aperio can scan incrementally.
                 </p>
               </div>
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
@@ -861,6 +909,46 @@ function GoogleWorkspaceBigQuerySetupDialog({
             <section className="rounded-lg border border-border bg-card/50 p-4">
               <div>
                 <h3 className="text-sm font-semibold text-foreground">
+                  Setup output
+                </h3>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Generate either copy-paste setup commands or reusable Terraform
+                  built with the shared IaC renderer.
+                </p>
+              </div>
+              <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                {(["bash", "terraform"] as const).map((mode) => {
+                  const active = outputMode === mode;
+                  return (
+                    <button
+                      key={mode}
+                      type="button"
+                      aria-pressed={active}
+                      onClick={() => setOutputMode(mode)}
+                      className={cn(
+                        "rounded-lg border p-3 text-left transition-colors",
+                        active
+                          ? "border-signal/50 bg-signal/10 text-foreground"
+                          : "border-border bg-background text-muted-foreground hover:border-border/80 hover:bg-muted/50"
+                      )}
+                    >
+                      <span className="block text-xs font-semibold">
+                        {mode === "bash" ? "gcloud and bq" : "Terraform"}
+                      </span>
+                      <span className="mt-1 block text-[11px] leading-relaxed">
+                        {mode === "bash"
+                          ? "Operational commands for a one-time setup."
+                          : "Declarative resources for code-reviewed infra."}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+
+            <section className="rounded-lg border border-border bg-card/50 p-4">
+              <div>
+                <h3 className="text-sm font-semibold text-foreground">
                   Workload Identity trust
                 </h3>
                 <p className="mt-1 text-xs text-muted-foreground">
@@ -920,6 +1008,22 @@ function GoogleWorkspaceBigQuerySetupDialog({
                     />
                   </Field>
                 </div>
+                <div className="sm:col-span-2">
+                  <Field
+                    label="Provider attribute condition"
+                    htmlFor={attributeConditionId}
+                    hint="Optional CEL condition. Defaults to locking google.subject to the trusted subject."
+                  >
+                    <Input
+                      id={attributeConditionId}
+                      value={providerAttributeCondition}
+                      onChange={(event) =>
+                        setProviderAttributeCondition(event.target.value)
+                      }
+                      placeholder='assertion.repository == "example/aperio"'
+                    />
+                  </Field>
+                </div>
               </div>
             </section>
           </div>
@@ -929,10 +1033,12 @@ function GoogleWorkspaceBigQuerySetupDialog({
               <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-3">
                 <div>
                   <div className="text-sm font-semibold text-foreground">
-                    Commands to run
+                    {outputMode === "terraform" ? "Terraform module" : "Commands to run"}
                   </div>
                   <div className="mt-1 text-xs text-muted-foreground">
-                    Generic `gcloud` and `bq` setup for any Aperio deployment.
+                    {outputMode === "terraform"
+                      ? "Reusable GCP resources for your infrastructure repo."
+                      : "Generic `gcloud` and `bq` setup for any Aperio deployment."}
                   </div>
                 </div>
                 <Button
@@ -955,7 +1061,7 @@ function GoogleWorkspaceBigQuerySetupDialog({
                 readOnly
                 value={setupScript}
                 className="h-[560px] min-h-[560px] resize-none rounded-none border-0 bg-background/80 font-mono text-[11px] leading-relaxed shadow-none focus-visible:ring-0"
-                aria-label="Google Workspace BigQuery WIF setup commands"
+                aria-label="Google Workspace BigQuery WIF setup output"
               />
             </div>
             {setupScriptError ? (
@@ -1027,6 +1133,16 @@ function GoogleWorkspaceBigQuerySetupDialog({
                     {configMessage}
                   </FormBanner>
                 ) : null}
+                {validationError ? (
+                  <FormBanner tone="error" className="text-xs">
+                    {validationError}
+                  </FormBanner>
+                ) : null}
+                {validationMessage ? (
+                  <FormBanner tone="success" className="text-xs">
+                    {validationMessage}
+                  </FormBanner>
+                ) : null}
                 <Button
                   type="button"
                   onClick={() => void saveBigQueryConfig()}
@@ -1039,6 +1155,20 @@ function GoogleWorkspaceBigQuerySetupDialog({
                     <CheckCircle2 className="h-3.5 w-3.5" aria-hidden />
                   )}
                   {configSaving ? "Saving…" : "Save BigQuery settings"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => void validateBigQueryConfig()}
+                  disabled={validating || !integrationId}
+                  className="w-full"
+                >
+                  {validating ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                  ) : (
+                    <ListChecks className="h-3.5 w-3.5" aria-hidden />
+                  )}
+                  {validating ? "Validating…" : "Validate saved BigQuery access"}
                 </Button>
               </div>
             </div>

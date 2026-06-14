@@ -1,4 +1,16 @@
+import {
+  terraformAttribute,
+  terraformBlock,
+  terraformExpression,
+  terraformOutput,
+  terraformResource,
+  terraformString,
+  terraformValue,
+  terraformVariable
+} from "./terraform";
+
 export type GoogleWorkspaceBigQueryWifAccessMode = "dataset" | "views";
+export type GoogleWorkspaceBigQueryWifOutputMode = "bash" | "terraform";
 
 export type GoogleWorkspaceBigQueryWifSetupInput = {
   projectId: string;
@@ -13,7 +25,9 @@ export type GoogleWorkspaceBigQueryWifSetupInput = {
   principalSubject?: string;
   principalAttribute?: string;
   principalValue?: string;
+  providerAttributeCondition?: string;
   accessMode?: GoogleWorkspaceBigQueryWifAccessMode;
+  outputMode?: GoogleWorkspaceBigQueryWifOutputMode;
 };
 
 export const googleWorkspaceBigQueryWifDefaults = {
@@ -24,13 +38,17 @@ export const googleWorkspaceBigQueryWifDefaults = {
   rawDatasetId: "workspace_logs",
   readDatasetId: "aperio_workspace_views",
   location: "US",
-  oidcAudience: "aperio"
+  oidcAudience: "aperio",
+  outputMode: "bash" satisfies GoogleWorkspaceBigQueryWifOutputMode
 } as const;
+
+const principalAttributePattern = /^[a-z][a-z0-9_]{0,99}$/;
 
 export function validateGoogleWorkspaceBigQueryWifSetupInput(
   input: GoogleWorkspaceBigQueryWifSetupInput
 ) {
   const accessMode = input.accessMode ?? googleWorkspaceBigQueryWifDefaults.accessMode;
+  const outputMode = input.outputMode ?? googleWorkspaceBigQueryWifDefaults.outputMode;
   const required: Array<keyof GoogleWorkspaceBigQueryWifSetupInput> = [
     "projectId",
     "rawDatasetId",
@@ -45,6 +63,15 @@ export function validateGoogleWorkspaceBigQueryWifSetupInput(
   }
   if (accessMode !== "dataset" && accessMode !== "views") {
     throw new Error("accessMode must be dataset or views");
+  }
+  if (outputMode !== "bash" && outputMode !== "terraform") {
+    throw new Error("outputMode must be bash or terraform");
+  }
+  if (
+    input.principalAttribute?.trim() &&
+    !principalAttributePattern.test(input.principalAttribute.trim())
+  ) {
+    throw new Error("principalAttribute must start with a lowercase letter and contain only lowercase letters, numbers, or underscores");
   }
   if (accessMode === "views" && !input.readDatasetId?.trim()) {
     throw new Error("readDatasetId is required when accessMode is views");
@@ -82,8 +109,9 @@ function authorizedViewCommands(input: RequiredWifSetupInput) {
   return `
 # Mirror each raw Workspace export table as an authorized view in $READ_DATASET,
 # then authorize those views on $WORKSPACE_LOG_DATASET. Aperio receives
-# dataViewer only on $READ_DATASET. The generated views use SELECT * by default;
-# edit VIEW_SQL below before running if you want a narrower column set.
+# dataViewer only on $READ_DATASET. The generated views include _PARTITIONTIME
+# for efficient incremental scans; edit VIEW_SQL below before running if you
+# want a narrower column set.
 TMP_DIR="$(mktemp -d)"
 cleanup() {
   rm -rf "$TMP_DIR"
@@ -119,7 +147,7 @@ fi
 : > "$AUTHORIZED_VIEW_IDS_FILE"
 while IFS= read -r TABLE_ID; do
   VIEW_ID="$(printf '%s' "aperio_$TABLE_ID" | tr -c 'A-Za-z0-9_' '_')"
-  VIEW_SQL="SELECT * FROM \\\`$PROJECT_ID.$WORKSPACE_LOG_DATASET.$TABLE_ID\\\`"
+  VIEW_SQL="SELECT t.*, t._PARTITIONTIME AS aperio_partition_time FROM \\\`$PROJECT_ID.$WORKSPACE_LOG_DATASET.$TABLE_ID\\\` AS t"
   if bq show --project_id="$PROJECT_ID" "$PROJECT_ID:$READ_DATASET.$VIEW_ID" >/dev/null 2>&1; then
     bq update --project_id="$PROJECT_ID" --use_legacy_sql=false --view "$VIEW_SQL" "$PROJECT_ID:$READ_DATASET.$VIEW_ID"
   else
@@ -210,11 +238,15 @@ type RequiredWifSetupInput = Required<
     | "oidcIssuerUri"
     | "oidcAudience"
     | "accessMode"
+    | "outputMode"
   >
 > &
   Pick<
     GoogleWorkspaceBigQueryWifSetupInput,
-    "principalSubject" | "principalAttribute" | "principalValue"
+    | "principalSubject"
+    | "principalAttribute"
+    | "principalValue"
+    | "providerAttributeCondition"
   >;
 
 function withDefaults(input: GoogleWorkspaceBigQueryWifSetupInput): RequiredWifSetupInput {
@@ -233,7 +265,9 @@ function withDefaults(input: GoogleWorkspaceBigQueryWifSetupInput): RequiredWifS
     oidcAudience:
       input.oidcAudience || googleWorkspaceBigQueryWifDefaults.oidcAudience,
     accessMode: (input.accessMode ||
-      googleWorkspaceBigQueryWifDefaults.accessMode) as GoogleWorkspaceBigQueryWifAccessMode
+      googleWorkspaceBigQueryWifDefaults.accessMode) as GoogleWorkspaceBigQueryWifAccessMode,
+    outputMode: (input.outputMode ||
+      googleWorkspaceBigQueryWifDefaults.outputMode) as GoogleWorkspaceBigQueryWifOutputMode
   };
   validateGoogleWorkspaceBigQueryWifSetupInput(next);
   return next as RequiredWifSetupInput;
@@ -243,6 +277,9 @@ export function buildGoogleWorkspaceBigQueryWifSetupScript(
   rawInput: GoogleWorkspaceBigQueryWifSetupInput
 ) {
   const input = withDefaults(rawInput);
+  if (input.outputMode === "terraform") {
+    return buildGoogleWorkspaceBigQueryWifTerraform(input);
+  }
   const readDataset =
     input.accessMode === "views" ? input.readDatasetId : input.rawDatasetId;
   const attributeMapping = input.principalAttribute
@@ -264,6 +301,7 @@ OIDC_ISSUER_URI=${shellQuote(input.oidcIssuerUri)}
 OIDC_AUDIENCE=${shellQuote(input.oidcAudience)}
 PRINCIPAL_SUBJECT=${shellQuote(input.principalSubject ?? "")}
 PRINCIPAL_VALUE=${shellQuote(input.principalValue ?? "")}
+PROVIDER_ATTRIBUTE_CONDITION=${shellQuote(input.providerAttributeCondition ?? "")}
 BQ_TABLE_LIST_MAX_RESULTS="\${BQ_TABLE_LIST_MAX_RESULTS:-10000}"
 
 PROJECT_NUMBER="$(gcloud projects describe "$PROJECT_ID" --format="value(projectNumber)")"
@@ -287,22 +325,45 @@ if gcloud iam workload-identity-pools providers describe "$PROVIDER_ID" \\
   --project "$PROJECT_ID" \\
   --location global \\
   --workload-identity-pool "$POOL_ID" >/dev/null 2>&1; then
-  gcloud iam workload-identity-pools providers update-oidc "$PROVIDER_ID" \\
-    --project "$PROJECT_ID" \\
-    --location global \\
-    --workload-identity-pool "$POOL_ID" \\
-    --issuer-uri "$OIDC_ISSUER_URI" \\
-    --attribute-mapping ${shellQuote(attributeMapping)} \\
-    --allowed-audiences "$OIDC_AUDIENCE"
+  if [[ -n "$PROVIDER_ATTRIBUTE_CONDITION" ]]; then
+    gcloud iam workload-identity-pools providers update-oidc "$PROVIDER_ID" \\
+      --project "$PROJECT_ID" \\
+      --location global \\
+      --workload-identity-pool "$POOL_ID" \\
+      --issuer-uri "$OIDC_ISSUER_URI" \\
+      --attribute-mapping ${shellQuote(attributeMapping)} \\
+      --allowed-audiences "$OIDC_AUDIENCE" \\
+      --attribute-condition "$PROVIDER_ATTRIBUTE_CONDITION"
+  else
+    gcloud iam workload-identity-pools providers update-oidc "$PROVIDER_ID" \\
+      --project "$PROJECT_ID" \\
+      --location global \\
+      --workload-identity-pool "$POOL_ID" \\
+      --issuer-uri "$OIDC_ISSUER_URI" \\
+      --attribute-mapping ${shellQuote(attributeMapping)} \\
+      --allowed-audiences "$OIDC_AUDIENCE"
+  fi
 else
-  gcloud iam workload-identity-pools providers create-oidc "$PROVIDER_ID" \\
-    --project "$PROJECT_ID" \\
-    --location global \\
-    --workload-identity-pool "$POOL_ID" \\
-    --display-name "Aperio OIDC" \\
-    --issuer-uri "$OIDC_ISSUER_URI" \\
-    --attribute-mapping ${shellQuote(attributeMapping)} \\
-    --allowed-audiences "$OIDC_AUDIENCE"
+  if [[ -n "$PROVIDER_ATTRIBUTE_CONDITION" ]]; then
+    gcloud iam workload-identity-pools providers create-oidc "$PROVIDER_ID" \\
+      --project "$PROJECT_ID" \\
+      --location global \\
+      --workload-identity-pool "$POOL_ID" \\
+      --display-name "Aperio OIDC" \\
+      --issuer-uri "$OIDC_ISSUER_URI" \\
+      --attribute-mapping ${shellQuote(attributeMapping)} \\
+      --allowed-audiences "$OIDC_AUDIENCE" \\
+      --attribute-condition "$PROVIDER_ATTRIBUTE_CONDITION"
+  else
+    gcloud iam workload-identity-pools providers create-oidc "$PROVIDER_ID" \\
+      --project "$PROJECT_ID" \\
+      --location global \\
+      --workload-identity-pool "$POOL_ID" \\
+      --display-name "Aperio OIDC" \\
+      --issuer-uri "$OIDC_ISSUER_URI" \\
+      --attribute-mapping ${shellQuote(attributeMapping)} \\
+      --allowed-audiences "$OIDC_AUDIENCE"
+  fi
 fi
 
 WIF_POLICY_JSON="$(mktemp)"
@@ -363,5 +424,257 @@ Save these values in the Aperio Google Workspace BigQuery connector:
   Service account: $SERVICE_ACCOUNT_EMAIL
   Workload identity provider: projects/$PROJECT_NUMBER/locations/global/workloadIdentityPools/$POOL_ID/providers/$PROVIDER_ID
 EOF
+`;
+}
+
+function buildGoogleWorkspaceBigQueryWifTerraform(input: RequiredWifSetupInput) {
+  const readDataset =
+    input.accessMode === "views" ? input.readDatasetId : input.rawDatasetId;
+  const attributeMapping: Record<string, string> = input.principalAttribute
+    ? {
+        "google.subject": "assertion.sub",
+        [`attribute.${input.principalAttribute}`]: `assertion.${input.principalAttribute}`,
+        "attribute.audience": "assertion.aud"
+      }
+    : {
+        "google.subject": "assertion.sub",
+        "attribute.audience": "assertion.aud"
+      };
+  const wifMember = input.principalAttribute
+    ? `"principalSet://iam.googleapis.com/projects/\${data.google_project.workspace.number}/locations/global/workloadIdentityPools/\${google_iam_workload_identity_pool.aperio.workload_identity_pool_id}/attribute.${input.principalAttribute}/\${var.principal_value}"`
+    : `"principal://iam.googleapis.com/projects/\${data.google_project.workspace.number}/locations/global/workloadIdentityPools/\${google_iam_workload_identity_pool.aperio.workload_identity_pool_id}/subject/\${var.principal_subject}"`;
+  const attributeCondition = input.providerAttributeCondition?.trim()
+    ? `\n${terraformAttribute("attribute_condition", input.providerAttributeCondition.trim())}`
+    : "";
+  const readDatasetResources =
+    input.accessMode === "views"
+      ? [
+          terraformVariable(
+            "raw_table_ids",
+            [
+              terraformAttribute(
+                "description",
+                'Raw Workspace export tables to mirror as authorized views, for example ["activity", "usage"].'
+              ),
+              terraformAttribute("type", terraformExpression("set(string)")),
+              terraformAttribute("default", ["activity"])
+            ].join("\n")
+          ),
+          terraformResource(
+            "google_bigquery_dataset",
+            "read_views",
+            [
+              terraformAttribute("project", terraformExpression("var.project_id")),
+              terraformAttribute("dataset_id", terraformExpression("var.read_dataset_id")),
+              terraformAttribute("friendly_name", "Aperio Workspace authorized views"),
+              terraformAttribute("location", terraformExpression("var.location")),
+              terraformAttribute("delete_contents_on_destroy", false)
+            ].join("\n")
+          ),
+          terraformResource(
+            "google_bigquery_table",
+            "authorized_view",
+            [
+              terraformAttribute("for_each", terraformExpression("var.raw_table_ids")),
+              terraformAttribute("project", terraformExpression("var.project_id")),
+              terraformAttribute("dataset_id", terraformExpression("google_bigquery_dataset.read_views.dataset_id")),
+              terraformAttribute("table_id", terraformExpression('"aperio_${each.value}"')),
+              terraformBlock(
+                "view",
+                [],
+                [
+                  terraformAttribute(
+                    "query",
+                    terraformExpression(
+                      'format("SELECT t.*, t._PARTITIONTIME AS aperio_partition_time FROM `%s.%s.%s` AS t", var.project_id, var.raw_dataset_id, each.value)'
+                    )
+                  ),
+                  terraformAttribute("use_legacy_sql", false)
+                ].join("\n")
+              )
+            ].join("\n")
+          ),
+          terraformResource(
+            "google_bigquery_dataset_access",
+            "authorized_view",
+            [
+              terraformAttribute("for_each", terraformExpression("google_bigquery_table.authorized_view")),
+              terraformAttribute("project", terraformExpression("var.project_id")),
+              terraformAttribute("dataset_id", terraformExpression("var.raw_dataset_id")),
+              terraformBlock(
+                "view",
+                [],
+                [
+                  terraformAttribute("project_id", terraformExpression("var.project_id")),
+                  terraformAttribute("dataset_id", terraformExpression("var.read_dataset_id")),
+                  terraformAttribute("table_id", terraformExpression("each.value.table_id"))
+                ].join("\n")
+              )
+            ].join("\n")
+          )
+        ].join("\n")
+      : "";
+  const readDatasetReference =
+    input.accessMode === "views" ? "google_bigquery_dataset.read_views.dataset_id" : "var.raw_dataset_id";
+
+  return `${terraformBlock(
+    "terraform",
+    [],
+    `required_version = ">= 1.5.0"
+${terraformBlock(
+  "required_providers",
+  [],
+  terraformAttribute("google", {
+    source: "hashicorp/google",
+    version: ">= 5.0"
+  })
+)}`
+)}
+
+${terraformVariable(
+  "project_id",
+  [terraformAttribute("type", terraformExpression("string")), terraformAttribute("default", input.projectId)].join("\n")
+)}
+
+${terraformVariable(
+  "raw_dataset_id",
+  [terraformAttribute("type", terraformExpression("string")), terraformAttribute("default", input.rawDatasetId)].join("\n")
+)}
+
+${terraformVariable(
+  "read_dataset_id",
+  [terraformAttribute("type", terraformExpression("string")), terraformAttribute("default", readDataset)].join("\n")
+)}
+
+${terraformVariable(
+  "location",
+  [terraformAttribute("type", terraformExpression("string")), terraformAttribute("default", input.location)].join("\n")
+)}
+
+${terraformVariable(
+  "principal_subject",
+  [terraformAttribute("type", terraformExpression("string")), terraformAttribute("default", input.principalSubject ?? "")].join("\n")
+)}
+
+${terraformVariable(
+  "principal_value",
+  [terraformAttribute("type", terraformExpression("string")), terraformAttribute("default", input.principalValue ?? "")].join("\n")
+)}
+
+${terraformBlock(
+  "data",
+  ["google_project", "workspace"],
+  terraformAttribute("project_id", terraformExpression("var.project_id"))
+)}
+
+${terraformResource(
+  "google_project_service",
+  "required",
+  [
+    terraformAttribute(
+      "for_each",
+      terraformExpression(`toset(${terraformValue([
+        "bigquery.googleapis.com",
+        "iamcredentials.googleapis.com",
+        "sts.googleapis.com"
+      ])})`)
+    ),
+    terraformAttribute("project", terraformExpression("var.project_id")),
+    terraformAttribute("service", terraformExpression("each.value")),
+    terraformAttribute("disable_on_destroy", false)
+  ].join("\n")
+)}
+
+${terraformResource(
+  "google_service_account",
+  "reader",
+  [
+    terraformAttribute("project", terraformExpression("var.project_id")),
+    terraformAttribute("account_id", input.serviceAccountName),
+    terraformAttribute("display_name", "Aperio BigQuery reader")
+  ].join("\n")
+)}
+
+${terraformResource(
+  "google_iam_workload_identity_pool",
+  "aperio",
+  [
+    terraformAttribute("project", terraformExpression("var.project_id")),
+    terraformAttribute("workload_identity_pool_id", input.poolId),
+    terraformAttribute("display_name", "Aperio workloads")
+  ].join("\n")
+)}
+
+${terraformResource(
+  "google_iam_workload_identity_pool_provider",
+  "aperio_oidc",
+  [
+    terraformAttribute("project", terraformExpression("var.project_id")),
+    terraformAttribute(
+      "workload_identity_pool_id",
+      terraformExpression("google_iam_workload_identity_pool.aperio.workload_identity_pool_id")
+    ),
+    terraformAttribute("workload_identity_pool_provider_id", input.providerId),
+    terraformAttribute("display_name", "Aperio OIDC"),
+    terraformAttribute("attribute_mapping", attributeMapping) + attributeCondition,
+    terraformBlock(
+      "oidc",
+      [],
+      [
+        terraformAttribute("issuer_uri", input.oidcIssuerUri),
+        terraformAttribute("allowed_audiences", [input.oidcAudience])
+      ].join("\n")
+    )
+  ].join("\n")
+)}
+
+${terraformBlock("locals", [], terraformAttribute("wif_member", terraformExpression(wifMember)))}
+
+${terraformResource(
+  "google_service_account_iam_member",
+  "wif_user",
+  [
+    terraformAttribute("service_account_id", terraformExpression("google_service_account.reader.name")),
+    terraformAttribute("role", "roles/iam.workloadIdentityUser"),
+    terraformAttribute("member", terraformExpression("local.wif_member"))
+  ].join("\n")
+)}
+
+${terraformResource(
+  "google_project_iam_member",
+  "job_user",
+  [
+    terraformAttribute("project", terraformExpression("var.project_id")),
+    terraformAttribute("role", "roles/bigquery.jobUser"),
+    terraformAttribute("member", terraformExpression('"serviceAccount:${google_service_account.reader.email}"'))
+  ].join("\n")
+)}
+
+${readDatasetResources}
+${terraformResource(
+  "google_bigquery_dataset_iam_member",
+  "reader_dataset_viewer",
+  [
+    terraformAttribute("project", terraformExpression("var.project_id")),
+    terraformAttribute("dataset_id", terraformExpression(readDatasetReference)),
+    terraformAttribute("role", "roles/bigquery.dataViewer"),
+    terraformAttribute("member", terraformExpression('"serviceAccount:${google_service_account.reader.email}"'))
+  ].join("\n")
+)}
+
+${terraformOutput(
+  "aperio_bigquery_config",
+  terraformAttribute("value", {
+    project_id: terraformExpression("var.project_id"),
+    raw_dataset_id: terraformExpression("var.raw_dataset_id"),
+    dataset_id: terraformExpression("var.read_dataset_id"),
+    location: terraformExpression("var.location"),
+    service_account_email: terraformExpression("google_service_account.reader.email"),
+    workload_identity_provider: terraformExpression(
+      '"projects/${data.google_project.workspace.number}/locations/global/workloadIdentityPools/${google_iam_workload_identity_pool.aperio.workload_identity_pool_id}/providers/${google_iam_workload_identity_pool_provider.aperio_oidc.workload_identity_pool_provider_id}"'
+    ),
+    access_mode: input.accessMode
+  })
+)}
 `;
 }
