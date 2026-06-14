@@ -73,6 +73,9 @@ func (s *ToolService) CallTool(ctx context.Context, name string, args any) (any,
 
 func (s *ToolService) assertScope(input map[string]any) error {
 	organizationID, _ := input["organizationId"].(string)
+	if s.allowedOrganizationID == "" && s.sharedSecret == "" {
+		return fmt.Errorf("MCP broker requires APERIO_MCP_SHARED_SECRET or APERIO_MCP_ORGANIZATION_ID")
+	}
 	if s.allowedOrganizationID != "" && organizationID != s.allowedOrganizationID {
 		return fmt.Errorf("Organization is not allowed for this MCP broker")
 	}

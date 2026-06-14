@@ -21,7 +21,7 @@ func TestDBBackedAgentTaskMessageToolsPreserveSeededBehavior(t *testing.T) {
 	ctx := context.Background()
 	orgID := seedMCPToolOrganization(t, db, "MCP Tools Org")
 	otherOrgID := seedMCPToolOrganization(t, db, "MCP Other Org")
-	service := NewToolService(db)
+	service := newAuthenticatedTestToolService(t, db)
 
 	register := callMCPToolFrame(t, service, "register-1", "aperio.register_agent", map[string]any{
 		"organizationId": orgID,
@@ -185,7 +185,7 @@ func TestDBBackedRemediationProposalsStayHumanGated(t *testing.T) {
 	db := openMCPToolTestDB(t)
 	orgID := seedMCPToolOrganization(t, db, "MCP Proposal Org")
 	otherOrgID := seedMCPToolOrganization(t, db, "MCP Proposal Other Org")
-	service := NewToolService(db)
+	service := newAuthenticatedTestToolService(t, db)
 
 	agent := callMCPToolFrame(t, service, "proposal-agent", "aperio.register_agent", map[string]any{
 		"organizationId": orgID,
@@ -274,12 +274,13 @@ func TestMCPSharedSecretAndTenantBoundariesRejectBeforeSideEffectsAndDoNotPersis
 	secret := "mcp-secret-" + randomID()
 	t.Setenv("APERIO_MCP_ORGANIZATION_ID", orgID)
 	t.Setenv("APERIO_MCP_SHARED_SECRET", secret)
-	service := NewToolService(db)
+	service := newAuthenticatedTestToolService(t, db)
 
 	beforeOrg := mcpSideEffectCount(t, db, orgID)
 	beforeOtherOrg := mcpSideEffectCount(t, db, otherOrgID)
 	missingTokenOutput := expectMCPToolErrorFrame(t, service, "missing-token", "aperio.register_agent", map[string]any{
 		"organizationId": orgID,
+		"authToken":      "",
 		"key":            "blocked",
 		"name":           "Blocked Agent",
 	})
@@ -297,6 +298,7 @@ func TestMCPSharedSecretAndTenantBoundariesRejectBeforeSideEffectsAndDoNotPersis
 	})
 	missingSIEMTokenOutput := expectMCPToolErrorFrame(t, service, "siem-missing-token", "aperio.enqueue_siem_payload", map[string]any{
 		"organizationId": orgID,
+		"authToken":      "",
 		"record":         map[string]any{"id": "blocked-siem"},
 	})
 	wrongSIEMOrgOutput := expectMCPToolErrorFrame(t, service, "siem-wrong-org", "aperio.enqueue_siem_payload", map[string]any{
@@ -368,11 +370,30 @@ func TestMCPSharedSecretAndTenantBoundariesRejectBeforeSideEffectsAndDoNotPersis
 	assertMCPSecretNotPersisted(t, db, orgID, secret)
 }
 
+func TestMCPBrokerRejectsDBToolsWhenScopeIsUnconfigured(t *testing.T) {
+	db := openMCPToolTestDB(t)
+	orgID := seedMCPToolOrganization(t, db, "MCP Unconfigured Org")
+	service := NewToolService(db)
+
+	before := mcpSideEffectCount(t, db, orgID)
+	output := expectMCPToolErrorFrame(t, service, "unconfigured", "aperio.register_agent", map[string]any{
+		"organizationId": orgID,
+		"key":            "blocked",
+		"name":           "Blocked Agent",
+	})
+	if !bytes.Contains(output, []byte("requires APERIO_MCP_SHARED_SECRET or APERIO_MCP_ORGANIZATION_ID")) {
+		t.Fatalf("unconfigured broker error did not explain fail-closed requirement: %q", string(output))
+	}
+	if after := mcpSideEffectCount(t, db, orgID); after != before {
+		t.Fatalf("unconfigured broker changed scoped side effects from %d to %d", before, after)
+	}
+}
+
 func TestDBBackedMutatingToolNotificationsDoNotCreateSideEffects(t *testing.T) {
 	db := openMCPToolTestDB(t)
 	orgID := seedMCPToolOrganization(t, db, "MCP Notification Org")
 	_ = seedMCPSIEMDestination(t, db, orgID, "FINDINGS", "ACTIVE", "notification-finding.jsonl")
-	service := NewToolService(db)
+	service := newAuthenticatedTestToolService(t, db)
 
 	before := mcpSideEffectCount(t, db, orgID)
 	notification := func(name string, args map[string]any) map[string]any {
@@ -432,7 +453,7 @@ func TestDBBackedSIEMEnqueueFansOutTenantLocalSubscribedDestinations(t *testing.
 	orgID := seedMCPToolOrganization(t, db, "MCP SIEM Org")
 	otherOrgID := seedMCPToolOrganization(t, db, "MCP SIEM Other Org")
 	noDestinationOrgID := seedMCPToolOrganization(t, db, "MCP SIEM Empty Org")
-	service := NewToolService(db)
+	service := newAuthenticatedTestToolService(t, db)
 	service.SetNowForTesting(func() time.Time {
 		return time.Date(2026, 6, 7, 12, 30, 0, 0, time.UTC)
 	})
@@ -574,7 +595,7 @@ func TestDBBackedSIEMEnqueueOnlyThenGoDispatcherDrainDelivers(t *testing.T) {
 		t.Fatalf("seed destination health: %v", err)
 	}
 
-	service := NewToolService(db)
+	service := newAuthenticatedTestToolService(t, db)
 	service.SetNowForTesting(func() time.Time {
 		return time.Date(2026, 6, 7, 13, 0, 0, 0, time.UTC)
 	})
@@ -714,8 +735,17 @@ func seedMCPFinding(t *testing.T, db *sql.DB, orgID string, suffix string) (stri
 	return integrationID, findingID
 }
 
+func newAuthenticatedTestToolService(t *testing.T, db *sql.DB) *ToolService {
+	t.Helper()
+	if strings.TrimSpace(os.Getenv("APERIO_MCP_SHARED_SECRET")) == "" {
+		t.Setenv("APERIO_MCP_SHARED_SECRET", "test-mcp-secret-"+randomID())
+	}
+	return NewToolService(db)
+}
+
 func callMCPToolFrame(t *testing.T, service *ToolService, id string, name string, args map[string]any) map[string]any {
 	t.Helper()
+	args = withTestMCPAuth(service, args)
 	stdout := runServer(t, NewServer(service), strings.NewReader(joinFrames(t, toolCall(id, name, args))))
 	frames := decodeOutputFrames(t, stdout)
 	if len(frames) != 1 {
@@ -736,6 +766,7 @@ func callMCPToolFrame(t *testing.T, service *ToolService, id string, name string
 
 func expectMCPToolErrorFrame(t *testing.T, service *ToolService, id string, name string, args map[string]any) []byte {
 	t.Helper()
+	args = withTestMCPAuth(service, args)
 	stdout := runServer(t, NewServer(service), strings.NewReader(joinFrames(t, toolCall(id, name, args))))
 	frames := decodeOutputFrames(t, stdout)
 	if len(frames) != 1 {
@@ -750,6 +781,21 @@ func expectMCPToolErrorFrame(t *testing.T, service *ToolService, id string, name
 		t.Fatalf("tool call %s returned empty error text: %#v", id, result)
 	}
 	return stdout
+}
+
+func withTestMCPAuth(service *ToolService, args map[string]any) map[string]any {
+	if service == nil || strings.TrimSpace(service.sharedSecret) == "" {
+		return args
+	}
+	if _, ok := args["authToken"]; ok {
+		return args
+	}
+	scoped := make(map[string]any, len(args)+1)
+	for key, value := range args {
+		scoped[key] = value
+	}
+	scoped["authToken"] = service.sharedSecret
+	return scoped
 }
 
 func requireStringField(t *testing.T, values map[string]any, field string) string {

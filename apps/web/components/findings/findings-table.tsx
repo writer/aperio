@@ -323,6 +323,18 @@ export function FindingsTable({
                     >
                       {finding.title}
                     </Link>
+                    {finding.tags && finding.tags.length > 0 ? (
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {finding.tags.map((tag) => (
+                          <span
+                            key={tag}
+                            className="inline-flex items-center rounded border border-border bg-muted/50 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground"
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
                   </TableCell>
                   {showApp ? (
                     <TableCell className="text-muted-foreground">

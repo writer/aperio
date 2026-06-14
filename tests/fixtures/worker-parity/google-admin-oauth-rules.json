@@ -161,7 +161,7 @@
           "title": "Google Workspace super admin granted",
           "description": "A Google Workspace account was granted super administrator privileges.",
           "severity": "CRITICAL",
-          "riskScore": 92,
+          "riskScore": 95,
           "target": "new-super@writer.com",
           "evidence": {
             "user": "new-super@writer.com",
@@ -194,7 +194,7 @@
             "title": "Google Workspace super admin granted",
             "description": "A Google Workspace account was granted super administrator privileges.",
             "severity": "CRITICAL",
-            "riskScore": 92,
+            "riskScore": 95,
             "target": "param-super@writer.com",
             "evidence": {
               "user": "param-super@writer.com",
@@ -541,7 +541,7 @@
           "title": "Google Workspace admin MFA not enrolled",
           "description": "A Google Workspace admin account lacks enforced multi-factor authentication, increasing the risk of privileged account takeover.",
           "severity": "CRITICAL",
-          "riskScore": 92,
+          "riskScore": 95,
           "target": "admin-no-mfa@writer.com",
           "evidence": {
             "user": "admin-no-mfa@writer.com",

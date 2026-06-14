@@ -2572,6 +2572,7 @@ type Finding struct {
 	DetectedAt       string                 `protobuf:"bytes,10,opt,name=detected_at,json=detectedAt,proto3" json:"detected_at,omitempty"`
 	ResolvedAt       string                 `protobuf:"bytes,11,opt,name=resolved_at,json=resolvedAt,proto3" json:"resolved_at,omitempty"`
 	Integration      *FindingIntegration    `protobuf:"bytes,12,opt,name=integration,proto3" json:"integration,omitempty"`
+	Tags             []string               `protobuf:"bytes,13,rep,name=tags,proto3" json:"tags,omitempty"`
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
 }
@@ -2686,6 +2687,13 @@ func (x *Finding) GetResolvedAt() string {
 func (x *Finding) GetIntegration() *FindingIntegration {
 	if x != nil {
 		return x.Integration
+	}
+	return nil
+}
+
+func (x *Finding) GetTags() []string {
+	if x != nil {
+		return x.Tags
 	}
 	return nil
 }
@@ -11593,7 +11601,7 @@ const file_aperio_v1_api_proto_rawDesc = "" +
 	"\asuccess\x18\x03 \x01(\bR\asuccess\x12\x18\n" +
 	"\amessage\x18\x04 \x01(\tR\amessage\x12.\n" +
 	"\x13provider_request_id\x18\x05 \x01(\tR\x11providerRequestId\x12\x18\n" +
-	"\aeffects\x18\x06 \x03(\tR\aeffects\"\x94\x03\n" +
+	"\aeffects\x18\x06 \x03(\tR\aeffects\"\xa8\x03\n" +
 	"\aFinding\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x19\n" +
 	"\basset_id\x18\x02 \x01(\tR\aassetId\x12\x14\n" +
@@ -11610,7 +11618,8 @@ const file_aperio_v1_api_proto_rawDesc = "" +
 	"detectedAt\x12\x1f\n" +
 	"\vresolved_at\x18\v \x01(\tR\n" +
 	"resolvedAt\x12?\n" +
-	"\vintegration\x18\f \x01(\v2\x1d.aperio.v1.FindingIntegrationR\vintegration\"c\n" +
+	"\vintegration\x18\f \x01(\v2\x1d.aperio.v1.FindingIntegrationR\vintegration\x12\x12\n" +
+	"\x04tags\x18\r \x03(\tR\x04tags\"c\n" +
 	"\x12FindingIntegration\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n" +
 	"\bprovider\x18\x02 \x01(\tR\bprovider\x12!\n" +

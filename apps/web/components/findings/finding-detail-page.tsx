@@ -117,6 +117,15 @@ export function FindingDetailPage({ findingId }: { findingId: string }) {
                   {finding.status}
                 </Badge>
                 <Badge variant="outline">Risk {finding.riskScore}</Badge>
+                {finding.tags?.map((tag) => (
+                  <Badge
+                    key={tag}
+                    variant="outline"
+                    className="font-mono text-[10px]"
+                  >
+                    {tag}
+                  </Badge>
+                ))}
               </div>
             }
           />

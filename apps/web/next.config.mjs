@@ -61,6 +61,10 @@ const nextConfig = {
     // navigate to from the page origin.
     return [
       {
+        source: "/compliance/reports/render",
+        destination: `${apiProxyTarget}/api/v1/compliance/reports/render`
+      },
+      {
         source: "/api/v1/:path*",
         destination: `${apiProxyTarget}/api/v1/:path*`
       }

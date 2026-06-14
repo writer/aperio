@@ -69,6 +69,7 @@ type findingRow struct {
 	Status           string
 	RiskScore        int
 	RemediationSteps []string
+	Tags             []string
 	Evidence         map[string]any
 	EvidenceJSON     string
 	DetectedAt       time.Time
@@ -223,6 +224,7 @@ func (a *App) routes() {
 	a.mux.HandleFunc("/readyz", a.handleReadyz)
 	a.mux.HandleFunc("/api/v1/integrations/google-workspace/oauth/callback", a.handleGoogleOAuthCallback)
 	a.mux.HandleFunc("/api/v1/admin/reports/", a.handleExecutiveReportArtifact)
+	a.mux.HandleFunc("/api/v1/compliance/reports/render", a.handleComplianceReport)
 	path, handler := aperiov1connect.NewAperioServiceHandler(
 		a,
 		connect.WithInterceptors(a.wideEventInterceptor()),
@@ -1597,6 +1599,7 @@ func (a *App) listFindings(
 			sf.status::text,
 			sf.risk_score,
 			COALESCE(to_json(sf.remediation_steps)::text, '[]'),
+			COALESCE(to_json(sf.tags)::text, '[]'),
 			sf.evidence::text,
 			sf.detected_at,
 			sf.resolved_at,
@@ -1628,6 +1631,7 @@ func (a *App) getFinding(ctx context.Context, organizationID string, findingID s
 			sf.status::text,
 			sf.risk_score,
 			COALESCE(to_json(sf.remediation_steps)::text, '[]'),
+			COALESCE(to_json(sf.tags)::text, '[]'),
 			sf.evidence::text,
 			sf.detected_at,
 			sf.resolved_at,
@@ -1682,6 +1686,7 @@ func scanFindingRows(rows *sql.Rows) ([]findingRow, error) {
 func scanFindingRow(scanner findingScanner) (findingRow, error) {
 	var finding findingRow
 	var remediationJSON string
+	var tagsJSON string
 	if err := scanner.Scan(
 		&finding.ID,
 		&finding.AssetID,
@@ -1691,6 +1696,7 @@ func scanFindingRow(scanner findingScanner) (findingRow, error) {
 		&finding.Status,
 		&finding.RiskScore,
 		&remediationJSON,
+		&tagsJSON,
 		&finding.EvidenceJSON,
 		&finding.DetectedAt,
 		&finding.ResolvedAt,
@@ -1701,6 +1707,7 @@ func scanFindingRow(scanner findingScanner) (findingRow, error) {
 		return finding, err
 	}
 	_ = json.Unmarshal([]byte(remediationJSON), &finding.RemediationSteps)
+	_ = json.Unmarshal([]byte(tagsJSON), &finding.Tags)
 	// JSON parse failures are tolerated here because malformed evidence should
 	// not break list rendering; the raw evidence JSON remains available for detail
 	// views and future repair tooling.
@@ -1732,6 +1739,7 @@ func (finding findingRow) toProto() *aperiov1.Finding {
 		EvidenceJson:     finding.EvidenceJSON,
 		DetectedAt:       finding.DetectedAt.UTC().Format(time.RFC3339Nano),
 		ResolvedAt:       resolvedAt,
+		Tags:             finding.Tags,
 		Integration: &aperiov1.FindingIntegration{
 			Id:          finding.IntegrationID,
 			Provider:    finding.Provider,

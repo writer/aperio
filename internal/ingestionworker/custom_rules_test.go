@@ -360,11 +360,17 @@ func TestValidatePredicateAcceptsValidShapes(t *testing.T) {
 	}
 }
 
-func TestSeverityToRiskScoreUnknownDefaultsToMedium(t *testing.T) {
-	if severityToRiskScore("CHARLIE") != 50 {
+func TestRiskScoreForUnknownDefaultsToMedium(t *testing.T) {
+	if RiskScoreFor("CHARLIE") != 50 {
 		t.Fatal("unknown severity must default to MEDIUM-equivalent score")
 	}
-	if severityToRiskScore("HIGH") != 70 {
-		t.Fatal("HIGH score regressed")
+	if got := RiskScoreFor(SeverityHigh); got != 75 {
+		t.Fatalf("HIGH base score regressed: got %d, want 75", got)
+	}
+	if got := RiskScoreFor(SeverityHigh, 50); got != 89 {
+		t.Fatalf("HIGH aggravator must clamp to band ceiling: got %d, want 89", got)
+	}
+	if got := RiskScoreFor(SeverityHigh, -100); got != 60 {
+		t.Fatalf("HIGH de-escalation must clamp to band floor: got %d, want 60", got)
 	}
 }

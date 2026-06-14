@@ -299,7 +299,7 @@ func TestTenantIsolationMemberResetLinkRejectsForeignUser(t *testing.T) {
 	ctx := context.Background()
 
 	createdMember := mustCall(t, func() (any, error) {
-		return app.compatCreateMember(ctx, map[string]any{"email": "reset-victim@example.com", "roleName": "ADMIN"}, victim)
+		return app.compatCreateMember(ctx, map[string]any{"email": "reset-victim@example.com", "roleName": "VIEWER"}, victim)
 	})
 	victimUserID := createdMember.(map[string]any)["data"].(map[string]any)["id"].(string)
 
@@ -323,6 +323,129 @@ func TestTenantIsolationMemberResetLinkRejectsForeignUser(t *testing.T) {
 	}
 	if leaked != 1 {
 		t.Fatalf("same-tenant reset expected 1 token, got %d", leaked)
+	}
+}
+
+func TestCompatCreateMemberResetRequiresOwnerForPrivilegedTargets(t *testing.T) {
+	app, base := newTestDBApp(t)
+	ctx := context.Background()
+	admin := seedOrgUserWithPassword(t, app, base.OrganizationID, "ADMIN", "reset-admin-"+randomBase36(10)+"@example.com", "admin-password-123")
+	owner := seedOrgUserWithPassword(t, app, base.OrganizationID, "OWNER", "reset-owner-"+randomBase36(10)+"@example.com", "owner-password-123")
+	peerAdmin := seedOrgUserWithPassword(t, app, base.OrganizationID, "ADMIN", "reset-peer-"+randomBase36(10)+"@example.com", "peer-password-123")
+	viewer := seedOrgUserWithPassword(t, app, base.OrganizationID, "VIEWER", "reset-viewer-"+randomBase36(10)+"@example.com", "viewer-password-123")
+
+	if _, err := app.compatCreateMemberReset(ctx, owner.UserID, admin); connect.CodeOf(err) != connect.CodePermissionDenied {
+		t.Fatalf("admin reset of owner code = %v, want PermissionDenied", connect.CodeOf(err))
+	}
+	if _, err := app.compatCreateMemberReset(ctx, peerAdmin.UserID, admin); connect.CodeOf(err) != connect.CodePermissionDenied {
+		t.Fatalf("admin reset of peer admin code = %v, want PermissionDenied", connect.CodeOf(err))
+	}
+	if _, err := app.compatCreateMemberReset(ctx, admin.UserID, admin); connect.CodeOf(err) != connect.CodePermissionDenied {
+		t.Fatalf("admin self reset code = %v, want PermissionDenied", connect.CodeOf(err))
+	}
+	if _, err := app.compatCreateMemberReset(ctx, viewer.UserID, admin); err != nil {
+		t.Fatalf("admin reset of viewer failed: %v", err)
+	}
+	if _, err := app.compatCreateMemberReset(ctx, peerAdmin.UserID, owner); err != nil {
+		t.Fatalf("owner reset of admin failed: %v", err)
+	}
+
+	var privilegedTokens int
+	if err := app.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM auth_tokens WHERE user_id IN ($1, $2) AND created_by_user_id = $3 AND purpose = 'PASSWORD_RESET'`, owner.UserID, peerAdmin.UserID, admin.UserID).Scan(&privilegedTokens); err != nil {
+		t.Fatalf("count privileged reset tokens: %v", err)
+	}
+	if privilegedTokens != 0 {
+		t.Fatalf("admin reset minted %d privileged password-reset token(s)", privilegedTokens)
+	}
+}
+
+func TestCompatUpdateMemberRolePreventsAdminPrivilegeEscalation(t *testing.T) {
+	app, base := newTestDBApp(t)
+	ctx := context.Background()
+	admin := seedOrgUserWithPassword(t, app, base.OrganizationID, "ADMIN", "role-admin-"+randomBase36(10)+"@example.com", "admin-password-123")
+	owner := seedOrgUserWithPassword(t, app, base.OrganizationID, "OWNER", "role-owner-"+randomBase36(10)+"@example.com", "owner-password-123")
+	peerAdmin := seedOrgUserWithPassword(t, app, base.OrganizationID, "ADMIN", "role-peer-"+randomBase36(10)+"@example.com", "peer-password-123")
+	viewer := seedOrgUserWithPassword(t, app, base.OrganizationID, "VIEWER", "role-viewer-"+randomBase36(10)+"@example.com", "viewer-password-123")
+
+	for name, targetID := range map[string]string{
+		"self":       admin.UserID,
+		"owner":      owner.UserID,
+		"peer admin": peerAdmin.UserID,
+		"viewer":     viewer.UserID,
+	} {
+		if _, err := app.compatUpdateMemberRole(ctx, targetID, map[string]any{"roleName": "OWNER"}, admin); connect.CodeOf(err) != connect.CodePermissionDenied {
+			t.Fatalf("admin OWNER update for %s code = %v, want PermissionDenied", name, connect.CodeOf(err))
+		}
+	}
+	if _, err := app.compatUpdateMemberRole(ctx, peerAdmin.UserID, map[string]any{"roleName": "VIEWER"}, admin); connect.CodeOf(err) != connect.CodePermissionDenied {
+		t.Fatalf("admin demote of peer admin code = %v, want PermissionDenied", connect.CodeOf(err))
+	}
+	if _, err := app.compatUpdateMemberRole(ctx, owner.UserID, map[string]any{"roleName": "ADMIN"}, owner); connect.CodeOf(err) != connect.CodePermissionDenied {
+		t.Fatalf("owner self role update code = %v, want PermissionDenied", connect.CodeOf(err))
+	}
+	if _, err := app.compatUpdateMemberRole(ctx, viewer.UserID, map[string]any{"roleName": "ADMIN"}, admin); err != nil {
+		t.Fatalf("admin update of viewer failed: %v", err)
+	}
+	if _, err := app.compatUpdateMemberRole(ctx, peerAdmin.UserID, map[string]any{"roleName": "VIEWER"}, owner); err != nil {
+		t.Fatalf("owner update of peer admin failed: %v", err)
+	}
+
+	for userID, wantRole := range map[string]string{
+		admin.UserID:     "ADMIN",
+		owner.UserID:     "OWNER",
+		peerAdmin.UserID: "VIEWER",
+		viewer.UserID:    "ADMIN",
+	} {
+		role := scanString(t, app, `SELECT r.name::text FROM users u JOIN roles r ON r.id = u.role_id WHERE u.id = $1`, userID)
+		if role != wantRole {
+			t.Fatalf("role for %s = %q, want %q", userID, role, wantRole)
+		}
+	}
+}
+
+func TestCompatCreateMemberPreventsAdminOwnerInviteEscalation(t *testing.T) {
+	app, base := newTestDBApp(t)
+	ctx := context.Background()
+	admin := seedOrgUserWithPassword(t, app, base.OrganizationID, "ADMIN", "invite-admin-"+randomBase36(10)+"@example.com", "admin-password-123")
+	owner := seedOrgUserWithPassword(t, app, base.OrganizationID, "OWNER", "invite-owner-"+randomBase36(10)+"@example.com", "owner-password-123")
+	newOwnerEmail := "invite-new-owner-" + randomBase36(10) + "@example.com"
+	newAdminEmail := "invite-new-admin-" + randomBase36(10) + "@example.com"
+
+	if _, err := app.compatCreateMember(ctx, map[string]any{"email": admin.Email, "roleName": "OWNER"}, admin); connect.CodeOf(err) != connect.CodePermissionDenied {
+		t.Fatalf("admin self re-invite as OWNER code = %v, want PermissionDenied", connect.CodeOf(err))
+	}
+	if _, err := app.compatCreateMember(ctx, map[string]any{"email": owner.Email, "roleName": "VIEWER"}, admin); connect.CodeOf(err) != connect.CodePermissionDenied {
+		t.Fatalf("admin re-invite of owner code = %v, want PermissionDenied", connect.CodeOf(err))
+	}
+	if _, err := app.compatCreateMember(ctx, map[string]any{"email": newOwnerEmail, "roleName": "OWNER"}, admin); connect.CodeOf(err) != connect.CodePermissionDenied {
+		t.Fatalf("admin invite of new owner code = %v, want PermissionDenied", connect.CodeOf(err))
+	}
+	if _, err := app.compatCreateMember(ctx, map[string]any{"email": newAdminEmail, "roleName": "ADMIN"}, admin); err != nil {
+		t.Fatalf("admin invite of new admin failed: %v", err)
+	}
+
+	for userID, wantRole := range map[string]string{
+		admin.UserID: "ADMIN",
+		owner.UserID: "OWNER",
+	} {
+		role := scanString(t, app, `SELECT r.name::text FROM users u JOIN roles r ON r.id = u.role_id WHERE u.id = $1`, userID)
+		if role != wantRole {
+			t.Fatalf("role for %s = %q, want %q", userID, role, wantRole)
+		}
+	}
+	var ownerInvites int
+	if err := app.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM users WHERE organization_id = $1 AND email = $2`, base.OrganizationID, newOwnerEmail).Scan(&ownerInvites); err != nil {
+		t.Fatalf("count denied owner invite: %v", err)
+	}
+	if ownerInvites != 0 {
+		t.Fatalf("admin owner invite created %d user(s)", ownerInvites)
+	}
+	var newAdminRole string
+	if err := app.db.QueryRowContext(ctx, `SELECT r.name::text FROM users u JOIN roles r ON r.id = u.role_id WHERE u.organization_id = $1 AND u.email = $2`, base.OrganizationID, newAdminEmail).Scan(&newAdminRole); err != nil {
+		t.Fatalf("fetch new admin role: %v", err)
+	}
+	if newAdminRole != "ADMIN" {
+		t.Fatalf("new admin invite role = %q, want ADMIN", newAdminRole)
 	}
 }
 

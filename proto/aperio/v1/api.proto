@@ -324,6 +324,7 @@ message Finding {
   string detected_at = 10;
   string resolved_at = 11;
   FindingIntegration integration = 12;
+  repeated string tags = 13;
 }
 
 message FindingIntegration {
