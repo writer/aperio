@@ -170,6 +170,15 @@ test("Google Workspace BigQuery config has API and storage surfaces", () => {
   assert.match(migration, /google_workspace_bigquery_wif_provider/);
   assert.match(app, /GetGoogleWorkspaceBigQueryConfig/);
   assert.match(app, /UpdateGoogleWorkspaceBigQueryConfig/);
+  const validateHandler = app.slice(
+    app.indexOf("func (a *App) ValidateGoogleWorkspaceBigQueryConfig("),
+    app.indexOf("func (a *App) StartGoogleWorkspaceOAuth(")
+  );
+  assert.match(
+    validateHandler,
+    /internalServerError\("validate google workspace bigquery config", err\)/
+  );
+  assert.doesNotMatch(validateHandler, /CodeInternal,\s*err\)/);
   assert.match(compat, /compatUpdateGoogleWorkspaceBigQueryConfig/);
   assert.match(compat, /validateGoogleWorkspaceBigQueryConfig/);
 });
