@@ -7,6 +7,7 @@ import {
   type ConnectorDefinition as ProtoConnectorDefinition,
   type Finding as ProtoFinding,
   type GoogleMailboxScanConfig as ProtoGoogleMailboxScanConfig,
+  type GoogleWorkspaceBigQueryConfig as ProtoGoogleWorkspaceBigQueryConfig,
   type IntegrationCheckState as ProtoIntegrationCheckState,
   type IntegrationConnection as ProtoIntegrationConnection,
   type InvitationResult as ProtoInvitationResult,
@@ -190,6 +191,18 @@ export type ConnectConnectorDefinition = {
 export type ConnectGoogleMailboxScanConfig = {
   enabled: boolean;
   serviceAccountClientEmail: string | null;
+};
+
+export type ConnectGoogleWorkspaceBigQueryConfig = {
+  enabled: boolean;
+  projectId: string;
+  rawDatasetId: string;
+  datasetId: string;
+  location: string;
+  serviceAccountEmail: string;
+  workloadIdentityProvider: string;
+  accessMode: "views" | "dataset" | "";
+  updatedAt: string | null;
 };
 
 export type ConnectIntegrationCheckState = {
@@ -828,6 +841,26 @@ function googleMailboxScanConfigFromProto(
   return {
     enabled: config.enabled,
     serviceAccountClientEmail: config.serviceAccountClientEmail || null
+  };
+}
+
+function googleWorkspaceBigQueryConfigFromProto(
+  config: ProtoGoogleWorkspaceBigQueryConfig
+): ConnectGoogleWorkspaceBigQueryConfig {
+  const accessMode =
+    config.accessMode === "views" || config.accessMode === "dataset"
+      ? config.accessMode
+      : "";
+  return {
+    enabled: config.enabled,
+    projectId: config.projectId,
+    rawDatasetId: config.rawDatasetId,
+    datasetId: config.datasetId,
+    location: config.location,
+    serviceAccountEmail: config.serviceAccountEmail,
+    workloadIdentityProvider: config.workloadIdentityProvider,
+    accessMode,
+    updatedAt: config.updatedAt || null
   };
 }
 
@@ -1574,6 +1607,46 @@ export const aperioConnectClient = {
       throw new Error("Google mailbox scan config update failed");
     }
     return { data: googleMailboxScanConfigFromProto(response.data) };
+  },
+  async getGoogleWorkspaceBigQueryConfig(
+    integrationId: string
+  ): Promise<{ data: ConnectGoogleWorkspaceBigQueryConfig }> {
+    const response = await client.getGoogleWorkspaceBigQueryConfig({
+      integrationId
+    });
+    if (!response.data) {
+      throw new Error("Google Workspace BigQuery config unavailable");
+    }
+    return { data: googleWorkspaceBigQueryConfigFromProto(response.data) };
+  },
+  async updateGoogleWorkspaceBigQueryConfig(
+    integrationId: string,
+    payload: {
+      enabled: boolean;
+      projectId?: string;
+      rawDatasetId?: string;
+      datasetId?: string;
+      location?: string;
+      serviceAccountEmail?: string;
+      workloadIdentityProvider?: string;
+      accessMode?: "views" | "dataset";
+    }
+  ): Promise<{ data: ConnectGoogleWorkspaceBigQueryConfig }> {
+    const response = await client.updateGoogleWorkspaceBigQueryConfig({
+      integrationId,
+      enabled: payload.enabled,
+      projectId: payload.projectId ?? "",
+      rawDatasetId: payload.rawDatasetId ?? "",
+      datasetId: payload.datasetId ?? "",
+      location: payload.location ?? "",
+      serviceAccountEmail: payload.serviceAccountEmail ?? "",
+      workloadIdentityProvider: payload.workloadIdentityProvider ?? "",
+      accessMode: payload.accessMode ?? ""
+    });
+    if (!response.data) {
+      throw new Error("Google Workspace BigQuery config update failed");
+    }
+    return { data: googleWorkspaceBigQueryConfigFromProto(response.data) };
   },
   async startGoogleWorkspaceOAuth(
     mode: "READ_ONLY" | "REMEDIATION"

@@ -38,6 +38,8 @@ service AperioService {
   rpc DeleteCustomRule(DeleteCustomRuleRequest) returns (DeleteCustomRuleResponse);
   rpc GetGoogleMailboxScanConfig(GetGoogleMailboxScanConfigRequest) returns (GetGoogleMailboxScanConfigResponse);
   rpc UpdateGoogleMailboxScanConfig(UpdateGoogleMailboxScanConfigRequest) returns (UpdateGoogleMailboxScanConfigResponse);
+  rpc GetGoogleWorkspaceBigQueryConfig(GetGoogleWorkspaceBigQueryConfigRequest) returns (GetGoogleWorkspaceBigQueryConfigResponse);
+  rpc UpdateGoogleWorkspaceBigQueryConfig(UpdateGoogleWorkspaceBigQueryConfigRequest) returns (UpdateGoogleWorkspaceBigQueryConfigResponse);
   rpc StartGoogleWorkspaceOAuth(StartGoogleWorkspaceOAuthRequest) returns (StartGoogleWorkspaceOAuthResponse);
   rpc GetIntegrationOAuthClient(GetIntegrationOAuthClientRequest) returns (GetIntegrationOAuthClientResponse);
   rpc SetIntegrationOAuthClient(SetIntegrationOAuthClientRequest) returns (SetIntegrationOAuthClientResponse);
@@ -487,6 +489,42 @@ message UpdateGoogleMailboxScanConfigResponse {
 message GoogleMailboxScanConfig {
   bool enabled = 1;
   string service_account_client_email = 2;
+}
+
+message GetGoogleWorkspaceBigQueryConfigRequest {
+  string integration_id = 1;
+}
+
+message GetGoogleWorkspaceBigQueryConfigResponse {
+  GoogleWorkspaceBigQueryConfig data = 1;
+}
+
+message UpdateGoogleWorkspaceBigQueryConfigRequest {
+  string integration_id = 1;
+  bool enabled = 2;
+  string project_id = 3;
+  string raw_dataset_id = 4;
+  string dataset_id = 5;
+  string location = 6;
+  string service_account_email = 7;
+  string workload_identity_provider = 8;
+  string access_mode = 9;
+}
+
+message UpdateGoogleWorkspaceBigQueryConfigResponse {
+  GoogleWorkspaceBigQueryConfig data = 1;
+}
+
+message GoogleWorkspaceBigQueryConfig {
+  bool enabled = 1;
+  string project_id = 2;
+  string raw_dataset_id = 3;
+  string dataset_id = 4;
+  string location = 5;
+  string service_account_email = 6;
+  string workload_identity_provider = 7;
+  string access_mode = 8;
+  string updated_at = 9;
 }
 
 message StartGoogleWorkspaceOAuthRequest {

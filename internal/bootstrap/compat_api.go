@@ -82,7 +82,9 @@ var (
 	// that compare equal under naive lowercasing. The local-part class is the
 	// full RFC 5321 atext set so common real-world addresses like o'hara@...,
 	// alex+filter@..., and !#$%&'*+-/=?^_`{|}~ atoms continue to work.
-	signupEmailPattern = regexp.MustCompile("^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)+$")
+	signupEmailPattern     = regexp.MustCompile("^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)+$")
+	bigQueryDatasetPattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]{0,254}$`)
+	gcpProjectIDPattern    = regexp.MustCompile(`^[a-z][a-z0-9-]{4,28}[a-z0-9]$`)
 )
 
 type signupPayload struct {
@@ -1426,6 +1428,165 @@ func (a *App) compatUpdateGoogleMailboxConfig(ctx context.Context, id string, bo
 	}
 	a.writeCompatAudit(ctx, auth, "integration.google_mailbox_scan.enable", "integration_connection", id, map[string]any{"serviceAccountClientEmail": nextEmail})
 	return map[string]any{"data": map[string]any{"enabled": true, "serviceAccountClientEmail": nextEmail}}, nil
+}
+
+func (a *App) compatGoogleWorkspaceBigQueryConfig(ctx context.Context, id string, auth compatAuth) (any, error) {
+	if err := requireCompatRole(auth, "OWNER", "ADMIN"); err != nil {
+		return nil, err
+	}
+	var (
+		provider                 string
+		projectID                sql.NullString
+		rawDatasetID             sql.NullString
+		datasetID                sql.NullString
+		location                 sql.NullString
+		serviceAccountEmail      sql.NullString
+		workloadIdentityProvider sql.NullString
+		accessMode               sql.NullString
+		updatedAt                time.Time
+	)
+	err := a.db.QueryRowContext(ctx, `
+		SELECT
+			provider::text,
+			google_workspace_bigquery_project_id,
+			google_workspace_bigquery_raw_dataset_id,
+			google_workspace_bigquery_dataset_id,
+			google_workspace_bigquery_location,
+			google_workspace_bigquery_service_account_email,
+			google_workspace_bigquery_wif_provider,
+			google_workspace_bigquery_access_mode,
+			updated_at
+		FROM integration_connections
+		WHERE id = $1 AND organization_id = $2
+	`, id, auth.OrganizationID).Scan(
+		&provider,
+		&projectID,
+		&rawDatasetID,
+		&datasetID,
+		&location,
+		&serviceAccountEmail,
+		&workloadIdentityProvider,
+		&accessMode,
+		&updatedAt,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, connect.NewError(connect.CodeNotFound, errors.New("integration not found"))
+		}
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	if provider != "GOOGLE_WORKSPACE" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("BigQuery configuration is only supported for Google Workspace"))
+	}
+	enabled := projectID.Valid && datasetID.Valid && location.Valid && serviceAccountEmail.Valid && workloadIdentityProvider.Valid && accessMode.Valid
+	return map[string]any{"data": map[string]any{
+		"enabled":                  enabled,
+		"projectId":                nullStringPtr(projectID),
+		"rawDatasetId":             nullStringPtr(rawDatasetID),
+		"datasetId":                nullStringPtr(datasetID),
+		"location":                 nullStringPtr(location),
+		"serviceAccountEmail":      nullStringPtr(serviceAccountEmail),
+		"workloadIdentityProvider": nullStringPtr(workloadIdentityProvider),
+		"accessMode":               nullStringPtr(accessMode),
+		"updatedAt":                updatedAt.UTC().Format(time.RFC3339Nano),
+	}}, nil
+}
+
+func (a *App) compatUpdateGoogleWorkspaceBigQueryConfig(ctx context.Context, id string, body map[string]any, auth compatAuth) (any, error) {
+	if err := requireCompatRole(auth, "OWNER", "ADMIN"); err != nil {
+		return nil, err
+	}
+	var provider string
+	if err := a.db.QueryRowContext(ctx, `SELECT provider::text FROM integration_connections WHERE id = $1 AND organization_id = $2`, id, auth.OrganizationID).Scan(&provider); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, connect.NewError(connect.CodeNotFound, errors.New("integration not found"))
+		}
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	if provider != "GOOGLE_WORKSPACE" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("BigQuery configuration is only supported for Google Workspace"))
+	}
+	if !boolValue(body["enabled"]) {
+		if _, err := a.db.ExecContext(ctx, `
+			UPDATE integration_connections
+			SET google_workspace_bigquery_project_id = NULL,
+			    google_workspace_bigquery_raw_dataset_id = NULL,
+			    google_workspace_bigquery_dataset_id = NULL,
+			    google_workspace_bigquery_location = NULL,
+			    google_workspace_bigquery_service_account_email = NULL,
+			    google_workspace_bigquery_wif_provider = NULL,
+			    google_workspace_bigquery_access_mode = NULL,
+			    updated_at = NOW()
+			WHERE id = $1 AND organization_id = $2
+		`, id, auth.OrganizationID); err != nil {
+			return nil, connect.NewError(connect.CodeInternal, err)
+		}
+		a.writeCompatAudit(ctx, auth, "integration.google_workspace_bigquery.clear", "integration_connection", id, nil)
+		return a.compatGoogleWorkspaceBigQueryConfig(ctx, id, auth)
+	}
+
+	projectID := requiredString(body, "projectId")
+	rawDatasetID := requiredString(body, "rawDatasetId")
+	datasetID := requiredString(body, "datasetId")
+	location := strings.ToUpper(requiredString(body, "location"))
+	serviceAccountEmail := strings.ToLower(requiredString(body, "serviceAccountEmail"))
+	workloadIdentityProvider := requiredString(body, "workloadIdentityProvider")
+	accessMode := strings.ToLower(stringDefault(body, "accessMode", "views"))
+	if err := validateGoogleWorkspaceBigQueryConfig(projectID, rawDatasetID, datasetID, location, serviceAccountEmail, workloadIdentityProvider, accessMode); err != nil {
+		return nil, err
+	}
+	if _, err := a.db.ExecContext(ctx, `
+		UPDATE integration_connections
+		SET google_workspace_bigquery_project_id = $1,
+		    google_workspace_bigquery_raw_dataset_id = $2,
+		    google_workspace_bigquery_dataset_id = $3,
+		    google_workspace_bigquery_location = $4,
+		    google_workspace_bigquery_service_account_email = $5,
+		    google_workspace_bigquery_wif_provider = $6,
+		    google_workspace_bigquery_access_mode = $7,
+		    updated_at = NOW()
+		WHERE id = $8 AND organization_id = $9
+	`, projectID, rawDatasetID, datasetID, location, serviceAccountEmail, workloadIdentityProvider, accessMode, id, auth.OrganizationID); err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	a.writeCompatAudit(ctx, auth, "integration.google_workspace_bigquery.update", "integration_connection", id, map[string]any{
+		"projectId":                projectID,
+		"rawDatasetId":             rawDatasetID,
+		"datasetId":                datasetID,
+		"location":                 location,
+		"serviceAccountEmail":      serviceAccountEmail,
+		"workloadIdentityProvider": workloadIdentityProvider,
+		"accessMode":               accessMode,
+	})
+	return a.compatGoogleWorkspaceBigQueryConfig(ctx, id, auth)
+}
+
+func validateGoogleWorkspaceBigQueryConfig(projectID, rawDatasetID, datasetID, location, serviceAccountEmail, workloadIdentityProvider, accessMode string) error {
+	if !gcpProjectIDPattern.MatchString(projectID) {
+		return connect.NewError(connect.CodeInvalidArgument, errors.New("GCP project ID is invalid"))
+	}
+	if !bigQueryDatasetPattern.MatchString(rawDatasetID) {
+		return connect.NewError(connect.CodeInvalidArgument, errors.New("Raw BigQuery dataset ID is invalid"))
+	}
+	if !bigQueryDatasetPattern.MatchString(datasetID) {
+		return connect.NewError(connect.CodeInvalidArgument, errors.New("BigQuery dataset ID is invalid"))
+	}
+	if accessMode != "views" && accessMode != "dataset" {
+		return connect.NewError(connect.CodeInvalidArgument, errors.New("BigQuery access mode must be views or dataset"))
+	}
+	if accessMode == "views" && rawDatasetID == datasetID {
+		return connect.NewError(connect.CodeInvalidArgument, errors.New("Read-view dataset must be different from the raw dataset"))
+	}
+	if len(location) == 0 || len(location) > 64 || strings.ContainsAny(location, " \t\r\n") {
+		return connect.NewError(connect.CodeInvalidArgument, errors.New("BigQuery location is invalid"))
+	}
+	if !signupEmailPattern.MatchString(serviceAccountEmail) || !strings.HasSuffix(serviceAccountEmail, ".iam.gserviceaccount.com") {
+		return connect.NewError(connect.CodeInvalidArgument, errors.New("Service account email is invalid"))
+	}
+	if !strings.HasPrefix(workloadIdentityProvider, "projects/") || !strings.Contains(workloadIdentityProvider, "/workloadIdentityPools/") || !strings.Contains(workloadIdentityProvider, "/providers/") || len(workloadIdentityProvider) > 500 {
+		return connect.NewError(connect.CodeInvalidArgument, errors.New("Workload identity provider resource is invalid"))
+	}
+	return nil
 }
 
 func (a *App) writeCompatAudit(ctx context.Context, auth compatAuth, action, targetType, targetID string, metadata map[string]any) {
