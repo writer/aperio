@@ -54,6 +54,7 @@ export type ConnectFinding = {
   resolvedAt?: string | null;
   evidence?: Record<string, unknown>;
   remediationSteps: string[];
+  tags: string[];
   integration: {
     id?: string;
     provider:
@@ -747,6 +748,7 @@ function findingFromProto(finding: ProtoFinding): ConnectFinding {
     status: finding.status as ConnectFinding["status"],
     riskScore: finding.riskScore,
     remediationSteps: finding.remediationSteps,
+    tags: finding.tags ?? [],
     evidence: parseEvidence(finding.evidenceJson),
     detectedAt: finding.detectedAt,
     resolvedAt: finding.resolvedAt || null,

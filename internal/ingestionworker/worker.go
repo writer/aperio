@@ -117,6 +117,11 @@ type Finding struct {
 	Target           string
 	DedupeTarget     string
 	Evidence         map[string]any
+	// Tags is the canonical cross-provider categorization of the
+	// finding (see internal/ingestionworker/tags.go). Always normalized
+	// at persistence time so callers can pass duplicates or mixed case
+	// without worrying about the on-disk shape.
+	Tags []string
 }
 
 type persistedFinding struct {
@@ -327,8 +332,9 @@ func evaluateGitHubPublicRepository(payload JobPayload) (Finding, bool) {
 		RuleID:      "github.public_repository_created",
 		Title:       "Public GitHub repository created",
 		Description: "A repository was created or changed to public visibility, which can expose source code, secrets, or customer data.",
-		Severity:    "CRITICAL",
-		RiskScore:   95,
+		Severity:    SeverityCritical,
+		RiskScore:   RiskScoreFor(SeverityCritical, 5),
+		Tags:        []string{TagDataPublicExposure},
 		RemediationSteps: []string{
 			"Confirm the repository is approved for public release.",
 			"Set repository visibility to private if public access is not explicitly authorized.",
@@ -361,8 +367,9 @@ func evaluateSlackMFADisabled(payload JobPayload) (Finding, bool) {
 		RuleID:      "slack.mfa_disabled",
 		Title:       "Slack multi-factor authentication disabled",
 		Description: "A Slack user disabled MFA, increasing the likelihood of account takeover and lateral movement.",
-		Severity:    "CRITICAL",
-		RiskScore:   90,
+		Severity:    SeverityCritical,
+		RiskScore:   RiskScoreFor(SeverityCritical),
+		Tags:        []string{TagAuthMFAWeakened},
 		RemediationSteps: []string{
 			"Re-enable MFA for the affected Slack user immediately.",
 			"Force a session reset for the affected account.",
@@ -395,8 +402,9 @@ func evaluateOktaAdminRoleAssigned(payload JobPayload) (Finding, bool) {
 		RuleID:      "okta.admin_role_assigned",
 		Title:       "Okta admin role assigned",
 		Description: "An Okta account was granted a highly privileged administrator role.",
-		Severity:    "CRITICAL",
-		RiskScore:   93,
+		Severity:    SeverityCritical,
+		RiskScore:   RiskScoreFor(SeverityCritical, 3),
+		Tags:        []string{TagIAMPrivilegeEscalation},
 		RemediationSteps: []string{
 			"Validate that the Okta admin role assignment was approved through change control.",
 			"Remove the role if the assignment is not explicitly authorized.",
@@ -438,8 +446,9 @@ func evaluateOktaMFAFactorReset(payload JobPayload) (Finding, bool) {
 		RuleID:      "okta.mfa_factor_reset",
 		Title:       "Okta MFA factor reset by admin",
 		Description: "An administrator reset MFA factors for another Okta user, which can be legitimate helpdesk activity or an account-takeover precursor.",
-		Severity:    "HIGH",
-		RiskScore:   82,
+		Severity:    SeverityHigh,
+		RiskScore:   RiskScoreFor(SeverityHigh, 7),
+		Tags:        []string{TagAuthMFAWeakened},
 		RemediationSteps: []string{
 			"Confirm the MFA reset was requested by the affected user.",
 			"Force a password reset and session revocation if the reset was not approved.",
@@ -473,8 +482,9 @@ func evaluateOktaPasswordPolicyWeakened(payload JobPayload) (Finding, bool) {
 		RuleID:      "okta.password_policy_weakened",
 		Title:       "Okta password policy weakened",
 		Description: "An Okta password policy was changed to reduce password length, complexity, rotation, history, or lockout protections.",
-		Severity:    "HIGH",
-		RiskScore:   84,
+		Severity:    SeverityHigh,
+		RiskScore:   RiskScoreFor(SeverityHigh, 9),
+		Tags:        []string{TagPolicyWeakened, TagAuthPassword},
 		RemediationSteps: []string{
 			"Review the policy change and confirm it was approved.",
 			"Restore the previous password policy settings if the change was not authorized.",
@@ -528,8 +538,9 @@ func evaluateOktaSuspiciousSignin(payload JobPayload) (Finding, bool) {
 		RuleID:      "okta.suspicious_signin",
 		Title:       "Okta suspicious sign-in detected",
 		Description: "Okta flagged sign-in activity with threat, proxy, or high-risk indicators.",
-		Severity:    "MEDIUM",
-		RiskScore:   62,
+		Severity:    SeverityMedium,
+		RiskScore:   RiskScoreFor(SeverityMedium, 7),
+		Tags:        []string{TagAuthSuspiciousLogin},
 		RemediationSteps: []string{
 			"Verify the sign-in with the affected user.",
 			"Reset the user's password and MFA factors if the sign-in was not expected.",
@@ -580,8 +591,9 @@ func evaluateGoogleExternalSharingEnabled(payload JobPayload) (Finding, bool) {
 		RuleID:      "google_workspace.external_sharing_enabled",
 		Title:       "Google Workspace external sharing enabled",
 		Description: "A Google Workspace resource was configured for external sharing, which may expose regulated or confidential data.",
-		Severity:    "HIGH",
-		RiskScore:   75,
+		Severity:    SeverityHigh,
+		RiskScore:   RiskScoreFor(SeverityHigh),
+		Tags:        []string{TagDataExternalShare, TagPolicyWeakened},
 		RemediationSteps: []string{
 			"Restrict the resource sharing policy to trusted domains.",
 			"Confirm business justification with the resource owner.",
@@ -630,8 +642,9 @@ func evaluateGoogleSuperAdminGranted(payload JobPayload) (Finding, bool) {
 		RuleID:      "google_workspace.super_admin_granted",
 		Title:       "Google Workspace super admin granted",
 		Description: "A Google Workspace account was granted super administrator privileges.",
-		Severity:    "CRITICAL",
-		RiskScore:   92,
+		Severity:    SeverityCritical,
+		RiskScore:   RiskScoreFor(SeverityCritical, 5),
+		Tags:        []string{TagIAMPrivilegeEscalation},
 		RemediationSteps: []string{
 			"Validate that the admin elevation was approved through change control.",
 			"Remove the role if the assignment is not explicitly authorized.",
@@ -674,8 +687,9 @@ func evaluateGoogleAdminRoleGranted(payload JobPayload) (Finding, bool) {
 		RuleID:      "google_workspace.admin_role_granted",
 		Title:       "Google Workspace admin role granted",
 		Description: "A Google Workspace account was granted an administrative role.",
-		Severity:    "HIGH",
-		RiskScore:   86,
+		Severity:    SeverityHigh,
+		RiskScore:   RiskScoreFor(SeverityHigh, 11),
+		Tags:        []string{TagIAMPrivilegeEscalation},
 		RemediationSteps: []string{
 			"Validate that the admin role assignment was approved through change control.",
 			"Remove the role if the assignment is not required.",
@@ -716,7 +730,8 @@ func evaluateGoogleRiskyOAuthGrant(payload JobPayload) (Finding, bool) {
 		Title:       oauthRisk.title,
 		Description: "A Google Workspace user granted a third-party OAuth client access to sensitive Google scopes.",
 		Severity:    oauthRisk.severity,
-		RiskScore:   riskScore,
+		RiskScore:   clampToSeverityBand(oauthRisk.severity, riskScore),
+		Tags:        []string{TagOAuthRiskyGrant, TagDataAccess},
 		RemediationSteps: []string{
 			"Confirm the OAuth client is approved for the tenant.",
 			"Revoke the grant if the client or scopes are not required.",
@@ -755,19 +770,20 @@ func evaluateGoogleAdminMFANotEnforced(payload JobPayload) (Finding, bool) {
 	mfaEnforced := nestedBoolValue(parameters, "mfa_enforced")
 	delegatedAdmin := nestedBoolValue(parameters, "is_delegated_admin")
 	title := "Google Workspace admin MFA not enrolled"
-	severity := "CRITICAL"
-	riskScore := 92
+	severity := SeverityCritical
+	score := RiskScoreFor(SeverityCritical, 5)
 	if mfaEnrolled {
 		title = "Google Workspace admin MFA not enforced"
-		severity = "HIGH"
-		riskScore = 86
+		severity = SeverityHigh
+		score = RiskScoreFor(SeverityHigh, 11)
 	}
 	return Finding{
 		RuleID:      "google_workspace.admin_mfa_not_enforced",
 		Title:       title,
 		Description: "A Google Workspace admin account lacks enforced multi-factor authentication, increasing the risk of privileged account takeover.",
 		Severity:    severity,
-		RiskScore:   riskScore,
+		RiskScore:   score,
+		Tags:        []string{TagAuthMFAWeakened, TagPolicyWeakened},
 		RemediationSteps: []string{
 			"Require 2-step verification for the affected admin account immediately.",
 			"Confirm the account is still authorized to hold privileged access.",
@@ -806,8 +822,9 @@ func evaluateGoogleAdminExternalRecoveryEmail(payload JobPayload) (Finding, bool
 		RuleID:      "google_workspace.admin_external_recovery_email",
 		Title:       "Google Workspace admin uses external recovery email",
 		Description: "A Google Workspace admin account has a recovery email outside the tenant domain, creating an external account-recovery path.",
-		Severity:    "HIGH",
-		RiskScore:   83,
+		Severity:    SeverityHigh,
+		RiskScore:   RiskScoreFor(SeverityHigh, 8),
+		Tags:        []string{TagAuthAccountRecovery},
 		RemediationSteps: []string{
 			"Validate that the recovery email is approved for the privileged account.",
 			"Replace the external recovery address with a controlled corporate recovery path if not required.",
@@ -855,8 +872,9 @@ func evaluateGoogleEmailForwardingEnabled(payload JobPayload) (Finding, bool) {
 		RuleID:      "google_workspace.email_forwarding_enabled",
 		Title:       "Google Workspace email forwarding enabled",
 		Description: "A Gmail mailbox was configured to forward messages to another address, which can exfiltrate sensitive email outside the tenant.",
-		Severity:    "HIGH",
-		RiskScore:   78,
+		Severity:    SeverityHigh,
+		RiskScore:   RiskScoreFor(SeverityHigh, 3),
+		Tags:        []string{TagEmailForwarding, TagDataExternalShare},
 		RemediationSteps: []string{
 			"Validate that the forwarding destination is approved for business use.",
 			"Disable the forwarding rule if it is not explicitly authorized.",
@@ -903,8 +921,9 @@ func evaluateGoogleMailboxDelegationGranted(payload JobPayload) (Finding, bool) 
 		RuleID:      "google_workspace.mailbox_delegation_granted",
 		Title:       "Google Workspace mailbox delegation granted",
 		Description: "A Gmail mailbox granted delegate access to another user, allowing them to read and send mail on behalf of the mailbox owner.",
-		Severity:    "HIGH",
-		RiskScore:   84,
+		Severity:    SeverityHigh,
+		RiskScore:   RiskScoreFor(SeverityHigh, 9),
+		Tags:        []string{TagEmailDelegation, TagDataAccess},
 		RemediationSteps: []string{
 			"Confirm the delegate is explicitly approved for the mailbox.",
 			"Remove the delegate if the access is not required.",
@@ -953,18 +972,19 @@ func evaluateGoogleLegacyMailAuthUsed(payload JobPayload) (Finding, bool) {
 		authMethod = "legacy_mail_auth"
 	}
 	title := "Google Workspace legacy mail authentication used"
-	riskScore := 82
+	score := RiskScoreFor(SeverityHigh, 7)
 	if authMethod == "app_password" {
 		title = "Google Workspace app password created or used"
-		riskScore = 88
+		score = RiskScoreFor(SeverityHigh, 13)
 	}
 	subject := mailbox + ":" + authMethod
 	return Finding{
 		RuleID:      "google_workspace.legacy_mail_auth_used",
 		Title:       title,
 		Description: "A mailbox used app passwords or a legacy mail protocol, which weakens account protections and can allow long-lived mailbox access outside modern OAuth controls.",
-		Severity:    "HIGH",
-		RiskScore:   riskScore,
+		Severity:    SeverityHigh,
+		RiskScore:   score,
+		Tags:        []string{TagAuthLegacyProtocol},
 		RemediationSteps: []string{
 			"Disable app passwords or legacy mail access for the affected user if not required.",
 			"Rotate the user's password and revoke active sessions if the usage is unexpected.",
@@ -1010,8 +1030,9 @@ func evaluateGoogleForwardingDelegateSendAsCombo(payload JobPayload) (Finding, b
 		RuleID:      "google_workspace.forwarding_delegate_send_as_combo",
 		Title:       "Google Workspace forwarding with delegate/send-as combo",
 		Description: "A mailbox has forwarding enabled alongside delegate or send-as access, creating multiple parallel paths for mailbox exfiltration or impersonation.",
-		Severity:    "CRITICAL",
-		RiskScore:   93,
+		Severity:    SeverityCritical,
+		RiskScore:   RiskScoreFor(SeverityCritical, 3),
+		Tags:        []string{TagEmailForwarding, TagEmailDelegation, TagDataExternalShare},
 		RemediationSteps: []string{
 			"Validate that forwarding, delegate access, and send-as aliases are all approved together.",
 			"Disable the forwarding rule first if any destination is untrusted.",
@@ -1065,8 +1086,8 @@ func googleOAuthGrantRisk(scopes []string) googleOAuthRisk {
 	criticalScopes := filterScopesBySet(normalized, criticalScopeSet)
 	if len(criticalScopes) > 0 {
 		return googleOAuthRisk{
-			severity:      "CRITICAL",
-			riskScore:     minInt(97, 92+len(criticalScopes)),
+			severity:      SeverityCritical,
+			riskScore:     RiskScoreFor(SeverityCritical, 2+len(criticalScopes)),
 			title:         "Critical Gmail-scoped OAuth grant",
 			riskReason:    "Granted full mailbox or mailbox-settings access",
 			matchedScopes: criticalScopes,
@@ -1075,8 +1096,8 @@ func googleOAuthGrantRisk(scopes []string) googleOAuthRisk {
 	highMailboxScopes := filterScopesBySet(normalized, highMailboxScopeSet)
 	if len(highMailboxScopes) > 0 {
 		return googleOAuthRisk{
-			severity:      "HIGH",
-			riskScore:     minInt(91, 84+len(highMailboxScopes)),
+			severity:      SeverityHigh,
+			riskScore:     RiskScoreFor(SeverityHigh, 9+len(highMailboxScopes)),
 			title:         "High-risk Gmail OAuth grant",
 			riskReason:    "Granted mailbox read, send, or compose access",
 			matchedScopes: highMailboxScopes,
@@ -1089,8 +1110,8 @@ func googleOAuthGrantRisk(scopes []string) googleOAuthRisk {
 		}
 	}
 	return googleOAuthRisk{
-		severity:      "HIGH",
-		riskScore:     82,
+		severity:      SeverityHigh,
+		riskScore:     RiskScoreFor(SeverityHigh, 7),
 		title:         "High-risk Google OAuth grant",
 		riskReason:    "Granted high-value Google Workspace scopes",
 		matchedScopes: matchedScopes,
@@ -1335,13 +1356,6 @@ func nestedNumber(value map[string]any, path ...string) (float64, bool) {
 	default:
 		return 0, false
 	}
-}
-
-func minInt(a int, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }
 
 func DedupeKey(payload JobPayload, finding Finding) string {
@@ -1767,13 +1781,14 @@ func upsertFinding(ctx context.Context, tx *sql.Tx, payload JobPayload, finding 
 	}
 	evidence := buildFindingEvidence(payload, finding, eventID)
 	evidenceJSON, _ := json.Marshal(evidence)
+	tags := normalizeTags(finding.Tags)
 	persisted := persistedFinding{PreviousStatus: previousStatus}
 	err = tx.QueryRowContext(ctx, `
 		INSERT INTO security_findings (
 			id, organization_id, integration_id, event_id, dedupe_key, title, description, severity,
-			status, risk_score, remediation_steps, evidence, detected_at
+			status, risk_score, remediation_steps, tags, evidence, detected_at
 		)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8::"Severity",'OPEN'::"FindingStatus",$9,$10::text[],$11::jsonb,$12)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8::"Severity",'OPEN'::"FindingStatus",$9,$10::text[],$11::text[],$12::jsonb,$13)
 		ON CONFLICT (organization_id, dedupe_key) DO UPDATE SET
 			event_id = EXCLUDED.event_id,
 			title = EXCLUDED.title,
@@ -1784,9 +1799,10 @@ func upsertFinding(ctx context.Context, tx *sql.Tx, payload JobPayload, finding 
 			resolved_by_id = CASE WHEN security_findings.status = 'MUTED'::"FindingStatus" THEN security_findings.resolved_by_id ELSE NULL END,
 			risk_score = EXCLUDED.risk_score,
 			remediation_steps = EXCLUDED.remediation_steps,
+			tags = EXCLUDED.tags,
 			evidence = EXCLUDED.evidence
 		RETURNING id, status::text
-	`, "fnd_"+randomID(), payload.OrganizationID, payload.IntegrationID, eventID, dedupe, finding.Title, finding.Description, finding.Severity, finding.RiskScore, postgresTextArray(finding.RemediationSteps), string(evidenceJSON), payload.OccurredAt).Scan(&persisted.ID, &persisted.Status)
+	`, "fnd_"+randomID(), payload.OrganizationID, payload.IntegrationID, eventID, dedupe, finding.Title, finding.Description, finding.Severity, finding.RiskScore, postgresTextArray(finding.RemediationSteps), postgresTextArray(tags), string(evidenceJSON), payload.OccurredAt).Scan(&persisted.ID, &persisted.Status)
 	return persisted, err
 }
 
@@ -1945,6 +1961,7 @@ func enqueueFindingDelivery(ctx context.Context, tx *sql.Tx, payload JobPayload,
 			"severity":         finding.Severity,
 			"riskScore":        finding.RiskScore,
 			"remediationSteps": finding.RemediationSteps,
+			"tags":             normalizeTags(finding.Tags),
 			"target":           finding.Target,
 			"provider":         payload.Provider,
 			"integrationId":    payload.IntegrationID,

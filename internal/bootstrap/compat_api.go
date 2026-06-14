@@ -432,6 +432,7 @@ func (a *App) dispatchCompatAPI(
 	case method == http.MethodPost && path == "/api/v1/auth/logout":
 		_, _ = a.db.ExecContext(ctx, `UPDATE user_sessions SET revoked_at = NOW() WHERE id = $1`, auth.SessionID)
 		headers.Add("Set-Cookie", expiredCompatSessionCookie())
+		a.writeCompatAudit(ctx, auth, "auth.logout", "user", auth.UserID, map[string]any{"email": auth.Email})
 		return map[string]any{"data": map[string]bool{"ok": true}}, nil
 	case method == http.MethodGet && path == "/api/v1/auth/workspaces":
 		return a.compatWorkspaces(ctx, auth)
@@ -871,6 +872,11 @@ func (a *App) compatLogin(ctx context.Context, body map[string]any, headers http
 		return nil, internalServerError("login.commit", err)
 	}
 	headers.Add("Set-Cookie", compatSessionCookie(session))
+	a.writeCompatAudit(ctx,
+		compatAuth{OrganizationID: orgID, UserID: userID, Email: email, Role: role, SessionID: session},
+		"auth.login", "user", userID,
+		map[string]any{"email": email, "mfaUsed": mfaEnabled, "workspaceSlug": orgSlug},
+	)
 	return map[string]any{"data": compatSessionPayload(session, compatSessionUser{ID: userID, Email: email, DisplayName: nullStringPtr(displayName), MFAEnabled: mfaEnabled, Role: role}, compatSessionOrg{ID: orgID, Name: orgName, Slug: orgSlug})}, nil
 }
 
@@ -965,6 +971,16 @@ func (a *App) compatSwitchWorkspace(ctx context.Context, body map[string]any, au
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 	headers.Add("Set-Cookie", compatSessionCookie(session))
+	// Audit both sides of the transition: the *source* tenant sees a sign-out
+	// for the actor switching away, and the *target* tenant sees a sign-in.
+	// This keeps each org's audit log self-contained without cross-tenant
+	// references in the row.
+	a.writeCompatAudit(ctx, auth, "auth.workspace.switch_out", "user", auth.UserID, map[string]any{"toWorkspaceSlug": slug, "toOrganizationId": target.OrganizationID})
+	a.writeCompatAudit(ctx,
+		compatAuth{OrganizationID: target.OrganizationID, UserID: target.UserID, Email: target.Email, Role: target.Role, SessionID: session},
+		"auth.workspace.switch_in", "user", target.UserID,
+		map[string]any{"fromOrganizationId": auth.OrganizationID, "workspaceName": orgName, "workspaceSlug": slug, "mfaUsed": targetMFAEnabled},
+	)
 	return a.compatSession(ctx, compatAuth{OrganizationID: target.OrganizationID, UserID: target.UserID}, session)
 }
 
@@ -1083,6 +1099,15 @@ func (a *App) compatConsumeAuthToken(ctx context.Context, token, password, purpo
 		return nil, internalServerError("consume_token.commit", err)
 	}
 	headers.Add("Set-Cookie", compatSessionCookie(session))
+	auditAction := "auth.password.reset"
+	if purpose == "INVITE" {
+		auditAction = "auth.invite.accept"
+	}
+	a.writeCompatAudit(ctx,
+		compatAuth{OrganizationID: orgID, UserID: userID, Email: email, Role: role, SessionID: session},
+		auditAction, "user", userID,
+		map[string]any{"email": email, "workspaceSlug": orgSlug},
+	)
 	return map[string]any{"data": compatSessionPayload(session, compatSessionUser{ID: userID, Email: email, DisplayName: nullStringPtr(displayName), MFAEnabled: false, Role: role}, compatSessionOrg{ID: orgID, Name: orgName, Slug: orgSlug})}, nil
 }
 
@@ -1104,6 +1129,7 @@ func (a *App) compatMFAEnable(ctx context.Context, body map[string]any, auth com
 	}
 	_, _ = a.db.ExecContext(ctx, `UPDATE users SET mfa_enabled = TRUE, mfa_last_counter = $3, updated_at = NOW() WHERE id = $1 AND organization_id = $2`, auth.UserID, auth.OrganizationID, counter)
 	_, _ = a.db.ExecContext(ctx, `UPDATE user_sessions SET mfa_verified_at = NOW() WHERE id = $1`, auth.SessionID)
+	a.writeCompatAudit(ctx, auth, "auth.mfa.enable", "user", auth.UserID, map[string]any{"email": auth.Email})
 	return a.compatSession(ctx, auth, "")
 }
 
@@ -1119,6 +1145,7 @@ func (a *App) compatMFADisable(ctx context.Context, body map[string]any, auth co
 	}
 	_, _ = a.db.ExecContext(ctx, `UPDATE users SET mfa_enabled = FALSE, mfa_secret_encrypted = NULL, mfa_last_counter = NULL, updated_at = NOW() WHERE id = $1 AND organization_id = $2`, auth.UserID, auth.OrganizationID)
 	_, _ = a.db.ExecContext(ctx, `UPDATE user_sessions SET mfa_verified_at = NULL WHERE id = $1`, auth.SessionID)
+	a.writeCompatAudit(ctx, auth, "auth.mfa.disable", "user", auth.UserID, map[string]any{"email": auth.Email})
 	return a.compatSession(ctx, auth, "")
 }
 
@@ -1212,9 +1239,23 @@ func (a *App) compatDeleteIntegration(ctx context.Context, id string, auth compa
 	if err := requireCompatRole(auth, "OWNER", "ADMIN"); err != nil {
 		return nil, err
 	}
-	_, err := a.db.ExecContext(ctx, `DELETE FROM integration_connections WHERE id = $1 AND organization_id = $2`, id, auth.OrganizationID)
+	// Snapshot provider/displayName so the audit row can describe the
+	// disconnected integration after the row is gone.
+	var provider, displayName, externalAccountID string
+	_ = a.db.QueryRowContext(ctx,
+		`SELECT provider::text, COALESCE(display_name,''), COALESCE(external_account_id,'') FROM integration_connections WHERE id = $1 AND organization_id = $2`,
+		id, auth.OrganizationID,
+	).Scan(&provider, &displayName, &externalAccountID)
+	res, err := a.db.ExecContext(ctx, `DELETE FROM integration_connections WHERE id = $1 AND organization_id = $2`, id, auth.OrganizationID)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	if affected, _ := res.RowsAffected(); affected > 0 {
+		a.writeCompatAudit(ctx, auth, "integration.disconnect", "integration_connection", id, map[string]any{
+			"provider":          provider,
+			"displayName":       displayName,
+			"externalAccountId": externalAccountID,
+		})
 	}
 	return map[string]any{"data": map[string]bool{"ok": true}}, nil
 }
@@ -1731,9 +1772,20 @@ func (a *App) compatDeleteSiem(ctx context.Context, id string, auth compatAuth) 
 	if id == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("SIEM destination id is required"))
 	}
-	_, err := a.db.ExecContext(ctx, `DELETE FROM siem_destinations WHERE id = $1 AND organization_id = $2`, id, auth.OrganizationID)
+	var kind, name string
+	_ = a.db.QueryRowContext(ctx,
+		`SELECT kind::text, COALESCE(name,'') FROM siem_destinations WHERE id = $1 AND organization_id = $2`,
+		id, auth.OrganizationID,
+	).Scan(&kind, &name)
+	res, err := a.db.ExecContext(ctx, `DELETE FROM siem_destinations WHERE id = $1 AND organization_id = $2`, id, auth.OrganizationID)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	if affected, _ := res.RowsAffected(); affected > 0 {
+		a.writeCompatAudit(ctx, auth, "siem.destination.delete", "siem_destination", id, map[string]any{
+			"kind": kind,
+			"name": name,
+		})
 	}
 	return map[string]any{"data": map[string]bool{"ok": true}}, nil
 }
@@ -1787,6 +1839,11 @@ func (a *App) compatTestSiem(ctx context.Context, id string, auth compatAuth) (a
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
+	a.writeCompatAudit(ctx, auth, "siem.destination.test", "siem_destination", id, map[string]any{
+		"kind":       kind,
+		"stream":     stream,
+		"deliveryId": deliveryID,
+	})
 	return map[string]any{"data": map[string]any{"destinationId": id, "ok": true, "message": "SIEM test payload queued for dispatcher", "deliveryId": deliveryID, "stream": stream}}, nil
 }
 
@@ -2170,6 +2227,22 @@ func (a *App) compatUpdateTenantSettings(ctx context.Context, body map[string]an
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
+	// Capture which fields were supplied (and their values) so auditors can
+	// see what changed without comparing snapshots. Values are echoed
+	// verbatim from the request body so transcoding is identical to the
+	// payload the operator submitted.
+	updated := map[string]any{}
+	for _, key := range []string{
+		"name", "notificationEmail", "dataRetentionDays", "criticalRiskThreshold",
+		"defaultSlaHours", "autoResolveLowSeverity", "enforceSsoOnly", "webhookAlertUrl",
+	} {
+		if value, ok := body[key]; ok {
+			updated[key] = value
+		}
+	}
+	if len(updated) > 0 {
+		a.writeCompatAudit(ctx, auth, "org.settings.update", "organization", auth.OrganizationID, updated)
+	}
 	return a.compatTenantSettings(ctx, auth)
 }
 
@@ -2204,29 +2277,77 @@ func (a *App) compatCreateMember(ctx context.Context, body map[string]any, auth 
 		return nil, err
 	}
 	email, roleName := strings.ToLower(requiredString(body, "email")), stringDefault(body, "roleName", "VIEWER")
-	roleID, _ := a.ensureCompatRole(ctx, auth.OrganizationID, roleName)
-	userID := compatID("usr")
-	_, err := a.db.ExecContext(ctx, `INSERT INTO users (id, organization_id, role_id, email, display_name, is_active, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,TRUE,NOW(),NOW()) ON CONFLICT (organization_id, email) DO UPDATE SET role_id = EXCLUDED.role_id, display_name = COALESCE(EXCLUDED.display_name, users.display_name), is_active = TRUE RETURNING id`, userID, auth.OrganizationID, roleID, email, optionalStringPtr(body, "displayName"))
+	normalizedRoleName := strings.ToUpper(strings.TrimSpace(roleName))
+	var existingUserID, existingRole string
+	existingErr := a.db.QueryRowContext(ctx, `
+		SELECT u.id, COALESCE(r.name::text, '')
+		FROM users u
+		LEFT JOIN roles r ON r.id = u.role_id
+		WHERE u.organization_id = $1 AND u.email = $2
+	`, auth.OrganizationID, email).Scan(&existingUserID, &existingRole)
+	if existingErr != nil && !errors.Is(existingErr, sql.ErrNoRows) {
+		return nil, connect.NewError(connect.CodeInternal, existingErr)
+	}
+	if existingErr == nil {
+		existingRole = strings.ToUpper(strings.TrimSpace(existingRole))
+		if existingUserID == auth.UserID {
+			return nil, connect.NewError(connect.CodePermissionDenied, errors.New("cannot modify your own role"))
+		}
+		if auth.Role != "OWNER" && (normalizedRoleName == "OWNER" || existingRole == "OWNER" || existingRole == "ADMIN") {
+			return nil, connect.NewError(connect.CodePermissionDenied, errors.New("only owners can change privileged member roles"))
+		}
+	} else if auth.Role != "OWNER" && normalizedRoleName == "OWNER" {
+		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("only owners can assign owner role"))
+	}
+	roleID, _ := a.ensureCompatRole(ctx, auth.OrganizationID, normalizedRoleName)
+	insertedUserID := compatID("usr")
+	var userID string
+	err := a.db.QueryRowContext(
+		ctx,
+		`INSERT INTO users (id, organization_id, role_id, email, display_name, is_active, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,TRUE,NOW(),NOW()) ON CONFLICT (organization_id, email) DO UPDATE SET role_id = EXCLUDED.role_id, display_name = COALESCE(EXCLUDED.display_name, users.display_name), is_active = TRUE RETURNING id`,
+		insertedUserID,
+		auth.OrganizationID,
+		roleID,
+		email,
+		optionalStringPtr(body, "displayName"),
+	).Scan(&userID)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 	token, tokenHash := compatToken()
 	expires := time.Now().Add(72 * time.Hour)
-	_, _ = a.db.ExecContext(ctx, `INSERT INTO auth_tokens (id, organization_id, user_id, created_by_user_id, purpose, token_hash, expires_at, created_at) VALUES ($1,$2,(SELECT id FROM users WHERE organization_id=$2 AND email=$3),$4,'INVITE',$5,$6,NOW())`, compatID("tok"), auth.OrganizationID, email, auth.UserID, tokenHash, expires)
+	_, _ = a.db.ExecContext(ctx, `INSERT INTO auth_tokens (id, organization_id, user_id, created_by_user_id, purpose, token_hash, expires_at, created_at) VALUES ($1,$2,$3,$4,'INVITE',$5,$6,NOW())`, compatID("tok"), auth.OrganizationID, userID, auth.UserID, tokenHash, expires)
+
+	a.writeCompatAudit(ctx, auth, "member.invite", "user", userID, map[string]any{
+		"email": email,
+		"role":  normalizedRoleName,
+	})
+
 	members, _ := a.compatMembers(ctx, auth)
-	return map[string]any{"data": firstMemberByEmail(members, email), "invitation": map[string]any{"delivery": "manual_link", "url": compatAuthLink("/accept-invite", token), "expiresAt": expires.UTC().Format(time.RFC3339Nano)}}, nil
+	return map[string]any{"data": firstMemberByID(members, userID), "invitation": map[string]any{"delivery": "manual_link", "url": compatAuthLink("/accept-invite", token), "expiresAt": expires.UTC().Format(time.RFC3339Nano)}}, nil
 }
 
 func (a *App) compatCreateMemberReset(ctx context.Context, userID string, auth compatAuth) (any, error) {
 	if err := requireCompatRole(auth, "OWNER", "ADMIN"); err != nil {
 		return nil, err
 	}
-	var exists bool
-	if err := a.db.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM users WHERE id = $1 AND organization_id = $2)`, userID, auth.OrganizationID).Scan(&exists); err != nil {
+	if userID == auth.UserID {
+		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("use account recovery to reset your own password"))
+	}
+	var targetEmail, targetRole string
+	if err := a.db.QueryRowContext(ctx, `
+		SELECT u.email, r.name::text
+		FROM users u
+		JOIN roles r ON r.id = u.role_id
+		WHERE u.id = $1 AND u.organization_id = $2
+	`, userID, auth.OrganizationID).Scan(&targetEmail, &targetRole); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, connect.NewError(connect.CodeNotFound, errors.New("member not found"))
+		}
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
-	if !exists {
-		return nil, connect.NewError(connect.CodeNotFound, errors.New("member not found"))
+	if auth.Role != "OWNER" && (targetRole == "OWNER" || targetRole == "ADMIN") {
+		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("only owners can reset privileged member accounts"))
 	}
 	token, tokenHash := compatToken()
 	expires := time.Now().Add(2 * time.Hour)
@@ -2234,6 +2355,12 @@ func (a *App) compatCreateMemberReset(ctx context.Context, userID string, auth c
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
+
+	a.writeCompatAudit(ctx, auth, "member.reset_link.create", "user", userID, map[string]any{
+		"targetUserEmail": targetEmail,
+		"expiresAt":       expires.UTC().Format(time.RFC3339Nano),
+	})
+
 	members, _ := a.compatMembers(ctx, auth)
 	return map[string]any{"data": firstMemberByID(members, userID), "reset": map[string]any{"delivery": "manual_link", "url": compatAuthLink("/reset-password", token), "expiresAt": expires.UTC().Format(time.RFC3339Nano)}}, nil
 }
@@ -2242,11 +2369,47 @@ func (a *App) compatUpdateMemberRole(ctx context.Context, userID string, body ma
 	if err := requireCompatRole(auth, "OWNER", "ADMIN"); err != nil {
 		return nil, err
 	}
-	roleID, _ := a.ensureCompatRole(ctx, auth.OrganizationID, requiredString(body, "roleName"))
-	_, err := a.db.ExecContext(ctx, `UPDATE users SET role_id = $1, updated_at = NOW() WHERE id = $2 AND organization_id = $3`, roleID, userID, auth.OrganizationID)
+	newRoleName := requiredString(body, "roleName")
+	normalizedNewRole := strings.ToUpper(strings.TrimSpace(newRoleName))
+
+	// Capture the pre-update role + email so the audit row can express the
+	// transition. Scoped to the caller's organization to preserve tenant
+	// isolation: a cross-tenant userID returns no row and no audit is written.
+	var (
+		previousRole string
+		targetEmail  string
+	)
+	targetErr := a.db.QueryRowContext(ctx,
+		`SELECT COALESCE(r.name::text, ''), u.email FROM users u LEFT JOIN roles r ON r.id = u.role_id WHERE u.id = $1 AND u.organization_id = $2`,
+		userID, auth.OrganizationID,
+	).Scan(&previousRole, &targetEmail)
+	if targetErr != nil && !errors.Is(targetErr, sql.ErrNoRows) {
+		return nil, connect.NewError(connect.CodeInternal, targetErr)
+	}
+	if targetErr == nil {
+		previousRole = strings.ToUpper(strings.TrimSpace(previousRole))
+		if userID == auth.UserID {
+			return nil, connect.NewError(connect.CodePermissionDenied, errors.New("cannot modify your own role"))
+		}
+		if auth.Role != "OWNER" && (normalizedNewRole == "OWNER" || previousRole == "OWNER" || previousRole == "ADMIN") {
+			return nil, connect.NewError(connect.CodePermissionDenied, errors.New("only owners can change privileged member roles"))
+		}
+	}
+
+	roleID, _ := a.ensureCompatRole(ctx, auth.OrganizationID, normalizedNewRole)
+
+	res, err := a.db.ExecContext(ctx, `UPDATE users SET role_id = $1, updated_at = NOW() WHERE id = $2 AND organization_id = $3`, roleID, userID, auth.OrganizationID)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
+	if affected, _ := res.RowsAffected(); affected > 0 {
+		a.writeCompatAudit(ctx, auth, "member.role.update", "user", userID, map[string]any{
+			"targetUserEmail": targetEmail,
+			"fromRole":        previousRole,
+			"toRole":          normalizedNewRole,
+		})
+	}
+
 	members, _ := a.compatMembers(ctx, auth)
 	return map[string]any{"data": firstMemberByID(members, userID)}, nil
 }
@@ -2317,6 +2480,12 @@ func (a *App) compatCreateSecurityAsset(ctx context.Context, body map[string]any
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
+	a.writeCompatAudit(ctx, auth, "security.asset.create", "security_asset", id, map[string]any{
+		"name":        requiredString(body, "name"),
+		"type":        requiredString(body, "type"),
+		"criticality": stringDefault(body, "criticality", "MEDIUM"),
+		"provider":    stringDefault(body, "provider", ""),
+	})
 	rows, _ := a.listSecurityAssets(ctx, auth.OrganizationID, &aperiov1.ListSecurityAssetsRequest{})
 	for _, row := range rows {
 		if row.ID == id {
@@ -2338,9 +2507,21 @@ func (a *App) compatUpdateSecurityAsset(ctx context.Context, id string, body map
 	if err := a.assertOptionalUserOwned(ctx, businessOwnerUserID, auth.OrganizationID); err != nil {
 		return nil, err
 	}
-	_, err := a.db.ExecContext(ctx, `UPDATE security_assets SET owner_user_id = COALESCE($1, owner_user_id), business_owner_user_id = COALESCE($2, business_owner_user_id), name = COALESCE($3, name), summary = COALESCE($4, summary), labels = COALESCE($5, labels), criticality = COALESCE($6::"AssetCriticality", criticality), exposure_level = COALESCE($7::"AssetExposureLevel", exposure_level), ownership_status = COALESCE($8::"AssetOwnershipStatus", ownership_status), contains_sensitive_data = COALESCE($9, contains_sensitive_data), is_privileged = COALESCE($10, is_privileged), risk_score = COALESCE($11, risk_score), updated_at = NOW() WHERE id = $12 AND organization_id = $13`, ownerUserID, businessOwnerUserID, optionalStringPtr(body, "name"), optionalStringPtr(body, "summary"), optionalStringSlice(body, "labels"), optionalStringPtr(body, "criticality"), optionalStringPtr(body, "exposureLevel"), optionalStringPtr(body, "ownershipStatus"), optionalBool(body, "containsSensitiveData"), optionalBool(body, "isPrivileged"), optionalInt(body, "riskScore"), id, auth.OrganizationID)
+	res, err := a.db.ExecContext(ctx, `UPDATE security_assets SET owner_user_id = COALESCE($1, owner_user_id), business_owner_user_id = COALESCE($2, business_owner_user_id), name = COALESCE($3, name), summary = COALESCE($4, summary), labels = COALESCE($5, labels), criticality = COALESCE($6::"AssetCriticality", criticality), exposure_level = COALESCE($7::"AssetExposureLevel", exposure_level), ownership_status = COALESCE($8::"AssetOwnershipStatus", ownership_status), contains_sensitive_data = COALESCE($9, contains_sensitive_data), is_privileged = COALESCE($10, is_privileged), risk_score = COALESCE($11, risk_score), updated_at = NOW() WHERE id = $12 AND organization_id = $13`, ownerUserID, businessOwnerUserID, optionalStringPtr(body, "name"), optionalStringPtr(body, "summary"), optionalStringSlice(body, "labels"), optionalStringPtr(body, "criticality"), optionalStringPtr(body, "exposureLevel"), optionalStringPtr(body, "ownershipStatus"), optionalBool(body, "containsSensitiveData"), optionalBool(body, "isPrivileged"), optionalInt(body, "riskScore"), id, auth.OrganizationID)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	if affected, _ := res.RowsAffected(); affected > 0 {
+		updated := map[string]any{}
+		for _, key := range []string{
+			"name", "summary", "labels", "criticality", "exposureLevel", "ownershipStatus",
+			"containsSensitiveData", "isPrivileged", "riskScore", "ownerUserId", "businessOwnerUserId",
+		} {
+			if value, ok := body[key]; ok {
+				updated[key] = value
+			}
+		}
+		a.writeCompatAudit(ctx, auth, "security.asset.update", "security_asset", id, updated)
 	}
 	rows, _ := a.listSecurityAssets(ctx, auth.OrganizationID, &aperiov1.ListSecurityAssetsRequest{})
 	for _, row := range rows {
@@ -2375,6 +2556,13 @@ func (a *App) compatCreateRiskException(ctx context.Context, body map[string]any
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
+	a.writeCompatAudit(ctx, auth, "security.exception.create", "risk_exception", id, map[string]any{
+		"title":          requiredString(body, "title"),
+		"status":         status,
+		"assetId":        derefString(assetID),
+		"findingId":      derefString(findingID),
+		"approvedByself": approvedBy != nil,
+	})
 	rows, _ := a.listRiskExceptions(ctx, auth.OrganizationID)
 	for _, row := range rows {
 		if row.ID == id {
@@ -2388,9 +2576,18 @@ func (a *App) compatUpdateRiskException(ctx context.Context, id string, body map
 	if err := requireCompatRole(auth, "OWNER", "ADMIN", "SECURITY_ANALYST"); err != nil {
 		return nil, err
 	}
-	_, err := a.db.ExecContext(ctx, `UPDATE risk_exceptions SET title = COALESCE($1, title), rationale = COALESCE($2, rationale), compensating_controls = COALESCE($3, compensating_controls), status = COALESCE($4, status), expires_at = COALESCE($5, expires_at), updated_at = NOW() WHERE id = $6 AND organization_id = $7`, optionalStringPtr(body, "title"), optionalStringPtr(body, "rationale"), optionalStringSlice(body, "compensatingControls"), optionalStringPtr(body, "status"), optionalTime(body, "expiresAt"), id, auth.OrganizationID)
+	res, err := a.db.ExecContext(ctx, `UPDATE risk_exceptions SET title = COALESCE($1, title), rationale = COALESCE($2, rationale), compensating_controls = COALESCE($3, compensating_controls), status = COALESCE($4, status), expires_at = COALESCE($5, expires_at), updated_at = NOW() WHERE id = $6 AND organization_id = $7`, optionalStringPtr(body, "title"), optionalStringPtr(body, "rationale"), optionalStringSlice(body, "compensatingControls"), optionalStringPtr(body, "status"), optionalTime(body, "expiresAt"), id, auth.OrganizationID)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	if affected, _ := res.RowsAffected(); affected > 0 {
+		updated := map[string]any{}
+		for _, key := range []string{"title", "rationale", "compensatingControls", "status", "expiresAt"} {
+			if value, ok := body[key]; ok {
+				updated[key] = value
+			}
+		}
+		a.writeCompatAudit(ctx, auth, "security.exception.update", "risk_exception", id, updated)
 	}
 	rows, _ := a.listRiskExceptions(ctx, auth.OrganizationID)
 	for _, row := range rows {
@@ -2399,6 +2596,13 @@ func (a *App) compatUpdateRiskException(ctx context.Context, id string, body map
 		}
 	}
 	return nil, connect.NewError(connect.CodeNotFound, errors.New("exception not found"))
+}
+
+func derefString(p *string) string {
+	if p == nil {
+		return ""
+	}
+	return *p
 }
 
 func (a *App) assertOptionalIntegrationOwned(ctx context.Context, id *string, organizationID string) error {

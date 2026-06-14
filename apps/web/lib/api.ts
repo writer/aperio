@@ -61,6 +61,7 @@ export type Finding = {
   resolvedAt?: string | null;
   evidence?: Record<string, unknown>;
   remediationSteps: string[];
+  tags: string[];
   integration: {
     id?: string;
     provider: Provider;
@@ -1082,4 +1083,59 @@ export function resolveReportArtifactUrl(
 ): string | null {
   if (kind === "html") return report.htmlUrl ?? null;
   return report.pdfUrl ?? null;
+}
+
+export type ComplianceReportControl = {
+  id: string;
+  title: string;
+  status: "PASS" | "PARTIAL" | "FAIL" | "NOT_APPLICABLE";
+  evidenceCount: number;
+  owner: string;
+};
+
+export type ComplianceReportGroup = {
+  id: string;
+  title: string;
+  description: string;
+  controls: ComplianceReportControl[];
+};
+
+export type ComplianceReportFramework = {
+  id: string;
+  name: string;
+  version: string;
+  description: string;
+  groups: ComplianceReportGroup[];
+};
+
+export type ComplianceReportPayload = {
+  generatedAt: string;
+  organization: string;
+  frameworks: ComplianceReportFramework[];
+};
+
+// exportComplianceReport posts the current dashboard snapshot to the Go
+// renderer and returns the resulting PDF as a Blob. The fetch is
+// same-origin via a Next.js rewrite, so the session cookie is
+// included automatically without CORS gymnastics.
+export async function exportComplianceReport(
+  payload: ComplianceReportPayload
+): Promise<{ blob: Blob; filename: string }> {
+  const response = await fetch("/compliance/reports/render", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    throw new Error(
+      text || `Compliance report failed (${response.status})`
+    );
+  }
+  const disposition = response.headers.get("Content-Disposition") ?? "";
+  const match = disposition.match(/filename="?([^";]+)"?/i);
+  const filename = match?.[1] ?? "aperio-compliance.pdf";
+  const blob = await response.blob();
+  return { blob, filename };
 }

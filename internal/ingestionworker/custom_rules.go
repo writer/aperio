@@ -72,7 +72,7 @@ func EvaluateCustomRules(payload JobPayload, rules []CustomRule) []Finding {
 func customFinding(rule CustomRule, payload JobPayload) Finding {
 	severity := strings.ToUpper(strings.TrimSpace(rule.Severity))
 	if severity == "" {
-		severity = "MEDIUM"
+		severity = SeverityMedium
 	}
 	actor := payload.Actor
 	if actor == "" {
@@ -96,7 +96,7 @@ func customFinding(rule CustomRule, payload JobPayload) Finding {
 		Title:        rule.Name,
 		Description:  "Custom rule defined by operator on this integration.",
 		Severity:     severity,
-		RiskScore:    severityToRiskScore(severity),
+		RiskScore:    RiskScoreFor(severity),
 		Target:       subject,
 		DedupeTarget: dedupe,
 		Evidence: map[string]any{
@@ -108,21 +108,6 @@ func customFinding(rule CustomRule, payload JobPayload) Finding {
 			"provider":     payload.Provider,
 			"eventType":    payload.EventType,
 		},
-	}
-}
-
-func severityToRiskScore(severity string) int {
-	switch strings.ToUpper(severity) {
-	case "CRITICAL":
-		return 90
-	case "HIGH":
-		return 70
-	case "MEDIUM":
-		return 50
-	case "LOW":
-		return 30
-	default:
-		return 50
 	}
 }
 

@@ -551,6 +551,7 @@ model SecurityFinding {
   status            FindingStatus          @default(OPEN)
   riskScore         Int                    @map("risk_score")
   remediationSteps  String[]               @map("remediation_steps")
+  tags              String[]               @default([])
   evidence          Json
   detectedAt        DateTime               @default(now()) @map("detected_at")
   resolvedAt        DateTime?              @map("resolved_at")
@@ -570,6 +571,7 @@ model SecurityFinding {
   @@index([organizationId, integrationId])
   @@index([organizationId, detectedAt])
   @@index([organizationId, assetId])
+  @@index([tags], type: Gin)
   @@map("security_findings")
 }
 

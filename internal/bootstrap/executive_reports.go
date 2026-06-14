@@ -260,6 +260,10 @@ func (a *App) compatDeleteExecutiveReport(ctx context.Context, id string, auth c
 	if row.PDFPath.Valid {
 		_ = os.Remove(row.PDFPath.String)
 	}
+	a.writeCompatAudit(ctx, auth, "report.executive.delete", "executive_report", id, map[string]any{
+		"title":  row.Title,
+		"status": row.Status,
+	})
 	return map[string]any{"data": map[string]bool{"deleted": true}}, nil
 }
 
