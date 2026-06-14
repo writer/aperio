@@ -96,7 +96,7 @@ DATASET_ACCESS_JSON="$TMP_DIR/workspace-log-dataset-access.json"
 
 bq show --project_id="$PROJECT_ID" "$PROJECT_ID:$WORKSPACE_LOG_DATASET" >/dev/null
 
-bq --project_id="$PROJECT_ID" --location="$LOCATION" ls --format=prettyjson "$PROJECT_ID:$WORKSPACE_LOG_DATASET" | \\
+bq --project_id="$PROJECT_ID" --location="$LOCATION" ls --max_results="$BQ_TABLE_LIST_MAX_RESULTS" --format=prettyjson "$PROJECT_ID:$WORKSPACE_LOG_DATASET" | \\
   python3 -c 'import json, sys
 tables = json.load(sys.stdin)
 for table in tables:
@@ -108,6 +108,11 @@ for table in tables:
 
 if [[ ! -s "$RAW_TABLE_IDS_FILE" ]]; then
   echo "No base tables found in $PROJECT_ID:$WORKSPACE_LOG_DATASET; create the Google Workspace BigQuery export first." >&2
+  exit 1
+fi
+RAW_TABLE_COUNT="$(wc -l < "$RAW_TABLE_IDS_FILE" | tr -d '[:space:]')"
+if [[ "$RAW_TABLE_COUNT" == "$BQ_TABLE_LIST_MAX_RESULTS" ]]; then
+  echo "Found $BQ_TABLE_LIST_MAX_RESULTS raw tables, which may mean bq ls truncated the export table list. Increase BQ_TABLE_LIST_MAX_RESULTS and rerun." >&2
   exit 1
 fi
 
@@ -172,7 +177,7 @@ function datasetModeValidationCommands(input: RequiredWifSetupInput) {
 # Raw dataset mode never creates the Workspace export dataset. It must already
 # exist and contain exported Workspace tables.
 bq show --project_id="$PROJECT_ID" "$PROJECT_ID:$WORKSPACE_LOG_DATASET" >/dev/null
-RAW_TABLE_COUNT="$(bq --project_id="$PROJECT_ID" --location="$LOCATION" ls --format=prettyjson "$PROJECT_ID:$WORKSPACE_LOG_DATASET" | \\
+RAW_TABLE_COUNT="$(bq --project_id="$PROJECT_ID" --location="$LOCATION" ls --max_results="$BQ_TABLE_LIST_MAX_RESULTS" --format=prettyjson "$PROJECT_ID:$WORKSPACE_LOG_DATASET" | \\
   python3 -c 'import json, sys
 tables = json.load(sys.stdin)
 print(sum(1 for table in tables if table.get("type", "TABLE") == "TABLE"))
@@ -259,6 +264,7 @@ OIDC_ISSUER_URI=${shellQuote(input.oidcIssuerUri)}
 OIDC_AUDIENCE=${shellQuote(input.oidcAudience)}
 PRINCIPAL_SUBJECT=${shellQuote(input.principalSubject ?? "")}
 PRINCIPAL_VALUE=${shellQuote(input.principalValue ?? "")}
+BQ_TABLE_LIST_MAX_RESULTS="\${BQ_TABLE_LIST_MAX_RESULTS:-10000}"
 
 PROJECT_NUMBER="$(gcloud projects describe "$PROJECT_ID" --format="value(projectNumber)")"
 SERVICE_ACCOUNT_EMAIL="$SERVICE_ACCOUNT_NAME@$PROJECT_ID.iam.gserviceaccount.com"

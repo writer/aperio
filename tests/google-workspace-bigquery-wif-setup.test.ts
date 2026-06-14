@@ -65,6 +65,8 @@ test("shared WIF setup generator emits least-privilege BigQuery commands", () =>
   assert.match(script, /roles\/bigquery\.dataViewer/);
   assert.match(script, /Raw dataset mode never creates/);
   assert.match(script, /RAW_TABLE_COUNT/);
+  assert.match(script, /BQ_TABLE_LIST_MAX_RESULTS="\$\{BQ_TABLE_LIST_MAX_RESULTS:-10000\}"/);
+  assert.match(script, /--max_results="\$BQ_TABLE_LIST_MAX_RESULTS"/);
   assert.match(script, /bq query[\s\S]*--dry_run/);
   assert.match(script, /INFORMATION_SCHEMA\.TABLES/);
   assert.doesNotMatch(script, /mk --dataset "\$PROJECT_ID:\$READ_DATASET"/);
@@ -90,6 +92,8 @@ test("shared WIF setup generator supports authorized-view read datasets", () => 
   assert.match(script, /READ_DATASET='aperio_workspace_views'/);
   assert.match(script, /authorized view/i);
   assert.match(script, /SELECT \*/);
+  assert.match(script, /--max_results="\$BQ_TABLE_LIST_MAX_RESULTS"/);
+  assert.match(script, /Increase BQ_TABLE_LIST_MAX_RESULTS/);
   assert.match(script, /bq mk --project_id="\$PROJECT_ID" --use_legacy_sql=false --view/);
   assert.match(script, /bq update --source "\$DATASET_ACCESS_JSON"/);
   assert.match(script, /"view": \{/);
