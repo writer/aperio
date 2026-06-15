@@ -261,9 +261,7 @@ func (p *BigQueryPoller) pollRecordType(ctx context.Context, cfg BigQueryConfig,
 	var newest bigQueryActivityRow
 	queued := 0
 	for _, row := range rows {
-		if !cursor.isStrictlyAfter(row.EventTime, row.RowHash) {
-			continue
-		}
+		advancesCursor := cursor.isStrictlyAfter(row.EventTime, row.RowHash)
 		activity, event, err := row.toReportsActivity()
 		if err != nil {
 			return err
@@ -276,7 +274,7 @@ func (p *BigQueryPoller) pollRecordType(ctx context.Context, cfg BigQueryConfig,
 			return err
 		}
 		queued++
-		if newest.EventTime.IsZero() || row.EventTime.After(newest.EventTime) || (row.EventTime.Equal(newest.EventTime) && row.RowHash > newest.RowHash) {
+		if advancesCursor && (newest.EventTime.IsZero() || row.EventTime.After(newest.EventTime) || (row.EventTime.Equal(newest.EventTime) && row.RowHash > newest.RowHash)) {
 			newest = row
 		}
 	}
@@ -847,10 +845,13 @@ WHERE t.record_type = @record_type
 )
 SELECT row_json, row_hash, time_usec, record_type, event_name, event_type, email, ip_address
 FROM candidate
-WHERE @cursor_usec = 0
-  OR time_usec_int > @cursor_usec
-  OR (time_usec_int = @cursor_usec AND row_hash > @cursor_hash)
-ORDER BY time_usec_int ASC, row_hash ASC
+ORDER BY CASE
+  WHEN @cursor_usec = 0
+    OR time_usec_int > @cursor_usec
+    OR (time_usec_int = @cursor_usec AND row_hash > @cursor_hash)
+  THEN 0
+  ELSE 1
+END, time_usec_int ASC, row_hash ASC
 LIMIT %d`, cfg.ProjectID, cfg.DatasetID, cfg.activityTable(), cfg.partitionTimeExpression("t"), limit), nil
 }
 

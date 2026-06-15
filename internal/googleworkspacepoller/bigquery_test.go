@@ -30,8 +30,11 @@ func TestBigQueryActivityTableUsesViewDataset(t *testing.T) {
 	if !strings.Contains(query, "t.aperio_partition_time") || strings.Contains(query, "t._PARTITIONTIME") {
 		t.Fatalf("view mode must use the safe authorized-view partition alias: %s", query)
 	}
-	if !strings.Contains(query, "time_usec_int > @cursor_usec") || !strings.Contains(query, "row_hash > @cursor_hash") {
-		t.Fatalf("query must seek past the saved cursor inside the overlap window: %s", query)
+	if !strings.Contains(query, "ORDER BY CASE") || !strings.Contains(query, "time_usec_int > @cursor_usec") || !strings.Contains(query, "row_hash > @cursor_hash") {
+		t.Fatalf("query must prioritize rows after the saved cursor without filtering out the overlap window: %s", query)
+	}
+	if strings.Contains(query, "WHERE @cursor_usec") {
+		t.Fatalf("query must not filter out the late-lookback overlap window: %s", query)
 	}
 	if !strings.Contains(query, "record_type = @record_type") {
 		t.Fatalf("query must filter by record_type: %s", query)
