@@ -280,6 +280,7 @@ func TestRefreshEmailDomainHealthReturnsFreshRowsWhenNothingStale(t *testing.T) 
 	}); err != nil {
 		t.Fatalf("seed fresh email domain health row: %v", err)
 	}
+	clearRateLimitBucket(t, app, compatRateLimitKey(http.MethodPost, emailDomainHealthRefreshRatePath, "unknown", ""))
 
 	req := connect.NewRequest(&aperiov1.RefreshEmailDomainHealthRequest{})
 	copyCompatHeaders(req.Header(), seedSessionHeader(t, app, auth))
