@@ -118,6 +118,132 @@ test("directory sync auto-started by dev.mjs", () => {
   );
 });
 
+test("source sync wake paths preserve one-shot and error visibility", () => {
+  for (const file of [
+    "cmd/google-workspace-bigquery-sync/main.go",
+    "cmd/google-workspace-directory-sync/main.go",
+    "cmd/google-workspace-oauth-sync/main.go"
+  ]) {
+    const source = readRepoFile(file);
+    assert.match(source, /openWakeListener\(ctx, cfg\.DatabaseURL\)/, `${file} must listen before -once ticks`);
+    assert.match(source, /drainWakeNotifications\(ctx, listener,/, `${file} must drain wake notifications in -once mode`);
+    assert.match(source, /var active atomic\.Int64/, `${file} must keep draining while wake-triggered work is active`);
+    assert.match(source, /notificationPollInterval/, `${file} must poll for additional once-mode wake notifications`);
+    assert.match(source, /listenerFailed := false/, `${file} must track listener failures separately from active wake work`);
+    assert.match(
+      source,
+      /if time\.Now\(\)\.After\(deadline\) \{[\s\S]*?if active\.Load\(\) > 0 \{[\s\S]*?wake drain budget elapsed[\s\S]*?listenerFailed = true[\s\S]*?continue/,
+      `${file} must wait for active wake work instead of canceling it when the once-mode drain budget elapses`
+    );
+    assert.match(
+      source,
+      /if listenerFailed && active\.Load\(\) == 0[\s\S]*?return/,
+      `${file} must not exit after listener failure until active wake work finishes`
+    );
+    assert.match(
+      source,
+      /if active\.Load\(\) > 0 \{[\s\S]*?-once wake drain stopped listening[\s\S]*?listenerFailed = true/,
+      `${file} must keep once-mode alive when WaitForNotification fails while wake work is active`
+    );
+    assert.match(
+      source,
+      /waitErr := waitCtx\.Err\(\)[\s\S]*?stopWaiting\(\)[\s\S]*?if waitErr != nil/,
+      `${file} must inspect the wait timeout before canceling the timeout context`
+    );
+  }
+  for (const file of [
+    "internal/googleworkspacedirectorysync/sync.go",
+    "internal/googleworkspaceoauthsync/sync.go"
+  ]) {
+    const source = readRepoFile(file);
+    assert.match(
+      source,
+      /func \(s \*Sync\) WakeIntegration[\s\S]*?s\.recordError\(ctx, integ\.ID, err\)/,
+      `${file} must persist wake-triggered failures to last_error`
+    );
+    assert.doesNotMatch(
+      source,
+      /ON CONFLICT \(integration_id\) DO UPDATE SET\s+last_synced_at = EXCLUDED\.last_synced_at,\s+last_error/s,
+      `${file} must not advance last_synced_at on failed full sweeps`
+    );
+  }
+});
+
+test("source sync cursor state preserves queued backfills and BigQuery queue attribution", () => {
+  const reports = readRepoFile("internal/googleworkspacepoller/poller.go");
+  const bigquery = readRepoFile("internal/googleworkspacepoller/bigquery.go");
+  const status = readRepoFile("internal/bootstrap/sync_status.go");
+
+  assert.match(reports, /syncstate\.BackfillQueuedPrefix\+"%"/);
+  assert.match(
+    reports,
+    /WHERE COALESCE\(google_workspace_sync_cursors\.last_error, ''\) NOT LIKE \$6[\s\S]*?last_event_time = \$7[\s\S]*?last_unique_qualifier = \$8/,
+    "Reports cursor writes must not clear a queued backfill from an overlapping stale sweep"
+  );
+  assert.match(
+    reports,
+    /func \(p \*Poller\) recordApplicationSetupErrors[\s\S]*?expected, err := p\.loadCursor\(ctx, integrationID, app\)[\s\S]*?p\.recordError\(ctx, integrationID, app, expected, setupErr\)/,
+    "Reports setup failures must load each stream cursor before recording errors so queued backfills can be replaced by the real failure"
+  );
+  assert.match(bigquery, /syncstate\.BackfillQueuedPrefix\+"%"/);
+  assert.match(
+    bigquery,
+    /WHERE COALESCE\(google_workspace_bigquery_sync_cursors\.last_error, ''\) NOT LIKE \$7[\s\S]*?last_event_time = \$8[\s\S]*?last_row_hash = \$9/,
+    "BigQuery cursor writes must not clear a queued backfill from an overlapping stale sweep"
+  );
+  assert.match(
+    bigquery,
+    /func \(p \*BigQueryPoller\) recordBigQueryErrors[\s\S]*?expected, loadErr := p\.loadBigQueryCursor\(ctx, integrationID, recordType\)[\s\S]*?p\.recordBigQueryError\(ctx, integrationID, recordType, expected, err\)/,
+    "BigQuery setup failures must load each stream cursor before recording errors so queued backfills can be replaced by the real failure"
+  );
+  assert.match(status, /queueSource := "google\.bigquery\." \+ recordType/);
+  assert.match(bigquery, /googleBigQueryQueueSource\(application\)/);
+  assert.match(reports, /googleReportsQueueSource\(application\)/);
+});
+
+test("source sync all waits for Directory before waking OAuth", () => {
+  const status = readRepoFile("internal/bootstrap/sync_status.go");
+  const allCase = status.match(/case "all":[\s\S]*?return channels, nil/);
+  assert.ok(allCase, "syncWakeChannelsForSource must keep an explicit all-source branch");
+  assert.doesNotMatch(
+    allCase![0],
+    /GoogleWorkspaceOAuthSyncWakeChannel/,
+    "Sync all must not wake OAuth in parallel with Directory; OAuth depends on freshly refreshed saas_identities"
+  );
+  assert.match(
+    status,
+    /kind == "all" && channel == GoogleWorkspaceDirectorySyncWakeChannel[\s\S]*?syncwake\.Encode\(integ\.ID, syncwake\.ModeOAuthAfterDirectorySync\)/,
+    "Sync all must tag the Directory wake so the Directory worker chains OAuth only after identities refresh"
+  );
+  assert.match(
+    status,
+    /kind == sourceGoogleOAuth[\s\S]*?googleWorkspaceIdentitiesSeeded\(ctx, integ\.ID\)[\s\S]*?connect\.CodeFailedPrecondition/,
+    "Direct OAuth source sync must be rejected until Directory has seeded saas_identities"
+  );
+  assert.match(
+    status,
+    /newSyncState\(sourceGoogleOAuth, "grants", "OAuth app grants", "", queueCounts\{\}, identitiesSeeded, false\)/,
+    "OAuth source row must stay disabled until Google Workspace identities exist"
+  );
+
+  const directoryCmd = readRepoFile("cmd/google-workspace-directory-sync/main.go");
+  assert.match(
+    directoryCmd,
+    /syncwake\.Decode\(notification\.Payload\)/,
+    "Directory wake listener must decode the source-sync mode payload"
+  );
+  assert.match(
+    directoryCmd,
+    /worker\.WakeIntegration\(ctx, integrationID\)[\s\S]*?mode != syncwake\.ModeOAuthAfterDirectorySync[\s\S]*?notifyOAuthAfterDirectorySync\(ctx, notifyDB, integrationID\)/,
+    "Directory worker must notify OAuth only after the Directory refresh succeeds"
+  );
+  assert.match(
+    directoryCmd,
+    /SELECT pg_notify\(\$1, \$2\)[\s\S]*?bootstrap\.GoogleWorkspaceOAuthSyncWakeChannel/,
+    "Directory worker must use the OAuth wake channel for the chained follow-up"
+  );
+});
+
 test("directory sync owned in migration matrix", () => {
   const matrix = JSON.parse(readRepoFile("tests/fixtures/migration-ownership/migration-matrix.json"));
   const entry = matrix.entries.find((e: { id: string }) => e.id === "cmd-google-workspace-directory-sync-go-default");
