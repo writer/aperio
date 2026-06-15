@@ -72,7 +72,8 @@ export type ConnectFinding = {
       | "ONE_PASSWORD"
       | "OKTA"
       | "MICROSOFT_365"
-      | "ATLASSIAN";
+      | "ATLASSIAN"
+      | "SALESFORCE";
     displayName: string;
   };
 };
@@ -238,6 +239,11 @@ export type ConnectIntegrationCheckState = {
     defaultEnabled: boolean;
     enabled: boolean;
   }[];
+};
+
+export type ConnectCheckDisableInput = {
+  reason: string;
+  expiresAt: string;
 };
 
 export type ConnectConnectorBuiltInRule = {
@@ -1757,11 +1763,14 @@ export const aperioConnectClient = {
   },
   async updateIntegrationChecks(
     integrationId: string,
-    disabledChecks: string[]
+    disabledChecks: string[],
+    disableInput?: ConnectCheckDisableInput
   ): Promise<{ data: ConnectIntegrationCheckState }> {
     const response = await client.updateIntegrationChecks({
       integrationId,
-      disabledChecks
+      disabledChecks,
+      disableReason: disableInput?.reason ?? "",
+      disableExpiresAt: disableInput?.expiresAt ?? ""
     });
     if (!response.data) {
       throw new Error("Integration checks update failed");

@@ -656,6 +656,8 @@ func compatRateLimitPolicy(path string) (int, time.Duration, bool) {
 		return 5, 10 * time.Minute, true
 	case "/api/v1/auth/forgot-password", "/api/v1/auth/reset-password", "/api/v1/auth/invitations/accept":
 		return 10, 15 * time.Minute, true
+	case emailDomainHealthListRateLimitPath, emailDomainHealthGetRateLimitPath:
+		return 20, 10 * time.Minute, true
 	default:
 		if strings.HasPrefix(path, "/api/v1/integrations/") && strings.HasSuffix(path, "/force-sync") {
 			return 10, 10 * time.Minute, true
@@ -1291,37 +1293,70 @@ func (a *App) compatUpdateIntegrationChecks(ctx context.Context, id string, body
 	previous := []string{}
 	_ = json.Unmarshal([]byte(previousJSON), &previous)
 	disabled := validCompatDisabledChecks(provider, stringSlice(body["disabledChecks"]))
+	previousSet := map[string]struct{}{}
+	for _, key := range previous {
+		previousSet[key] = struct{}{}
+	}
+	nextSet := map[string]struct{}{}
+	newlyDisabled := make([]string, 0, len(disabled))
+	for _, key := range disabled {
+		nextSet[key] = struct{}{}
+		if _, wasDisabled := previousSet[key]; !wasDisabled {
+			newlyDisabled = append(newlyDisabled, key)
+		}
+	}
+	reenabled := make([]string, 0, len(previous))
+	for _, key := range previous {
+		if _, stillDisabled := nextSet[key]; !stillDisabled {
+			reenabled = append(reenabled, key)
+		}
+	}
+	var disableReason string
+	var disableExpiresAt string
+	if len(newlyDisabled) > 0 {
+		protected := compatCriticalBaselineCheckSet(provider)
+		blocked := make([]string, 0, len(newlyDisabled))
+		for _, key := range newlyDisabled {
+			if _, disallowed := protected[key]; disallowed {
+				blocked = append(blocked, key)
+			}
+		}
+		if len(blocked) > 0 {
+			return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("cannot disable critical baseline checks: %s", strings.Join(blocked, ", ")))
+		}
+		disableReason = requiredString(body, "disableReason")
+		if disableReason == "" {
+			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("disableReason is required when disabling checks"))
+		}
+		disableExpiresAt = requiredString(body, "disableExpiresAt")
+		if disableExpiresAt == "" {
+			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("disableExpiresAt is required when disabling checks"))
+		}
+		expiresAt, err := time.Parse(time.RFC3339, disableExpiresAt)
+		if err != nil {
+			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("disableExpiresAt must be RFC3339"))
+		}
+		if !expiresAt.After(time.Now().UTC()) {
+			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("disableExpiresAt must be in the future"))
+		}
+		disableExpiresAt = expiresAt.UTC().Format(time.RFC3339)
+	}
 	if _, err := a.db.ExecContext(ctx, `UPDATE integration_connections SET disabled_checks = $1, updated_at = NOW() WHERE id = $2 AND organization_id = $3`, disabled, id, auth.OrganizationID); err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
-	// Auto-resolve OPEN findings produced by any newly-disabled rule. The
-	// user chose "suppress" semantics on the connector toggle: turning a
-	// rule off means existing OPEN findings auto-resolve with a "rule
-	// disabled by operator" note so they stop showing on dashboards
-	// without manual triage.
-	previousSet := map[string]struct{}{}
-	for _, r := range previous {
-		previousSet[r] = struct{}{}
-	}
-	newlyDisabled := make([]string, 0, len(disabled))
-	for _, r := range disabled {
-		if _, was := previousSet[r]; !was {
-			newlyDisabled = append(newlyDisabled, r)
-		}
+	metadata := map[string]any{
+		"previousDisabled": previous,
+		"nextDisabled":     disabled,
 	}
 	if len(newlyDisabled) > 0 {
-		resolved, err := a.autoResolveFindingsForDisabledRules(ctx, auth.OrganizationID, id, newlyDisabled, auth.UserID)
-		if err != nil {
-			return nil, connect.NewError(connect.CodeInternal, err)
-		}
-		if resolved > 0 {
-			a.writeCompatAudit(ctx, auth, "integration.checks.auto_resolve", "integration_connection", id, map[string]any{
-				"rules":         newlyDisabled,
-				"resolvedCount": resolved,
-			})
-		}
+		metadata["newlyDisabled"] = newlyDisabled
+		metadata["disableReason"] = disableReason
+		metadata["disableExpiresAt"] = disableExpiresAt
 	}
-	a.writeCompatAudit(ctx, auth, "integration.checks.update", "integration_connection", id, map[string]any{"previousDisabled": previous, "nextDisabled": disabled})
+	if len(reenabled) > 0 {
+		metadata["reenabled"] = reenabled
+	}
+	a.writeCompatAudit(ctx, auth, "integration.checks.update", "integration_connection", id, metadata)
 	return map[string]any{"data": map[string]any{"integrationId": id, "disabledChecks": disabled, "checks": compatFindingCheckStatuses(provider, disabled)}}, nil
 }
 

@@ -14,7 +14,6 @@ import {
   Unplug
 } from "lucide-react";
 import { ConnectorRulesDialog } from "./connector-rules-dialog";
-import { FindingsDialog } from "./findings-dialog";
 import { cn } from "../../lib/utils";
 import {
   backfillIntegrationSource,
@@ -87,8 +86,6 @@ export function ConnectorsPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
   const [catalogQuery, setCatalogQuery] = useState("");
   const [rulesIntegration, setRulesIntegration] = useState<IntegrationConnection | null>(null);
-  const [findingsIntegration, setFindingsIntegration] =
-    useState<IntegrationConnection | null>(null);
   const [bigQueryIntegration, setBigQueryIntegration] =
     useState<IntegrationConnection | null>(null);
   const [syncStatusIntegration, setSyncStatusIntegration] =
@@ -376,15 +373,6 @@ export function ConnectorsPage() {
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => setFindingsIntegration(integration)}
-                      disabled={syncingId === integration.id}
-                    >
-                      <ListChecks className="h-3.5 w-3.5" aria-hidden />
-                      Findings
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
                       onClick={() => void handleDisconnect(integration.id)}
                       disabled={syncingId === integration.id}
                     >
@@ -497,14 +485,6 @@ export function ConnectorsPage() {
         onOpenChange={(next) => {
           if (!next) setRulesIntegration(null);
         }}
-      />
-      <FindingsDialog
-        integration={findingsIntegration}
-        open={findingsIntegration !== null}
-        onOpenChange={(next) => {
-          if (!next) setFindingsIntegration(null);
-        }}
-        onSaved={() => void load()}
       />
       <GoogleWorkspaceBigQuerySetupDialog
         integration={bigQueryIntegration}

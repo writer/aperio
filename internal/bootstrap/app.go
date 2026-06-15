@@ -600,7 +600,11 @@ func (a *App) UpdateIntegrationChecks(
 		return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("unauthorized"))
 	}
 	id := strings.TrimSpace(req.Msg.IntegrationId)
-	result, err := a.compatUpdateIntegrationChecks(ctx, id, map[string]any{"disabledChecks": req.Msg.DisabledChecks}, auth)
+	result, err := a.compatUpdateIntegrationChecks(ctx, id, map[string]any{
+		"disabledChecks":   req.Msg.DisabledChecks,
+		"disableReason":    req.Msg.DisableReason,
+		"disableExpiresAt": req.Msg.DisableExpiresAt,
+	}, auth)
 	if err != nil {
 		return nil, err
 	}
@@ -1866,7 +1870,7 @@ func validateFindingFilters(severity string, status string, provider string) err
 	if status != "" && !allowedValue(status, "OPEN", "RESOLVED", "MUTED", "ALL") {
 		return errors.New("invalid status filter")
 	}
-	if provider != "" && !allowedValue(provider, "GITHUB", "SLACK", "GOOGLE_WORKSPACE", "ONE_PASSWORD", "OKTA", "MICROSOFT_365", "ATLASSIAN") {
+	if provider != "" && !allowedValue(provider, "GITHUB", "SLACK", "GOOGLE_WORKSPACE", "ONE_PASSWORD", "OKTA", "MICROSOFT_365", "ATLASSIAN", "SALESFORCE") {
 		return errors.New("invalid provider filter")
 	}
 	return nil

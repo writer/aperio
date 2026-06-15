@@ -453,6 +453,8 @@ message GetIntegrationChecksResponse {
 message UpdateIntegrationChecksRequest {
   string integration_id = 1;
   repeated string disabled_checks = 2;
+  string disable_reason = 3;
+  string disable_expires_at = 4;
 }
 
 message UpdateIntegrationChecksResponse {

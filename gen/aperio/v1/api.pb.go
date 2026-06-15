@@ -3871,11 +3871,13 @@ func (x *GetIntegrationChecksResponse) GetData() *IntegrationCheckState {
 }
 
 type UpdateIntegrationChecksRequest struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
-	IntegrationId  string                 `protobuf:"bytes,1,opt,name=integration_id,json=integrationId,proto3" json:"integration_id,omitempty"`
-	DisabledChecks []string               `protobuf:"bytes,2,rep,name=disabled_checks,json=disabledChecks,proto3" json:"disabled_checks,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	IntegrationId    string                 `protobuf:"bytes,1,opt,name=integration_id,json=integrationId,proto3" json:"integration_id,omitempty"`
+	DisabledChecks   []string               `protobuf:"bytes,2,rep,name=disabled_checks,json=disabledChecks,proto3" json:"disabled_checks,omitempty"`
+	DisableReason    string                 `protobuf:"bytes,3,opt,name=disable_reason,json=disableReason,proto3" json:"disable_reason,omitempty"`
+	DisableExpiresAt string                 `protobuf:"bytes,4,opt,name=disable_expires_at,json=disableExpiresAt,proto3" json:"disable_expires_at,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *UpdateIntegrationChecksRequest) Reset() {
@@ -3920,6 +3922,20 @@ func (x *UpdateIntegrationChecksRequest) GetDisabledChecks() []string {
 		return x.DisabledChecks
 	}
 	return nil
+}
+
+func (x *UpdateIntegrationChecksRequest) GetDisableReason() string {
+	if x != nil {
+		return x.DisableReason
+	}
+	return ""
+}
+
+func (x *UpdateIntegrationChecksRequest) GetDisableExpiresAt() string {
+	if x != nil {
+		return x.DisableExpiresAt
+	}
+	return ""
 }
 
 type UpdateIntegrationChecksResponse struct {
@@ -13301,10 +13317,12 @@ const file_aperio_v1_api_proto_rawDesc = "" +
 	"\x1bGetIntegrationChecksRequest\x12%\n" +
 	"\x0eintegration_id\x18\x01 \x01(\tR\rintegrationId\"T\n" +
 	"\x1cGetIntegrationChecksResponse\x124\n" +
-	"\x04data\x18\x01 \x01(\v2 .aperio.v1.IntegrationCheckStateR\x04data\"p\n" +
+	"\x04data\x18\x01 \x01(\v2 .aperio.v1.IntegrationCheckStateR\x04data\"\xc5\x01\n" +
 	"\x1eUpdateIntegrationChecksRequest\x12%\n" +
 	"\x0eintegration_id\x18\x01 \x01(\tR\rintegrationId\x12'\n" +
-	"\x0fdisabled_checks\x18\x02 \x03(\tR\x0edisabledChecks\"W\n" +
+	"\x0fdisabled_checks\x18\x02 \x03(\tR\x0edisabledChecks\x12%\n" +
+	"\x0edisable_reason\x18\x03 \x01(\tR\rdisableReason\x12,\n" +
+	"\x12disable_expires_at\x18\x04 \x01(\tR\x10disableExpiresAt\"W\n" +
 	"\x1fUpdateIntegrationChecksResponse\x124\n" +
 	"\x04data\x18\x01 \x01(\v2 .aperio.v1.IntegrationCheckStateR\x04data\"\x9e\x01\n" +
 	"\x15IntegrationCheckState\x12%\n" +

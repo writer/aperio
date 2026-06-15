@@ -24,9 +24,11 @@ import (
 )
 
 const (
-	emailDomainHealthStaleWindow      = 12 * time.Hour
-	emailDomainHealthBulkRefreshLimit = 10
-	emailDomainHealthRefreshRatePath  = "/api/v1/security/email-domain-health/refresh"
+	emailDomainHealthStaleWindow       = 12 * time.Hour
+	emailDomainHealthBulkRefreshLimit  = 10
+	emailDomainHealthListRateLimitPath = "/api/v1/security/email-domain-health"
+	emailDomainHealthGetRateLimitPath  = "/api/v1/security/email-domain-health/detail"
+	emailDomainHealthRefreshRatePath   = "/api/v1/security/email-domain-health/refresh"
 )
 
 var emailDomainPattern = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$`)
@@ -125,6 +127,9 @@ func (a *App) listEmailDomainHealth(
 	if err != nil {
 		return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("unauthorized"))
 	}
+	if err := a.compatRateLimit(ctx, req.Header(), req.Peer().Addr, http.MethodPost, emailDomainHealthListRateLimitPath, typedRateLimitSubjectBody(auth)); err != nil {
+		return nil, err
+	}
 	sources, err := a.discoverEmailDomainSources(ctx, auth.OrganizationID)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, errors.New("email domain discovery unavailable"))
@@ -162,6 +167,9 @@ func (a *App) getEmailDomainHealth(
 	auth, err := a.compatAuthFromSession(ctx, req.Header())
 	if err != nil {
 		return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("unauthorized"))
+	}
+	if err := a.compatRateLimit(ctx, req.Header(), req.Peer().Addr, http.MethodPost, emailDomainHealthGetRateLimitPath, typedRateLimitSubjectBody(auth)); err != nil {
+		return nil, err
 	}
 	domain := normalizeDomainCandidate(req.Msg.Domain)
 	if domain == "" {

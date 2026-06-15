@@ -174,6 +174,8 @@ func remediationExternalAccountID(provider string) string {
 		return "00000000-0000-0000-0000-" + randomBase36(12)
 	case "ATLASSIAN":
 		return "org-" + randomBase36(10)
+	case "SALESFORCE":
+		return randomBase36(8) + ".my.salesforce.com"
 	default:
 		return randomBase36(12)
 	}
@@ -273,9 +275,13 @@ func TestDBIntegrationLifecycle(t *testing.T) {
 		t.Fatalf("checks integrationId = %v", checks["integrationId"])
 	}
 
-	const disabledCheck = "slack.mfa_disabled"
+	const disabledCheck = "slack.external_shared_channel_created"
 	updated := dataMap(t, mustCall(t, func() (any, error) {
-		return app.compatUpdateIntegrationChecks(ctx, integrationID, map[string]any{"disabledChecks": []any{disabledCheck}}, auth)
+		return app.compatUpdateIntegrationChecks(ctx, integrationID, map[string]any{
+			"disabledChecks":   []any{disabledCheck},
+			"disableReason":    "test suppression window",
+			"disableExpiresAt": time.Now().UTC().Add(24 * time.Hour).Format(time.RFC3339),
+		}, auth)
 	}))
 	disabled, _ := updated["disabledChecks"].([]string)
 	if len(disabled) != 1 || disabled[0] != disabledCheck {
@@ -306,6 +312,40 @@ func TestDBIntegrationLifecycle(t *testing.T) {
 	}
 	if remaining != 0 {
 		t.Fatal("expected integration to be deleted")
+	}
+}
+
+func TestDBUpdateIntegrationChecksGovernanceGuards(t *testing.T) {
+	app, auth := newTestDBApp(t)
+	ctx := context.Background()
+	created, err := app.compatCreateIntegration(ctx, map[string]any{
+		"provider":          "SLACK",
+		"displayName":       "Slack Governance",
+		"externalAccountId": "T999000",
+		"mode":              "READ_ONLY",
+		"credentials":       map[string]any{"accessToken": "xoxp-test-token"},
+	}, auth)
+	if err != nil {
+		t.Fatalf("create integration: %v", err)
+	}
+	integrationID := dataMap(t, created)["id"].(string)
+
+	if _, err := app.compatUpdateIntegrationChecks(ctx, integrationID, map[string]any{
+		"disabledChecks": []any{"slack.external_shared_channel_created"},
+	}, auth); connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Fatalf("missing governance fields code = %v (%v), want CodeInvalidArgument", connect.CodeOf(err), err)
+	}
+
+	if _, err := app.compatUpdateIntegrationChecks(ctx, integrationID, map[string]any{
+		"disabledChecks":   []any{"slack.mfa_disabled"},
+		"disableReason":    "temporary breakglass",
+		"disableExpiresAt": time.Now().UTC().Add(24 * time.Hour).Format(time.RFC3339),
+	}, auth); connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Fatalf("critical baseline disable code = %v (%v), want CodeInvalidArgument", connect.CodeOf(err), err)
+	}
+
+	if _, err := app.compatDeleteIntegration(ctx, integrationID, auth); err != nil {
+		t.Fatalf("delete integration: %v", err)
 	}
 }
 

@@ -31,7 +31,8 @@ export type Provider =
   | "ONE_PASSWORD"
   | "OKTA"
   | "MICROSOFT_365"
-  | "ATLASSIAN";
+  | "ATLASSIAN"
+  | "SALESFORCE";
 
 export type SignupPayload = {
   organizationName: string;
@@ -209,6 +210,11 @@ export type IntegrationCheckState = {
   integrationId: string;
   disabledChecks: string[];
   checks: FindingCheckStatus[];
+};
+
+export type CheckDisableInput = {
+  reason: string;
+  expiresAt: string;
 };
 
 export type SiemKind =
@@ -568,11 +574,13 @@ export async function fetchIntegrationChecks(integrationId: string) {
 
 export async function updateIntegrationChecks(
   integrationId: string,
-  disabledChecks: string[]
+  disabledChecks: string[],
+  disableInput?: CheckDisableInput
 ) {
   return aperioConnectClient.updateIntegrationChecks(
     integrationId,
-    disabledChecks
+    disabledChecks,
+    disableInput
   ) as Promise<{ data: IntegrationCheckState }>;
 }
 

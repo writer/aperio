@@ -21,6 +21,7 @@ enum SaaSProvider {
   OKTA
   MICROSOFT_365
   ATLASSIAN
+  SALESFORCE
 }
 
 enum IntegrationStatus {
