@@ -1558,6 +1558,7 @@ func (a *App) compatUpdateGoogleWorkspaceBigQueryConfig(ctx context.Context, id 
 		"workloadIdentityProvider": workloadIdentityProvider,
 		"accessMode":               accessMode,
 	})
+	a.requestImmediateGoogleWorkspaceBigQuerySync(ctx, id, auth)
 	return a.compatGoogleWorkspaceBigQueryConfig(ctx, id, auth)
 }
 
@@ -1609,6 +1610,11 @@ func (a *App) writeCompatAudit(ctx context.Context, auth compatAuth, action, tar
 // for the next ticker fire. The payload is the integration_connections.id.
 const GoogleWorkspaceSyncWakeChannel = "aperio_google_workspace_sync_requested"
 
+// GoogleWorkspaceBigQuerySyncWakeChannel is the Postgres LISTEN/NOTIFY channel
+// the google-workspace-bigquery-sync worker subscribes to for out-of-cycle
+// BigQuery export ingestion after config save or manual force-sync.
+const GoogleWorkspaceBigQuerySyncWakeChannel = "aperio_google_workspace_bigquery_sync_requested"
+
 // requestImmediateGoogleWorkspaceSync nudges the google-workspace-poller to
 // run an out-of-cycle poll for a freshly-connected integration. We rely on
 // the existing poller for ingestion work, because that is the producer that
@@ -1628,6 +1634,14 @@ func (a *App) requestImmediateGoogleWorkspaceSync(ctx context.Context, integrati
 		return
 	}
 	a.writeCompatAudit(ctx, auth, "integration.initial_sync_requested", "integration_connection", integrationID, map[string]any{"provider": provider, "channel": GoogleWorkspaceSyncWakeChannel})
+}
+
+func (a *App) requestImmediateGoogleWorkspaceBigQuerySync(ctx context.Context, integrationID string, auth compatAuth) {
+	if _, err := a.db.ExecContext(ctx, `SELECT pg_notify($1, $2)`, GoogleWorkspaceBigQuerySyncWakeChannel, integrationID); err != nil {
+		a.writeCompatAudit(ctx, auth, "integration.google_workspace_bigquery.sync_notify_failed", "integration_connection", integrationID, map[string]any{"error": err.Error()})
+		return
+	}
+	a.writeCompatAudit(ctx, auth, "integration.google_workspace_bigquery.sync_requested", "integration_connection", integrationID, map[string]any{"channel": GoogleWorkspaceBigQuerySyncWakeChannel})
 }
 
 func (a *App) compatForceSync(ctx context.Context, id string, auth compatAuth) (any, error) {
@@ -1657,10 +1671,12 @@ func (a *App) compatForceSync(ctx context.Context, id string, auth compatAuth) (
 	if _, err := a.db.ExecContext(ctx, `SELECT pg_notify($1, $2)`, GoogleWorkspaceSyncWakeChannel, id); err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
+	_, _ = a.db.ExecContext(ctx, `SELECT pg_notify($1, $2)`, GoogleWorkspaceBigQuerySyncWakeChannel, id)
 	a.writeCompatAudit(ctx, auth, "integration.force_sync", "integration_connection", id, map[string]any{
-		"provider": provider,
-		"channel":  GoogleWorkspaceSyncWakeChannel,
-		"source":   "aperio.force_sync",
+		"provider":        provider,
+		"channel":         GoogleWorkspaceSyncWakeChannel,
+		"bigQueryChannel": GoogleWorkspaceBigQuerySyncWakeChannel,
+		"source":          "aperio.force_sync",
 	})
 	rows, err := a.listIntegrations(ctx, auth.OrganizationID)
 	if err != nil {
@@ -1675,12 +1691,13 @@ func (a *App) compatForceSync(ctx context.Context, id string, auth compatAuth) (
 					// the request returns once the wake-up is queued. The UI
 					// surfaces "New events will appear once the ingestion
 					// worker finishes." for this case.
-					"sampleCount":    0,
-					"eventsIngested": 0,
-					"findingsOpened": 0,
-					"sources":        []string{"aperio.force_sync"},
-					"queued":         true,
-					"channel":        GoogleWorkspaceSyncWakeChannel,
+					"sampleCount":     0,
+					"eventsIngested":  0,
+					"findingsOpened":  0,
+					"sources":         []string{"aperio.force_sync"},
+					"queued":          true,
+					"channel":         GoogleWorkspaceSyncWakeChannel,
+					"bigQueryChannel": GoogleWorkspaceBigQuerySyncWakeChannel,
 				},
 			}, nil
 		}

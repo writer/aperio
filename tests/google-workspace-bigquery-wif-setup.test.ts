@@ -91,7 +91,8 @@ test("shared WIF setup generator supports authorized-view read datasets", () => 
   assert.match(script, /WORKSPACE_LOG_DATASET='raw_workspace_logs'/);
   assert.match(script, /READ_DATASET='aperio_workspace_views'/);
   assert.match(script, /authorized view/i);
-  assert.match(script, /SELECT \*/);
+  assert.match(script, /_PARTITIONTIME AS aperio_partition_time/);
+  assert.doesNotMatch(script, /_PARTITIONTIME AS _PARTITIONTIME/);
   assert.match(script, /--max_results="\$BQ_TABLE_LIST_MAX_RESULTS"/);
   assert.match(script, /Increase BQ_TABLE_LIST_MAX_RESULTS/);
   assert.match(script, /bq mk --project_id="\$PROJECT_ID" --use_legacy_sql=false --view/);
@@ -101,6 +102,52 @@ test("shared WIF setup generator supports authorized-view read datasets", () => 
     script,
     /principalSet:\/\/iam\.googleapis\.com\/projects\/\$\{PROJECT_NUMBER\}\/locations\/global\/workloadIdentityPools\/\$\{POOL_ID\}\/attribute\.repository\/\$\{PRINCIPAL_VALUE\}/
   );
+});
+
+test("shared WIF setup generator emits provider attribute conditions", () => {
+  const script = buildGoogleWorkspaceBigQueryWifSetupScript({
+    projectId: "example-project",
+    rawDatasetId: "workspace_logs",
+    location: "US",
+    oidcIssuerUri: "https://issuer.example.com",
+    oidcAudience: "aperio",
+    principalSubject: "repo:example/aperio:ref:refs/heads/main",
+    providerAttributeCondition: "assertion.repository_owner == 'example'",
+    accessMode: "dataset"
+  });
+
+  assert.match(script, /PROVIDER_ATTRIBUTE_CONDITION=/);
+  assert.match(script, /--attribute-condition "\$PROVIDER_ATTRIBUTE_CONDITION"/);
+  assert.doesNotMatch(script, /PROVIDER_ATTRIBUTE_CONDITION_FLAGS/);
+});
+
+test("shared WIF setup generator emits Terraform setup", () => {
+  const hcl = buildGoogleWorkspaceBigQueryWifSetupScript({
+    projectId: "example-project",
+    rawDatasetId: "raw_workspace_logs",
+    readDatasetId: "aperio_workspace_views",
+    accessMode: "views",
+    location: "EU",
+    oidcIssuerUri: "https://issuer.example.com",
+    oidcAudience: "aperio",
+    principalAttribute: "repository",
+    principalValue: "example/aperio",
+    providerAttributeCondition: "assertion.repository_owner == 'example'",
+    outputMode: "terraform"
+  });
+
+  assert.match(hcl, /terraform \{/);
+  assert.match(hcl, /resource "google_iam_workload_identity_pool_provider" "aperio_oidc"/);
+  assert.match(hcl, /attribute_condition = "assertion\.repository_owner == 'example'"/);
+  assert.match(hcl, /variable "raw_table_ids"/);
+  assert.match(hcl, /resource "google_bigquery_table" "authorized_view"/);
+  assert.match(hcl, /format\("SELECT t\.\*, t\._PARTITIONTIME AS aperio_partition_time FROM `%s\.%s\.%s` AS t"/);
+  assert.doesNotMatch(hcl, /_PARTITIONTIME AS _PARTITIONTIME/);
+  assert.doesNotMatch(hcl, /\\`/);
+  assert.match(hcl, /resource "google_bigquery_dataset_access" "authorized_view"/);
+  assert.match(hcl, /resource "google_bigquery_dataset_iam_member" "reader_dataset_viewer"/);
+  assert.doesNotMatch(hcl, /#!\/usr\/bin\/env bash/);
+  assert.doesNotMatch(hcl, /gcloud /);
 });
 
 test("Google Workspace BigQuery config has API and storage surfaces", () => {
@@ -123,6 +170,15 @@ test("Google Workspace BigQuery config has API and storage surfaces", () => {
   assert.match(migration, /google_workspace_bigquery_wif_provider/);
   assert.match(app, /GetGoogleWorkspaceBigQueryConfig/);
   assert.match(app, /UpdateGoogleWorkspaceBigQueryConfig/);
+  const validateHandler = app.slice(
+    app.indexOf("func (a *App) ValidateGoogleWorkspaceBigQueryConfig("),
+    app.indexOf("func (a *App) StartGoogleWorkspaceOAuth(")
+  );
+  assert.match(
+    validateHandler,
+    /internalServerError\("validate google workspace bigquery config", err\)/
+  );
+  assert.doesNotMatch(validateHandler, /CodeInternal,\s*err\)/);
   assert.match(compat, /compatUpdateGoogleWorkspaceBigQueryConfig/);
   assert.match(compat, /validateGoogleWorkspaceBigQueryConfig/);
 });
@@ -168,5 +224,35 @@ test("shared WIF setup generator validates required trust inputs", () => {
         principalSubject: "subject"
       }),
     /different from rawDatasetId/
+  );
+
+  assert.throws(
+    () =>
+      validateGoogleWorkspaceBigQueryWifSetupInput({
+        projectId: "example-project",
+        rawDatasetId: "workspace_logs",
+        location: "US",
+        accessMode: "dataset",
+        outputMode: "bad" as never,
+        oidcIssuerUri: "https://issuer.example.com",
+        oidcAudience: "aperio",
+        principalSubject: "subject"
+      }),
+    /outputMode/
+  );
+
+  assert.throws(
+    () =>
+      validateGoogleWorkspaceBigQueryWifSetupInput({
+        projectId: "example-project",
+        rawDatasetId: "workspace_logs",
+        location: "US",
+        accessMode: "dataset",
+        oidcIssuerUri: "https://issuer.example.com",
+        oidcAudience: "aperio",
+        principalAttribute: "Repository",
+        principalValue: "example/aperio"
+      }),
+    /principalAttribute/
   );
 });

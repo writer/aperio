@@ -117,6 +117,7 @@ test("React-facing API exports cover typed product RPCs without exposing CallApi
     UpdateGoogleMailboxScanConfig: "updateGoogleMailboxScanConfig",
     GetGoogleWorkspaceBigQueryConfig: "fetchGoogleWorkspaceBigQueryConfig",
     UpdateGoogleWorkspaceBigQueryConfig: "updateGoogleWorkspaceBigQueryConfig",
+    ValidateGoogleWorkspaceBigQueryConfig: "validateGoogleWorkspaceBigQueryConfig",
     StartGoogleWorkspaceOAuth: "startGoogleWorkspaceOAuth",
     ForceSyncIntegration: "forceSyncIntegration",
     ListSiemCatalog: "fetchSiemCatalog",

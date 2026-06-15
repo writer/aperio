@@ -420,17 +420,24 @@
       "state": "go-default",
       "covers": [
         "repo-file:cmd/google-workspace-poller/*.go",
+        "repo-file:cmd/google-workspace-bigquery-sync/*.go",
         "repo-file:internal/googleworkspacepoller/*.go",
         "package-script:worker:google",
         "package-script:worker:google:go",
+        "package-script:worker:google-bigquery",
+        "package-script:worker:google-bigquery:go",
         "make-target:worker-google",
-        "make-target:worker-google-go"
+        "make-target:worker-google-go",
+        "make-target:worker-google-bigquery",
+        "make-target:worker-google-bigquery-go"
       ],
       "owner": "Go Google Workspace audit-log poller default entrypoint",
-      "rationale": "cmd/google-workspace-poller exchanges the per-tenant Google OAuth refresh token for an access token and pulls Admin Reports audit activities into ingestion_jobs so the existing rule evaluators can produce findings. Ships only as a Go binary; there is no TypeScript counterpart. Auto-started by scripts/dev.mjs alongside the other workers so a connected Google Workspace tenant produces data without manual npm invocations.",
+      "rationale": "cmd/google-workspace-poller exchanges the per-tenant Google OAuth refresh token for an access token and pulls Admin Reports audit activities into ingestion_jobs so the existing rule evaluators can produce findings. cmd/google-workspace-bigquery-sync uses Workload Identity Federation to read the same Workspace audit feed from BigQuery exports with incremental cursors. Both ship only as Go binaries; there is no TypeScript counterpart. Auto-started by scripts/dev.mjs alongside the other workers so a connected Google Workspace tenant produces data without manual npm invocations.",
       "evidence": [
         "test:internal/googleworkspacepoller/poller_test.go",
+        "test:internal/googleworkspacepoller/bigquery_test.go",
         "command:npm run worker:google -- -once",
+        "command:npm run worker:google-bigquery -- -once",
         "make-target:worker-google"
       ]
     },

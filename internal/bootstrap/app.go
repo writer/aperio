@@ -21,6 +21,7 @@ import (
 	aperiov1 "github.com/writer/aperio/gen/aperio/v1"
 	"github.com/writer/aperio/gen/aperio/v1/aperiov1connect"
 	"github.com/writer/aperio/internal/config"
+	"github.com/writer/aperio/internal/googleworkspacepoller"
 	"github.com/writer/aperio/internal/telemetry"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -821,6 +822,27 @@ func (a *App) UpdateGoogleWorkspaceBigQueryConfig(
 	return connect.NewResponse(&aperiov1.UpdateGoogleWorkspaceBigQueryConfigResponse{Data: googleWorkspaceBigQueryConfigFromMap(data)}), nil
 }
 
+func (a *App) ValidateGoogleWorkspaceBigQueryConfig(
+	ctx context.Context,
+	req *connect.Request[aperiov1.ValidateGoogleWorkspaceBigQueryConfigRequest],
+) (*connect.Response[aperiov1.ValidateGoogleWorkspaceBigQueryConfigResponse], error) {
+	auth, err := a.compatAuthFromSession(ctx, req.Header())
+	if err != nil {
+		return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("unauthorized"))
+	}
+	if err := requireCompatRole(auth, "OWNER", "ADMIN"); err != nil {
+		return nil, err
+	}
+	result, err := googleworkspacepoller.NewBigQueryPoller(a.db).ValidateIntegration(ctx, strings.TrimSpace(req.Msg.IntegrationId), auth.OrganizationID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, connect.NewError(connect.CodeNotFound, errors.New("integration not found"))
+		}
+		return nil, internalServerError("validate google workspace bigquery config", err)
+	}
+	return connect.NewResponse(&aperiov1.ValidateGoogleWorkspaceBigQueryConfigResponse{Data: googleWorkspaceBigQueryValidationProto(result)}), nil
+}
+
 func (a *App) StartGoogleWorkspaceOAuth(
 	ctx context.Context,
 	req *connect.Request[aperiov1.StartGoogleWorkspaceOAuthRequest],
@@ -1019,6 +1041,21 @@ func googleWorkspaceBigQueryConfigFromMap(data map[string]any) *aperiov1.GoogleW
 		WorkloadIdentityProvider: optionalStringFromAny(data["workloadIdentityProvider"]),
 		AccessMode:               optionalStringFromAny(data["accessMode"]),
 		UpdatedAt:                optionalStringFromAny(data["updatedAt"]),
+	}
+}
+
+func googleWorkspaceBigQueryValidationProto(result googleworkspacepoller.BigQueryValidationResult) *aperiov1.GoogleWorkspaceBigQueryValidation {
+	return &aperiov1.GoogleWorkspaceBigQueryValidation{
+		IntegrationId:       result.IntegrationID,
+		Ok:                  result.Ok,
+		Message:             result.Message,
+		ProjectId:           result.ProjectID,
+		DatasetId:           result.DatasetID,
+		ActivityTable:       result.ActivityTable,
+		TableFound:          result.TableFound,
+		SampleRows:          int32(result.SampleRows),
+		EstimatedBytes:      result.EstimatedBytes,
+		RuntimeTokenPresent: result.RuntimeTokenPresent,
 	}
 }
 

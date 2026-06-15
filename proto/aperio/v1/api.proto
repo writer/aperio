@@ -40,6 +40,7 @@ service AperioService {
   rpc UpdateGoogleMailboxScanConfig(UpdateGoogleMailboxScanConfigRequest) returns (UpdateGoogleMailboxScanConfigResponse);
   rpc GetGoogleWorkspaceBigQueryConfig(GetGoogleWorkspaceBigQueryConfigRequest) returns (GetGoogleWorkspaceBigQueryConfigResponse);
   rpc UpdateGoogleWorkspaceBigQueryConfig(UpdateGoogleWorkspaceBigQueryConfigRequest) returns (UpdateGoogleWorkspaceBigQueryConfigResponse);
+  rpc ValidateGoogleWorkspaceBigQueryConfig(ValidateGoogleWorkspaceBigQueryConfigRequest) returns (ValidateGoogleWorkspaceBigQueryConfigResponse);
   rpc StartGoogleWorkspaceOAuth(StartGoogleWorkspaceOAuthRequest) returns (StartGoogleWorkspaceOAuthResponse);
   rpc GetIntegrationOAuthClient(GetIntegrationOAuthClientRequest) returns (GetIntegrationOAuthClientResponse);
   rpc SetIntegrationOAuthClient(SetIntegrationOAuthClientRequest) returns (SetIntegrationOAuthClientResponse);
@@ -525,6 +526,27 @@ message GoogleWorkspaceBigQueryConfig {
   string workload_identity_provider = 7;
   string access_mode = 8;
   string updated_at = 9;
+}
+
+message ValidateGoogleWorkspaceBigQueryConfigRequest {
+  string integration_id = 1;
+}
+
+message ValidateGoogleWorkspaceBigQueryConfigResponse {
+  GoogleWorkspaceBigQueryValidation data = 1;
+}
+
+message GoogleWorkspaceBigQueryValidation {
+  string integration_id = 1;
+  bool ok = 2;
+  string message = 3;
+  string project_id = 4;
+  string dataset_id = 5;
+  string activity_table = 6;
+  bool table_found = 7;
+  int32 sample_rows = 8;
+  int64 estimated_bytes = 9;
+  bool runtime_token_present = 10;
 }
 
 message StartGoogleWorkspaceOAuthRequest {
