@@ -311,6 +311,48 @@ func TestCompatRateLimitUsesSeparateIPAndSubjectBuckets(t *testing.T) {
 	if _, _, ok := compatRateLimitPolicy("/api/v1/auth/workspaces/switch"); !ok {
 		t.Fatal("workspace switch re-auth must stay rate limited")
 	}
+	for _, path := range []string{
+		"/api/v1/integrations/int_123/source-sync",
+		"/api/v1/integrations/int_123/source-backfill",
+	} {
+		if _, _, ok := compatRateLimitPolicy(path); !ok {
+			t.Fatalf("%s must stay rate limited", path)
+		}
+	}
+}
+
+func TestApplyCursorStateTreatsQueuedBackfillAsPendingWork(t *testing.T) {
+	state := newSyncState(sourceGoogleReports, "drive", "Reports API: drive", "", queueCounts{}, true, true)
+	now := time.Date(2026, 6, 14, 12, 0, 0, 0, time.UTC)
+	cursor := now.Add(-24 * time.Hour)
+	attempt := now.Add(-time.Minute)
+
+	applyCursorState(state, cursor, attempt, queuedBackfillMessage(cursor), 0, now)
+
+	if state.Status != "queued" {
+		t.Fatalf("status = %q, want queued", state.Status)
+	}
+	if state.LastSuccessAt != "" {
+		t.Fatalf("last_success_at = %q, want empty until worker confirms completion", state.LastSuccessAt)
+	}
+	if state.LastError != "" {
+		t.Fatalf("last_error = %q, want queued backfill marker hidden from error field", state.LastError)
+	}
+}
+
+func TestValidateSourceStreamRejectsUnhonoredStreams(t *testing.T) {
+	for _, tc := range []struct {
+		kind   string
+		stream string
+	}{
+		{kind: "all", stream: "drive"},
+		{kind: sourceGoogleDirectory, stream: "groups"},
+		{kind: sourceGoogleOAuth, stream: "users"},
+	} {
+		if err := validateSourceStream(tc.kind, tc.stream, true); err == nil {
+			t.Fatalf("validateSourceStream(%q, %q) returned nil, want error", tc.kind, tc.stream)
+		}
+	}
 }
 
 func TestCompatClientIdentityHonorsForwardedHeadersFromTrustedProxy(t *testing.T) {

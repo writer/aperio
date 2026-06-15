@@ -15,9 +15,12 @@ import (
 	"net/url"
 	"os"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/writer/aperio/internal/syncwake"
 )
 
 const (
@@ -151,6 +154,7 @@ func (p *BigQueryPoller) Tick(ctx context.Context) error {
 }
 
 func (p *BigQueryPoller) WakeIntegration(ctx context.Context, integrationID string) error {
+	integrationID, recordType := syncwake.Decode(integrationID)
 	if strings.TrimSpace(integrationID) == "" {
 		return nil
 	}
@@ -160,6 +164,12 @@ func (p *BigQueryPoller) WakeIntegration(ctx context.Context, integrationID stri
 	}
 	if err != nil {
 		return err
+	}
+	if recordType != "" {
+		if !slices.Contains(p.recordTypes, recordType) {
+			return nil
+		}
+		return p.pollIntegrationRecordTypes(ctx, cfg, []string{recordType}, false)
 	}
 	return p.pollIntegration(ctx, cfg)
 }
@@ -217,28 +227,40 @@ func (p *BigQueryPoller) ValidateConfig(ctx context.Context, cfg BigQueryConfig)
 }
 
 func (p *BigQueryPoller) pollIntegration(ctx context.Context, cfg BigQueryConfig) error {
+	return p.pollIntegrationRecordTypes(ctx, cfg, p.recordTypes, true)
+}
+
+func (p *BigQueryPoller) pollIntegrationRecordTypes(ctx context.Context, cfg BigQueryConfig, recordTypes []string, refreshConnector bool) error {
 	if err := cfg.validate(); err != nil {
-		p.recordBigQueryError(ctx, cfg.IntegrationID, "activity", err)
+		p.recordBigQueryErrors(ctx, cfg.IntegrationID, recordTypes, err)
 		return err
 	}
 	subjectToken, err := p.tokenSource.subjectToken()
 	if err != nil {
-		p.recordBigQueryError(ctx, cfg.IntegrationID, "activity", err)
+		p.recordBigQueryErrors(ctx, cfg.IntegrationID, recordTypes, err)
 		return err
 	}
 	accessToken, err := p.tokenSource.accessToken(ctx, cfg, subjectToken)
 	if err != nil {
-		p.recordBigQueryError(ctx, cfg.IntegrationID, "activity", err)
+		p.recordBigQueryErrors(ctx, cfg.IntegrationID, recordTypes, err)
 		return err
 	}
-	for _, recordType := range p.recordTypes {
+	for _, recordType := range recordTypes {
 		if err := p.pollRecordType(ctx, cfg, accessToken, recordType); err != nil {
 			p.recordBigQueryError(ctx, cfg.IntegrationID, recordType, err)
 			log.Printf("googleworkspacebigquery: integration=%s record_type=%s failed: %v", cfg.IntegrationID, recordType, err)
 		}
 	}
-	_, _ = p.db.ExecContext(ctx, `UPDATE integration_connections SET last_sync_at = $1, updated_at = NOW() WHERE id = $2`, p.nowFn().UTC(), cfg.IntegrationID)
+	if refreshConnector {
+		_, _ = p.db.ExecContext(ctx, `UPDATE integration_connections SET last_sync_at = $1, updated_at = NOW() WHERE id = $2`, p.nowFn().UTC(), cfg.IntegrationID)
+	}
 	return nil
+}
+
+func (p *BigQueryPoller) recordBigQueryErrors(ctx context.Context, integrationID string, recordTypes []string, err error) {
+	for _, recordType := range recordTypes {
+		p.recordBigQueryError(ctx, integrationID, recordType, err)
+	}
 }
 
 func (p *BigQueryPoller) pollRecordType(ctx context.Context, cfg BigQueryConfig, accessToken, recordType string) error {

@@ -127,6 +127,18 @@ func (s *Sync) Tick(ctx context.Context) error {
 	return nil
 }
 
+func (s *Sync) WakeIntegration(ctx context.Context, integrationID string) error {
+	integ, err := s.connectedIntegration(ctx, integrationID)
+	if err != nil {
+		return err
+	}
+	if err := s.syncIntegration(ctx, integ); err != nil {
+		s.recordError(ctx, integ.ID, err)
+		return err
+	}
+	return nil
+}
+
 func (s *Sync) connectedIntegrations(ctx context.Context) ([]integrationRow, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, organization_id, external_account_id, encrypted_access_token
@@ -147,6 +159,19 @@ func (s *Sync) connectedIntegrations(ctx context.Context) ([]integrationRow, err
 		out = append(out, r)
 	}
 	return out, rows.Err()
+}
+
+func (s *Sync) connectedIntegration(ctx context.Context, integrationID string) (integrationRow, error) {
+	var r integrationRow
+	err := s.db.QueryRowContext(ctx, `
+		SELECT id, organization_id, external_account_id, encrypted_access_token
+		FROM integration_connections
+		WHERE id = $1 AND provider = 'GOOGLE_WORKSPACE' AND status = 'CONNECTED'
+	`, strings.TrimSpace(integrationID)).Scan(&r.ID, &r.OrganizationID, &r.ExternalAccountID, &r.EncryptedToken)
+	if errors.Is(err, sql.ErrNoRows) {
+		return integrationRow{}, fmt.Errorf("integration not found")
+	}
+	return r, err
 }
 
 func (s *Sync) listIdentities(ctx context.Context, integrationID string) ([]identityRow, error) {
@@ -454,8 +479,7 @@ func (s *Sync) recordError(ctx context.Context, integrationID string, syncErr er
 			(integration_id, last_synced_at, last_app_count, last_grant_count, last_error)
 		VALUES ($1, $2, 0, 0, $3)
 		ON CONFLICT (integration_id) DO UPDATE SET
-			last_synced_at = EXCLUDED.last_synced_at,
-			last_error     = EXCLUDED.last_error
+			last_error = EXCLUDED.last_error
 	`, integrationID, s.nowFn().UTC(), msg)
 	if err != nil {
 		log.Printf("googleworkspaceoauthsync: recordError failed integ=%s: %v", integrationID, err)

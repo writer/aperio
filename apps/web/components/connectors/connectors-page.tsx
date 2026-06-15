@@ -17,14 +17,16 @@ import { ConnectorRulesDialog } from "./connector-rules-dialog";
 import { FindingsDialog } from "./findings-dialog";
 import { cn } from "../../lib/utils";
 import {
+  backfillIntegrationSource,
   clearIntegrationOAuthClient,
   connectIntegration,
   disconnectIntegration,
   fetchConnectorCatalog,
   fetchGoogleWorkspaceBigQueryConfig,
+  fetchIntegrationSyncStatus,
   fetchIntegrationOAuthClient,
   fetchIntegrations,
-  forceSyncIntegration,
+  runIntegrationSourceSync,
   saveIntegrationOAuthClient,
   startGoogleWorkspaceOAuth,
   updateGoogleWorkspaceBigQueryConfig,
@@ -33,7 +35,9 @@ import {
   type ConnectorDefinition,
   type IntegrationConnection,
   type IntegrationMode,
-  type IntegrationOAuthClient
+  type IntegrationOAuthClient,
+  type IntegrationSourceSyncState,
+  type IntegrationSyncStatus
 } from "../../lib/api";
 import { useToast } from "../ui/toast";
 import { PageHeader } from "../layout/page-header";
@@ -86,6 +90,8 @@ export function ConnectorsPage() {
   const [findingsIntegration, setFindingsIntegration] =
     useState<IntegrationConnection | null>(null);
   const [bigQueryIntegration, setBigQueryIntegration] =
+    useState<IntegrationConnection | null>(null);
+  const [syncStatusIntegration, setSyncStatusIntegration] =
     useState<IntegrationConnection | null>(null);
   const [syncingId, setSyncingId] = useState<string | null>(null);
 
@@ -184,15 +190,13 @@ export function ConnectorsPage() {
     if (!supportsForceSync(integration)) return;
     setSyncingId(integration.id);
     try {
-      const result = await forceSyncIntegration(integration.id);
-      const ingested = result.sync?.eventsIngested ?? 0;
-      const opened = result.sync?.findingsOpened ?? 0;
+      await runIntegrationSourceSync({
+        integrationId: integration.id,
+        sourceKind: "all"
+      });
       toast({
         title: `Sync queued · ${integration.displayName}`,
-        description:
-          ingested === 0 && opened === 0
-            ? "New events will appear once the ingestion worker finishes."
-            : `${ingested} event${ingested === 1 ? "" : "s"} ingested · ${opened} new finding${opened === 1 ? "" : "s"}`,
+        description: "All source workers have been notified.",
         tone: "success"
       });
       await load();
@@ -347,22 +351,15 @@ export function ConnectorsPage() {
                       <ShieldCheck className="h-3.5 w-3.5" />
                       Rules
                     </Button>
-                    {supportsForceSync(integration) ? (
+                    {integration.provider === "GOOGLE_WORKSPACE" ? (
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => void handleSync(integration)}
+                        onClick={() => setSyncStatusIntegration(integration)}
                         disabled={syncingId === integration.id}
                       >
-                        {syncingId === integration.id ? (
-                          <Loader2
-                            className="h-3.5 w-3.5 animate-spin"
-                            aria-hidden
-                          />
-                        ) : (
-                          <RefreshCw className="h-3.5 w-3.5" aria-hidden />
-                        )}
-                        {syncingId === integration.id ? "Syncing…" : "Sync"}
+                        <RefreshCw className="h-3.5 w-3.5" aria-hidden />
+                        Sources
                       </Button>
                     ) : null}
                     {integration.provider === "GOOGLE_WORKSPACE" ? (
@@ -516,8 +513,319 @@ export function ConnectorsPage() {
           if (!next) setBigQueryIntegration(null);
         }}
       />
+      <IntegrationSyncStatusDialog
+        integration={syncStatusIntegration}
+        open={syncStatusIntegration !== null}
+        onOpenChange={(next) => {
+          if (!next) setSyncStatusIntegration(null);
+        }}
+        onSyncAll={handleSync}
+        syncingId={syncingId}
+        onChanged={() => void load()}
+      />
     </div>
   );
+}
+
+function IntegrationSyncStatusDialog({
+  integration,
+  open,
+  onOpenChange,
+  onSyncAll,
+  syncingId,
+  onChanged
+}: {
+  integration: IntegrationConnection | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSyncAll: (integration: IntegrationConnection) => Promise<void>;
+  syncingId: string | null;
+  onChanged: () => void;
+}) {
+  const { toast } = useToast();
+  const [status, setStatus] = useState<IntegrationSyncStatus | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [busySource, setBusySource] = useState<string | null>(null);
+  const [backfillSource, setBackfillSource] =
+    useState<IntegrationSourceSyncState | null>(null);
+  const [backfillFrom, setBackfillFrom] = useState("");
+
+  const integrationId = integration?.id ?? "";
+  const refresh = useCallback(async () => {
+    if (!integrationId) return;
+    setLoading(true);
+    setError("");
+    try {
+      const result = await fetchIntegrationSyncStatus(integrationId);
+      setStatus(result.data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to load sync status");
+    } finally {
+      setLoading(false);
+    }
+  }, [integrationId]);
+
+  useEffect(() => {
+    if (!open) {
+      setStatus(null);
+      setBackfillSource(null);
+      setBackfillFrom("");
+      return;
+    }
+    void refresh();
+  }, [open, refresh]);
+
+  async function syncSource(source: IntegrationSourceSyncState) {
+    if (!integrationId) return;
+    const key = sourceKey(source);
+    setBusySource(key);
+    try {
+      await runIntegrationSourceSync({
+        integrationId,
+        sourceKind: source.sourceKind,
+        streamName: source.streamName
+      });
+      toast({ title: `${source.displayName} sync queued`, tone: "success" });
+      onChanged();
+      await refresh();
+    } catch (err) {
+      toast({
+        title: "Source sync failed",
+        description: err instanceof Error ? err.message : undefined,
+        tone: "error"
+      });
+    } finally {
+      setBusySource(null);
+    }
+  }
+
+  async function runBackfill() {
+    if (!integrationId || !backfillSource || !backfillFrom) return;
+    const key = sourceKey(backfillSource);
+    setBusySource(key);
+    try {
+      await backfillIntegrationSource({
+        integrationId,
+        sourceKind: backfillSource.sourceKind,
+        streamName: backfillSource.streamName,
+        fromTime: new Date(backfillFrom).toISOString()
+      });
+      toast({
+        title: `${backfillSource.displayName} backfill queued`,
+        tone: "success"
+      });
+      setBackfillSource(null);
+      setBackfillFrom("");
+      onChanged();
+      await refresh();
+    } catch (err) {
+      toast({
+        title: "Backfill failed",
+        description: err instanceof Error ? err.message : undefined,
+        tone: "error"
+      });
+    } finally {
+      setBusySource(null);
+    }
+  }
+
+  const sources = status?.sources ?? [];
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[92vh] max-w-5xl overflow-y-auto p-0">
+        <DialogHeader>
+          <div className="border-b border-border px-6 pb-4 pt-6">
+            <DialogTitle>Sync sources</DialogTitle>
+            <DialogDescription className="mt-2 max-w-3xl">
+              View source-level cursor health, queue depth, errors, and recovery
+              controls for {integration?.displayName ?? "this integration"}.
+            </DialogDescription>
+          </div>
+        </DialogHeader>
+        <div className="space-y-4 px-6 pb-6">
+          {error ? <FormBanner tone="error">{error}</FormBanner> : null}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-xs text-muted-foreground">
+              Generated {formatRelative(status?.generatedAt ?? null)}
+            </p>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => void refresh()}
+                disabled={loading}
+              >
+                {loading ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                ) : (
+                  <RefreshCw className="h-3.5 w-3.5" aria-hidden />
+                )}
+                Refresh
+              </Button>
+              {integration ? (
+                <Button
+                  size="sm"
+                  onClick={() => void onSyncAll(integration)}
+                  disabled={
+                    syncingId === integration.id || !supportsForceSync(integration)
+                  }
+                >
+                  {syncingId === integration.id
+                    ? "Queueing…"
+                    : supportsForceSync(integration)
+                      ? "Sync all"
+                      : "Sync disabled"}
+                </Button>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="overflow-hidden rounded-lg border border-border">
+            <div className="grid grid-cols-[1.5fr_0.8fr_0.8fr_0.8fr_1.2fr_auto] gap-3 border-b border-border bg-muted/40 px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <span>Source</span>
+              <span>Status</span>
+              <span>Lag</span>
+              <span>Rows</span>
+              <span>Queue</span>
+              <span className="text-right">Actions</span>
+            </div>
+            {loading && sources.length === 0 ? (
+              <div className="p-4 text-sm text-muted-foreground">Loading…</div>
+            ) : sources.length === 0 ? (
+              <div className="p-4 text-sm text-muted-foreground">
+                No source state has been recorded yet.
+              </div>
+            ) : (
+              sources.map((source) => (
+                <div
+                  key={sourceKey(source)}
+                  className="grid grid-cols-[1.5fr_0.8fr_0.8fr_0.8fr_1.2fr_auto] items-center gap-3 border-b border-border px-3 py-3 text-xs last:border-b-0"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate font-medium text-foreground">
+                      {source.displayName}
+                    </p>
+                    <p className="truncate font-mono text-[11px] text-muted-foreground">
+                      {source.sourceKind}/{source.streamName}
+                    </p>
+                    {source.lastError ? (
+                      <p className="mt-1 line-clamp-2 text-[11px] text-destructive">
+                        {source.lastError}
+                      </p>
+                    ) : null}
+                  </div>
+                  <Badge variant={syncStatusBadgeVariant(source.status)}>
+                    {source.status}
+                  </Badge>
+                  <span className="font-mono text-[11px] text-muted-foreground">
+                    {formatLag(source)}
+                  </span>
+                  <span className="font-mono text-[11px] text-muted-foreground">
+                    seen {source.rowsSeen.toString()}
+                    <br />
+                    queued {source.rowsEnqueued.toString()}
+                  </span>
+                  <span className="font-mono text-[11px] text-muted-foreground">
+                    q {source.queueQueued.toString()} · run{" "}
+                    {source.queueRunning.toString()}
+                    <br />
+                    fail{" "}
+                    {(
+                      source.queueFailed + source.queueDeadLetter
+                    ).toString()}{" "}
+                    · ok {source.queueSucceeded.toString()}
+                  </span>
+                  <div className="flex justify-end gap-2">
+                    {source.syncNowSupported ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => void syncSource(source)}
+                        disabled={busySource === sourceKey(source)}
+                      >
+                        Sync
+                      </Button>
+                    ) : null}
+                    {source.backfillSupported ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setBackfillSource(source)}
+                        disabled={busySource === sourceKey(source)}
+                      >
+                        Backfill
+                      </Button>
+                    ) : null}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {backfillSource ? (
+            <div className="rounded-lg border border-border bg-muted/30 p-4">
+              <p className="text-sm font-medium text-foreground">
+                Backfill {backfillSource.displayName}
+              </p>
+              <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_auto]">
+                <Field label="Replay from">
+                  <Input
+                    type="datetime-local"
+                    value={backfillFrom}
+                    onChange={(e) => setBackfillFrom(e.target.value)}
+                  />
+                </Field>
+                <div className="flex items-end gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setBackfillSource(null);
+                      setBackfillFrom("");
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button onClick={() => void runBackfill()} disabled={!backfillFrom}>
+                    Queue backfill
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ) : null}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function sourceKey(source: IntegrationSourceSyncState): string {
+  return `${source.sourceKind}:${source.streamName}`;
+}
+
+function syncStatusBadgeVariant(status: string): "success" | "destructive" | "secondary" | "outline" {
+  switch (status) {
+    case "healthy":
+      return "success";
+    case "error":
+      return "destructive";
+    case "queued":
+    case "running":
+      return "outline";
+    default:
+      return "secondary";
+  }
+}
+
+function formatLag(source: IntegrationSourceSyncState): string {
+  if (!source.cursorTime) return source.lastAttemptAt ? "unknown" : "not run";
+  const lag = Number(source.lagSeconds);
+  if (!Number.isFinite(lag) || lag <= 0) return "current";
+  if (lag < 60) return `${Math.round(lag)}s`;
+  if (lag < 3600) return `${Math.round(lag / 60)}m`;
+  if (lag < 86400) return `${Math.round(lag / 3600)}h`;
+  return `${Math.round(lag / 86400)}d`;
 }
 
 function GoogleWorkspaceBigQuerySetupDialog({

@@ -11,6 +11,9 @@ import {
   type GoogleWorkspaceBigQueryValidation as ProtoGoogleWorkspaceBigQueryValidation,
   type IntegrationCheckState as ProtoIntegrationCheckState,
   type IntegrationConnection as ProtoIntegrationConnection,
+  type IntegrationSourceSyncAction as ProtoIntegrationSourceSyncAction,
+  type IntegrationSourceSyncState as ProtoIntegrationSourceSyncState,
+  type IntegrationSyncStatus as ProtoIntegrationSyncStatus,
   type InvitationResult as ProtoInvitationResult,
   type MfaEnrollment as ProtoMfaEnrollment,
   type PasswordResetResult as ProtoPasswordResetResult,
@@ -276,6 +279,52 @@ export type ConnectSyncSummary = {
   eventsIngested: number;
   findingsOpened: number;
   sources: string[];
+};
+
+export type ConnectIntegrationSourceKind =
+  | "all"
+  | "google_reports"
+  | "google_bigquery"
+  | "google_directory"
+  | "google_oauth"
+  | "ingestion_queue";
+
+export type ConnectIntegrationSourceSyncState = {
+  sourceKind: ConnectIntegrationSourceKind | string;
+  streamName: string;
+  displayName: string;
+  status: "pending" | "healthy" | "queued" | "running" | "error" | string;
+  cursorTime: string | null;
+  lastAttemptAt: string | null;
+  lastSuccessAt: string | null;
+  lastError: string | null;
+  lagSeconds: bigint;
+  rowsSeen: bigint;
+  rowsEnqueued: bigint;
+  queueQueued: bigint;
+  queueRunning: bigint;
+  queueFailed: bigint;
+  queueDeadLetter: bigint;
+  queueSucceeded: bigint;
+  syncNowSupported: boolean;
+  backfillSupported: boolean;
+  queueSource: string;
+};
+
+export type ConnectIntegrationSyncStatus = {
+  integrationId: string;
+  provider: ConnectProvider;
+  generatedAt: string;
+  sources: ConnectIntegrationSourceSyncState[];
+};
+
+export type ConnectIntegrationSourceSyncAction = {
+  integrationId: string;
+  sourceKind: ConnectIntegrationSourceKind | string;
+  streamName: string;
+  queued: boolean;
+  message: string;
+  requestedAt: string;
 };
 
 export type ConnectSiemDestination = {
@@ -892,6 +941,56 @@ function googleWorkspaceBigQueryValidationFromProto(
     sampleRows: validation.sampleRows,
     estimatedBytes: validation.estimatedBytes,
     runtimeTokenPresent: validation.runtimeTokenPresent
+  };
+}
+
+function integrationSourceSyncStateFromProto(
+  state: ProtoIntegrationSourceSyncState
+): ConnectIntegrationSourceSyncState {
+  return {
+    sourceKind: state.sourceKind,
+    streamName: state.streamName,
+    displayName: state.displayName,
+    status: state.status,
+    cursorTime: state.cursorTime || null,
+    lastAttemptAt: state.lastAttemptAt || null,
+    lastSuccessAt: state.lastSuccessAt || null,
+    lastError: state.lastError || null,
+    lagSeconds: state.lagSeconds,
+    rowsSeen: state.rowsSeen,
+    rowsEnqueued: state.rowsEnqueued,
+    queueQueued: state.queueQueued,
+    queueRunning: state.queueRunning,
+    queueFailed: state.queueFailed,
+    queueDeadLetter: state.queueDeadLetter,
+    queueSucceeded: state.queueSucceeded,
+    syncNowSupported: state.syncNowSupported,
+    backfillSupported: state.backfillSupported,
+    queueSource: state.queueSource
+  };
+}
+
+function integrationSyncStatusFromProto(
+  status: ProtoIntegrationSyncStatus
+): ConnectIntegrationSyncStatus {
+  return {
+    integrationId: status.integrationId,
+    provider: status.provider as ConnectProvider,
+    generatedAt: status.generatedAt,
+    sources: status.sources.map(integrationSourceSyncStateFromProto)
+  };
+}
+
+function integrationSourceSyncActionFromProto(
+  action: ProtoIntegrationSourceSyncAction
+): ConnectIntegrationSourceSyncAction {
+  return {
+    integrationId: action.integrationId,
+    sourceKind: action.sourceKind,
+    streamName: action.streamName,
+    queued: action.queued,
+    message: action.message,
+    requestedAt: action.requestedAt
   };
 }
 
@@ -1736,6 +1835,42 @@ export const aperioConnectClient = {
         sources: response.sync?.sources ?? []
       }
     };
+  },
+  async getIntegrationSyncStatus(
+    integrationId: string
+  ): Promise<{ data: ConnectIntegrationSyncStatus }> {
+    const response = await client.getIntegrationSyncStatus({ integrationId });
+    if (!response.data) {
+      throw new Error("Integration sync status unavailable");
+    }
+    return { data: integrationSyncStatusFromProto(response.data) };
+  },
+  async runIntegrationSourceSync(input: {
+    integrationId: string;
+    sourceKind?: ConnectIntegrationSourceKind | string;
+    streamName?: string;
+  }): Promise<{ data: ConnectIntegrationSourceSyncAction }> {
+    const response = await client.runIntegrationSourceSync({
+      integrationId: input.integrationId,
+      sourceKind: input.sourceKind ?? "all",
+      streamName: input.streamName ?? ""
+    });
+    if (!response.data) {
+      throw new Error("Source sync failed");
+    }
+    return { data: integrationSourceSyncActionFromProto(response.data) };
+  },
+  async backfillIntegrationSource(input: {
+    integrationId: string;
+    sourceKind: ConnectIntegrationSourceKind | string;
+    streamName: string;
+    fromTime: string;
+  }): Promise<{ data: ConnectIntegrationSourceSyncAction }> {
+    const response = await client.backfillIntegrationSource(input);
+    if (!response.data) {
+      throw new Error("Source backfill failed");
+    }
+    return { data: integrationSourceSyncActionFromProto(response.data) };
   },
   async listSiemCatalog(): Promise<{
     data: ConnectSiemDestinationDefinition[];

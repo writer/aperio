@@ -2114,6 +2114,142 @@ func TestDBGoogleWorkspaceBigQueryConfig(t *testing.T) {
 	}
 }
 
+func TestDBIntegrationSyncStatusAndBackfill(t *testing.T) {
+	app, baseAuth := newTestDBApp(t)
+	auth := seedOrgAdmin(t, app, baseAuth.OrganizationID)
+	ctx := context.Background()
+	header := seedSessionHeader(t, app, auth)
+
+	created, err := app.compatCreateIntegration(ctx, map[string]any{
+		"provider":          "GOOGLE_WORKSPACE",
+		"displayName":       "Google Workspace",
+		"externalAccountId": "sync-status.example.com",
+		"mode":              "READ_ONLY",
+		"credentials":       map[string]any{"accessToken": "google-workspace-token"},
+	}, auth)
+	if err != nil {
+		t.Fatalf("create google integration: %v", err)
+	}
+	integrationID := dataMap(t, created)["id"].(string)
+	_ = dataMap(t, mustCall(t, func() (any, error) {
+		return app.compatUpdateGoogleWorkspaceBigQueryConfig(ctx, integrationID, map[string]any{
+			"enabled":                  true,
+			"projectId":                "sync-status-project",
+			"rawDatasetId":             "workspace_logs",
+			"datasetId":                "aperio_workspace_views",
+			"location":                 "US",
+			"serviceAccountEmail":      "aperio-bq-reader@sync-status-project.iam.gserviceaccount.com",
+			"workloadIdentityProvider": "projects/123456789/locations/global/workloadIdentityPools/aperio-workloads/providers/aperio-oidc",
+			"accessMode":               "views",
+		}, auth)
+	}))
+
+	now := time.Now().UTC()
+	cursorAt := now.Add(-5 * time.Minute)
+	if _, err := app.db.ExecContext(ctx, `
+		INSERT INTO google_workspace_sync_cursors (integration_id, application, last_event_time, last_unique_qualifier, last_polled_at, last_error)
+		VALUES ($1, 'admin', $2, 'q1', $3, NULL)
+		ON CONFLICT (integration_id, application) DO NOTHING
+	`, integrationID, cursorAt, now); err != nil {
+		t.Fatalf("seed reports cursor: %v", err)
+	}
+	if _, err := app.db.ExecContext(ctx, `
+		INSERT INTO google_workspace_bigquery_sync_cursors (integration_id, record_type, last_event_time, last_row_hash, last_polled_at, last_row_count, last_error)
+		VALUES ($1, 'drive', $2, 'hash1', $3, 7, NULL)
+		ON CONFLICT (integration_id, record_type) DO NOTHING
+	`, integrationID, cursorAt.Add(-time.Minute), now); err != nil {
+		t.Fatalf("seed BigQuery cursor: %v", err)
+	}
+	if _, err := app.db.ExecContext(ctx, `
+		INSERT INTO google_workspace_directory_sync_cursors (integration_id, last_synced_at, last_user_count, last_error)
+		VALUES ($1, $2, 42, NULL)
+		ON CONFLICT (integration_id) DO NOTHING
+	`, integrationID, now); err != nil {
+		t.Fatalf("seed directory cursor: %v", err)
+	}
+	if _, err := app.db.ExecContext(ctx, `
+		INSERT INTO google_workspace_oauth_sync_cursors (integration_id, last_synced_at, last_app_count, last_grant_count, last_error)
+		VALUES ($1, $2, 3, 9, NULL)
+		ON CONFLICT (integration_id) DO NOTHING
+	`, integrationID, now); err != nil {
+		t.Fatalf("seed oauth cursor: %v", err)
+	}
+	for index, status := range []string{"QUEUED", "FAILED", "SUCCEEDED"} {
+		if _, err := app.db.ExecContext(ctx, `
+			INSERT INTO ingestion_jobs (id, organization_id, integration_id, provider, event_type, source, occurred_at, payload, status, next_attempt_at, created_at, updated_at)
+			VALUES ($1, $2, $3, 'GOOGLE_WORKSPACE', 'GOOGLE_DRIVE_EXTERNAL_SHARING', 'google.reports.admin', $4, '{"ok":true}'::jsonb, $5::"IngestionJobStatus", NOW() + INTERVAL '1 hour', NOW(), NOW())
+		`, compatID("ijb"), auth.OrganizationID, integrationID, now.Add(time.Duration(index)*time.Second), status); err != nil {
+			t.Fatalf("seed ingestion job %s: %v", status, err)
+		}
+	}
+
+	req := connect.NewRequest(&aperiov1.GetIntegrationSyncStatusRequest{IntegrationId: integrationID})
+	copyCompatHeaders(req.Header(), header)
+	resp, err := app.GetIntegrationSyncStatus(ctx, req)
+	if err != nil {
+		t.Fatalf("get sync status: %v", err)
+	}
+	findSource := func(kind, stream string) *aperiov1.IntegrationSourceSyncState {
+		t.Helper()
+		for _, source := range resp.Msg.Data.Sources {
+			if source.SourceKind == kind && source.StreamName == stream {
+				return source
+			}
+		}
+		t.Fatalf("missing source %s/%s in %#v", kind, stream, resp.Msg.Data.Sources)
+		return nil
+	}
+	reports := findSource("google_reports", "admin")
+	if reports.Status != "healthy" || reports.QueueQueued != 1 || reports.QueueFailed != 1 || reports.QueueSucceeded != 1 {
+		t.Fatalf("unexpected reports source status: %#v", reports)
+	}
+	bigQuery := findSource("google_bigquery", "drive")
+	if bigQuery.RowsSeen != 7 || !bigQuery.BackfillSupported {
+		t.Fatalf("unexpected BigQuery source status: %#v", bigQuery)
+	}
+	if directory := findSource("google_directory", "users"); directory.RowsSeen != 42 || directory.BackfillSupported {
+		t.Fatalf("unexpected directory source status: %#v", directory)
+	}
+	if oauth := findSource("google_oauth", "grants"); oauth.RowsSeen != 9 || oauth.BackfillSupported {
+		t.Fatalf("unexpected OAuth source status: %#v", oauth)
+	}
+
+	backfillFrom := now.Add(-2 * time.Hour).UTC().Truncate(time.Second)
+	backfillReq := connect.NewRequest(&aperiov1.BackfillIntegrationSourceRequest{
+		IntegrationId: integrationID,
+		SourceKind:    "google_bigquery",
+		StreamName:    "drive",
+		FromTime:      backfillFrom.Format(time.RFC3339Nano),
+	})
+	copyCompatHeaders(backfillReq.Header(), header)
+	backfillResp, err := app.BackfillIntegrationSource(ctx, backfillReq)
+	if err != nil {
+		t.Fatalf("backfill BigQuery source: %v", err)
+	}
+	if !backfillResp.Msg.Data.Queued || backfillResp.Msg.Data.SourceKind != "google_bigquery" {
+		t.Fatalf("unexpected backfill response: %#v", backfillResp.Msg.Data)
+	}
+	var persisted time.Time
+	var backfillMarker string
+	if err := app.db.QueryRowContext(ctx, `SELECT last_event_time, COALESCE(last_error, '') FROM google_workspace_bigquery_sync_cursors WHERE integration_id = $1 AND record_type = 'drive'`, integrationID).Scan(&persisted, &backfillMarker); err != nil {
+		t.Fatalf("query backfill cursor: %v", err)
+	}
+	if !persisted.UTC().Equal(backfillFrom) {
+		t.Fatalf("backfill cursor = %s, want %s", persisted.UTC(), backfillFrom)
+	}
+	if !strings.HasPrefix(backfillMarker, backfillQueuedPrefix) {
+		t.Fatalf("backfill marker = %q, want queued marker", backfillMarker)
+	}
+	resp, err = app.GetIntegrationSyncStatus(ctx, req)
+	if err != nil {
+		t.Fatalf("get sync status after backfill: %v", err)
+	}
+	bigQuery = findSource("google_bigquery", "drive")
+	if bigQuery.Status != "queued" || bigQuery.LastSuccessAt != "" {
+		t.Fatalf("BigQuery backfill should remain queued until worker confirms completion: %#v", bigQuery)
+	}
+}
+
 func TestDBSecurityOverview(t *testing.T) {
 	app, auth := newTestDBApp(t)
 	ctx := context.Background()

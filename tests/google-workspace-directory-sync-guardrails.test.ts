@@ -118,6 +118,36 @@ test("directory sync auto-started by dev.mjs", () => {
   );
 });
 
+test("source sync wake paths preserve one-shot and error visibility", () => {
+  for (const file of [
+    "cmd/google-workspace-bigquery-sync/main.go",
+    "cmd/google-workspace-directory-sync/main.go",
+    "cmd/google-workspace-oauth-sync/main.go"
+  ]) {
+    const source = readRepoFile(file);
+    assert.match(source, /openWakeListener\(ctx, cfg\.DatabaseURL\)/, `${file} must listen before -once ticks`);
+    assert.match(source, /drainWakeNotifications\(ctx, listener,/, `${file} must drain wake notifications in -once mode`);
+    assert.match(source, /var active atomic\.Int64/, `${file} must keep draining while wake-triggered work is active`);
+    assert.match(source, /notificationPollInterval/, `${file} must poll for additional once-mode wake notifications`);
+  }
+  for (const file of [
+    "internal/googleworkspacedirectorysync/sync.go",
+    "internal/googleworkspaceoauthsync/sync.go"
+  ]) {
+    const source = readRepoFile(file);
+    assert.match(
+      source,
+      /func \(s \*Sync\) WakeIntegration[\s\S]*?s\.recordError\(ctx, integ\.ID, err\)/,
+      `${file} must persist wake-triggered failures to last_error`
+    );
+    assert.doesNotMatch(
+      source,
+      /ON CONFLICT \(integration_id\) DO UPDATE SET\s+last_synced_at = EXCLUDED\.last_synced_at,\s+last_error/s,
+      `${file} must not advance last_synced_at on failed full sweeps`
+    );
+  }
+});
+
 test("directory sync owned in migration matrix", () => {
   const matrix = JSON.parse(readRepoFile("tests/fixtures/migration-ownership/migration-matrix.json"));
   const entry = matrix.entries.find((e: { id: string }) => e.id === "cmd-google-workspace-directory-sync-go-default");

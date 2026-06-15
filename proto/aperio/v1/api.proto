@@ -46,6 +46,9 @@ service AperioService {
   rpc SetIntegrationOAuthClient(SetIntegrationOAuthClientRequest) returns (SetIntegrationOAuthClientResponse);
   rpc ClearIntegrationOAuthClient(ClearIntegrationOAuthClientRequest) returns (ClearIntegrationOAuthClientResponse);
   rpc ForceSyncIntegration(ForceSyncIntegrationRequest) returns (ForceSyncIntegrationResponse);
+  rpc GetIntegrationSyncStatus(GetIntegrationSyncStatusRequest) returns (GetIntegrationSyncStatusResponse);
+  rpc RunIntegrationSourceSync(RunIntegrationSourceSyncRequest) returns (RunIntegrationSourceSyncResponse);
+  rpc BackfillIntegrationSource(BackfillIntegrationSourceRequest) returns (BackfillIntegrationSourceResponse);
   rpc ListSiemCatalog(ListSiemCatalogRequest) returns (ListSiemCatalogResponse);
   rpc ListSiemDestinations(ListSiemDestinationsRequest) returns (ListSiemDestinationsResponse);
   rpc CreateSiemDestination(CreateSiemDestinationRequest) returns (CreateSiemDestinationResponse);
@@ -617,6 +620,73 @@ message SyncSummary {
   int32 events_ingested = 2;
   int32 findings_opened = 3;
   repeated string sources = 4;
+}
+
+message GetIntegrationSyncStatusRequest {
+  string integration_id = 1;
+}
+
+message GetIntegrationSyncStatusResponse {
+  IntegrationSyncStatus data = 1;
+}
+
+message RunIntegrationSourceSyncRequest {
+  string integration_id = 1;
+  string source_kind = 2;
+  string stream_name = 3;
+}
+
+message RunIntegrationSourceSyncResponse {
+  IntegrationSourceSyncAction data = 1;
+}
+
+message BackfillIntegrationSourceRequest {
+  string integration_id = 1;
+  string source_kind = 2;
+  string stream_name = 3;
+  string from_time = 4;
+}
+
+message BackfillIntegrationSourceResponse {
+  IntegrationSourceSyncAction data = 1;
+}
+
+message IntegrationSyncStatus {
+  string integration_id = 1;
+  string provider = 2;
+  string generated_at = 3;
+  repeated IntegrationSourceSyncState sources = 4;
+}
+
+message IntegrationSourceSyncState {
+  string source_kind = 1;
+  string stream_name = 2;
+  string display_name = 3;
+  string status = 4;
+  string cursor_time = 5;
+  string last_attempt_at = 6;
+  string last_success_at = 7;
+  string last_error = 8;
+  int64 lag_seconds = 9;
+  int64 rows_seen = 10;
+  int64 rows_enqueued = 11;
+  int64 queue_queued = 12;
+  int64 queue_running = 13;
+  int64 queue_failed = 14;
+  int64 queue_dead_letter = 15;
+  int64 queue_succeeded = 16;
+  bool sync_now_supported = 17;
+  bool backfill_supported = 18;
+  string queue_source = 19;
+}
+
+message IntegrationSourceSyncAction {
+  string integration_id = 1;
+  string source_kind = 2;
+  string stream_name = 3;
+  bool queued = 4;
+  string message = 5;
+  string requested_at = 6;
 }
 
 message ListSiemCatalogRequest {}

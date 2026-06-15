@@ -658,6 +658,9 @@ func compatRateLimitPolicy(path string) (int, time.Duration, bool) {
 		if strings.HasPrefix(path, "/api/v1/integrations/") && strings.HasSuffix(path, "/force-sync") {
 			return 10, 10 * time.Minute, true
 		}
+		if strings.HasPrefix(path, "/api/v1/integrations/") && (strings.HasSuffix(path, "/source-sync") || strings.HasSuffix(path, "/source-backfill")) {
+			return 10, 10 * time.Minute, true
+		}
 		if strings.HasPrefix(path, "/api/v1/findings/") && strings.HasSuffix(path, "/remediate") {
 			return 20, 10 * time.Minute, true
 		}
@@ -1614,6 +1617,14 @@ const GoogleWorkspaceSyncWakeChannel = "aperio_google_workspace_sync_requested"
 // the google-workspace-bigquery-sync worker subscribes to for out-of-cycle
 // BigQuery export ingestion after config save or manual force-sync.
 const GoogleWorkspaceBigQuerySyncWakeChannel = "aperio_google_workspace_bigquery_sync_requested"
+
+// GoogleWorkspaceDirectorySyncWakeChannel wakes the Directory users sync
+// worker for a targeted integration.
+const GoogleWorkspaceDirectorySyncWakeChannel = "aperio_google_workspace_directory_sync_requested"
+
+// GoogleWorkspaceOAuthSyncWakeChannel wakes the OAuth grants sync worker for a
+// targeted integration.
+const GoogleWorkspaceOAuthSyncWakeChannel = "aperio_google_workspace_oauth_sync_requested"
 
 // requestImmediateGoogleWorkspaceSync nudges the google-workspace-poller to
 // run an out-of-cycle poll for a freshly-connected integration. We rely on

@@ -36,10 +36,12 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/writer/aperio/internal/runtimeutil"
+	"github.com/writer/aperio/internal/syncwake"
 )
 
 const (
@@ -203,6 +205,7 @@ func (p *Poller) Tick(ctx context.Context) error {
 // integration so stale notifications (e.g. for a since-disconnected row) do
 // not surface as errors.
 func (p *Poller) WakeIntegration(ctx context.Context, integrationID string) error {
+	integrationID, application := syncwake.Decode(integrationID)
 	if strings.TrimSpace(integrationID) == "" {
 		return nil
 	}
@@ -217,6 +220,12 @@ func (p *Poller) WakeIntegration(ctx context.Context, integrationID string) erro
 			return nil
 		}
 		return fmt.Errorf("load integration %s: %w", integrationID, err)
+	}
+	if application != "" {
+		if !slices.Contains(p.applications, application) {
+			return nil
+		}
+		return p.pollIntegrationApplications(ctx, integ, []string{application}, false)
 	}
 	return p.pollIntegration(ctx, integ)
 }
@@ -247,6 +256,10 @@ func (p *Poller) connectedIntegrations(ctx context.Context) ([]integrationRow, e
 // client, exchanges the stored refresh token for a one-shot access token, and
 // fans out one HTTP call per application.
 func (p *Poller) pollIntegration(ctx context.Context, integ integrationRow) error {
+	return p.pollIntegrationApplications(ctx, integ, p.applications, true)
+}
+
+func (p *Poller) pollIntegrationApplications(ctx context.Context, integ integrationRow, applications []string, refreshConnector bool) error {
 	oauth, ok := p.resolver.ResolveGoogleOAuthClient(ctx, integ.OrganizationID)
 	if !ok {
 		return errors.New("oauth client unresolved for organization")
@@ -262,7 +275,7 @@ func (p *Poller) pollIntegration(ctx context.Context, integ integrationRow) erro
 	if err != nil {
 		return fmt.Errorf("exchange refresh token: %w", err)
 	}
-	for _, app := range p.applications {
+	for _, app := range applications {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
@@ -276,7 +289,9 @@ func (p *Poller) pollIntegration(ctx context.Context, integ integrationRow) erro
 	}
 	// Best-effort update of integration_connections.last_sync_at so the UI
 	// reflects a recent successful sweep even if one application failed.
-	_, _ = p.db.ExecContext(ctx, `UPDATE integration_connections SET last_sync_at = $1, updated_at = NOW() WHERE id = $2`, p.nowFn().UTC(), integ.ID)
+	if refreshConnector {
+		_, _ = p.db.ExecContext(ctx, `UPDATE integration_connections SET last_sync_at = $1, updated_at = NOW() WHERE id = $2`, p.nowFn().UTC(), integ.ID)
+	}
 	return nil
 }
 

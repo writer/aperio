@@ -120,6 +120,9 @@ test("React-facing API exports cover typed product RPCs without exposing CallApi
     ValidateGoogleWorkspaceBigQueryConfig: "validateGoogleWorkspaceBigQueryConfig",
     StartGoogleWorkspaceOAuth: "startGoogleWorkspaceOAuth",
     ForceSyncIntegration: "forceSyncIntegration",
+    GetIntegrationSyncStatus: "fetchIntegrationSyncStatus",
+    RunIntegrationSourceSync: "runIntegrationSourceSync",
+    BackfillIntegrationSource: "backfillIntegrationSource",
     ListSiemCatalog: "fetchSiemCatalog",
     ListSiemDestinations: "fetchSiemDestinations",
     CreateSiemDestination: "createSiemDestination",
@@ -166,6 +169,25 @@ test("Connect transport stays configured for credentialed no-store browser fetch
   assert.match(nextConfig, /NEXT_PUBLIC_CONNECT_API_BASE_URL/);
   assert.match(nextConfig, /connectApiBaseUrl/);
   assert.match(nextConfig, /connect-src 'self'.*\$\{connectApiBaseUrl\}/);
+});
+
+test("connector sync status exposes per-source recovery controls", () => {
+  const page = readRepoFile("apps/web/components/connectors/connectors-page.tsx");
+  const api = readRepoFile("apps/web/lib/api.ts");
+  const proto = readRepoFile("proto/aperio/v1/api.proto");
+
+  assert.match(proto, /message IntegrationSourceSyncState/);
+  assert.match(proto, /rpc GetIntegrationSyncStatus/);
+  assert.match(proto, /rpc RunIntegrationSourceSync/);
+  assert.match(proto, /rpc BackfillIntegrationSource/);
+  assert.match(api, /export type IntegrationSyncStatus/);
+  assert.match(page, /function IntegrationSyncStatusDialog/);
+  assert.match(page, /integration\.provider === "GOOGLE_WORKSPACE" \? \(/);
+  assert.match(page, /onClick=\{\(\) => setSyncStatusIntegration\(integration\)\}/);
+  assert.match(page, /fetchIntegrationSyncStatus/);
+  assert.match(page, /runIntegrationSourceSync/);
+  assert.match(page, /backfillIntegrationSource/);
+  assert.match(page, /Queue backfill/);
 });
 
 test("workspace switcher retries after a transient workspace load failure", () => {
