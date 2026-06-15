@@ -340,6 +340,22 @@ func TestApplyCursorStateTreatsQueuedBackfillAsPendingWork(t *testing.T) {
 	}
 }
 
+func TestApplyCursorStatePreservesRowsSeenOnError(t *testing.T) {
+	state := newSyncState(sourceGoogleBigQuery, "drive", "BigQuery export: drive", "", queueCounts{}, true, true)
+	now := time.Date(2026, 6, 14, 12, 0, 0, 0, time.UTC)
+	cursor := now.Add(-24 * time.Hour)
+	attempt := now.Add(-time.Minute)
+
+	applyCursorState(state, cursor, attempt, "access token failed", 42, now)
+
+	if state.Status != "error" {
+		t.Fatalf("status = %q, want error", state.Status)
+	}
+	if state.RowsSeen != 42 {
+		t.Fatalf("rows_seen = %d, want preserved last count", state.RowsSeen)
+	}
+}
+
 func TestValidateSourceStreamRejectsUnhonoredStreams(t *testing.T) {
 	for _, tc := range []struct {
 		kind   string

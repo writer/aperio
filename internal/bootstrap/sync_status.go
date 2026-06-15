@@ -443,9 +443,9 @@ func applyCursorState(state *aperiov1.IntegrationSourceSyncState, cursor, attemp
 	if !attempt.IsZero() {
 		state.LastAttemptAt = attempt.UTC().Format(time.RFC3339Nano)
 	}
+	state.RowsSeen = rowsSeen
 	if isQueuedBackfill(lastErr) {
 		state.Status = "queued"
-		state.RowsSeen = rowsSeen
 		return
 	}
 	if strings.TrimSpace(lastErr) != "" {
@@ -457,7 +457,6 @@ func applyCursorState(state *aperiov1.IntegrationSourceSyncState, cursor, attemp
 		state.Status = "healthy"
 		state.LastSuccessAt = attempt.UTC().Format(time.RFC3339Nano)
 	}
-	state.RowsSeen = rowsSeen
 }
 
 func mapValues(values map[string]*aperiov1.IntegrationSourceSyncState) []*aperiov1.IntegrationSourceSyncState {

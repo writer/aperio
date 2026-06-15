@@ -697,10 +697,10 @@ function IntegrationSyncStatusDialog({
                   size="sm"
                   onClick={() => void onSyncAll(integration)}
                   disabled={
-                    syncingId === integration.id || !supportsForceSync(integration)
+                    syncingId !== null || !supportsForceSync(integration)
                   }
                 >
-                  {syncingId === integration.id
+                  {syncingId !== null
                     ? "Queueing…"
                     : supportsForceSync(integration)
                       ? "Sync all"

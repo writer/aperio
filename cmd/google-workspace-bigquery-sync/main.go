@@ -113,14 +113,29 @@ func listenOnce(ctx context.Context, dsn string, poller *googleworkspacepoller.B
 func drainWakeNotifications(ctx context.Context, conn *pgx.Conn, poller *googleworkspacepoller.BigQueryPoller) {
 	deadline := time.Now().Add(onceWakeWorkBudget)
 	idleSince := time.Now()
+	listenerFailed := false
 	var active atomic.Int64
 	for {
+		if listenerFailed && active.Load() == 0 {
+			return
+		}
 		if active.Load() == 0 && !idleSince.IsZero() && time.Since(idleSince) >= onceDrainWindow {
 			return
 		}
 		if time.Now().After(deadline) {
 			log.Printf("google-workspace-bigquery-sync: -once exiting after %s; some wake-triggered syncs may not have completed", onceWakeWorkBudget)
 			return
+		}
+		if listenerFailed {
+			timer := time.NewTimer(notificationPollInterval)
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				log.Printf("google-workspace-bigquery-sync: -once interrupted before wake-triggered syncs completed: %v", ctx.Err())
+				return
+			case <-timer.C:
+			}
+			continue
 		}
 		waitCtx, stopWaiting := context.WithTimeout(ctx, notificationPollInterval)
 		notification, err := conn.WaitForNotification(waitCtx)
@@ -135,6 +150,11 @@ func drainWakeNotifications(ctx context.Context, conn *pgx.Conn, poller *googlew
 				if active.Load() == 0 && idleSince.IsZero() {
 					idleSince = time.Now()
 				}
+				continue
+			}
+			if active.Load() > 0 {
+				log.Printf("google-workspace-bigquery-sync: -once wake drain stopped listening while %d sync(s) finish: %v", active.Load(), err)
+				listenerFailed = true
 				continue
 			}
 			log.Printf("google-workspace-bigquery-sync: -once wake drain failed: %v", err)

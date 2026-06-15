@@ -191,6 +191,16 @@ test("connector sync status exposes per-source recovery controls", () => {
   assert.match(page, /runIntegrationSourceSync/);
   assert.match(page, /backfillIntegrationSource/);
   assert.match(page, /Queue backfill/);
+  assert.match(
+    page,
+    /disabled=\{\s*syncingId !== null \|\| !supportsForceSync\(integration\)\s*\}/,
+    "Sync all must be disabled while any connector sync request is in flight"
+  );
+  assert.match(
+    page,
+    /syncingId !== null\s*\?\s*"Queueing…"/,
+    "Sync all must show queueing state for any in-flight connector sync request"
+  );
 });
 
 test("workspace switcher retries after a transient workspace load failure", () => {

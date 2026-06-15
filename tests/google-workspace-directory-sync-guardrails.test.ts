@@ -129,6 +129,17 @@ test("source sync wake paths preserve one-shot and error visibility", () => {
     assert.match(source, /drainWakeNotifications\(ctx, listener,/, `${file} must drain wake notifications in -once mode`);
     assert.match(source, /var active atomic\.Int64/, `${file} must keep draining while wake-triggered work is active`);
     assert.match(source, /notificationPollInterval/, `${file} must poll for additional once-mode wake notifications`);
+    assert.match(source, /listenerFailed := false/, `${file} must track listener failures separately from active wake work`);
+    assert.match(
+      source,
+      /if listenerFailed && active\.Load\(\) == 0[\s\S]*?return/,
+      `${file} must not exit after listener failure until active wake work finishes`
+    );
+    assert.match(
+      source,
+      /if active\.Load\(\) > 0 \{[\s\S]*?-once wake drain stopped listening[\s\S]*?listenerFailed = true/,
+      `${file} must keep once-mode alive when WaitForNotification fails while wake work is active`
+    );
     assert.match(
       source,
       /waitErr := waitCtx\.Err\(\)[\s\S]*?stopWaiting\(\)[\s\S]*?if waitErr != nil/,
