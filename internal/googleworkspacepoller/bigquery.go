@@ -261,7 +261,14 @@ func (p *BigQueryPoller) pollIntegrationRecordTypes(ctx context.Context, cfg Big
 
 func (p *BigQueryPoller) recordBigQueryErrors(ctx context.Context, integrationID string, recordTypes []string, err error) {
 	for _, recordType := range recordTypes {
-		p.recordBigQueryError(ctx, integrationID, recordType, bigQueryCursor{}, err)
+		if ctx.Err() != nil {
+			return
+		}
+		expected, loadErr := p.loadBigQueryCursor(ctx, integrationID, recordType)
+		if loadErr != nil {
+			log.Printf("googleworkspacebigquery: load cursor for setup error failed integration=%s record_type=%s: %v", integrationID, recordType, loadErr)
+		}
+		p.recordBigQueryError(ctx, integrationID, recordType, expected, err)
 	}
 }
 

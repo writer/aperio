@@ -263,18 +263,24 @@ func (p *Poller) pollIntegration(ctx context.Context, integ integrationRow) erro
 func (p *Poller) pollIntegrationApplications(ctx context.Context, integ integrationRow, applications []string, refreshConnector bool) error {
 	oauth, ok := p.resolver.ResolveGoogleOAuthClient(ctx, integ.OrganizationID)
 	if !ok {
-		return errors.New("oauth client unresolved for organization")
+		err := errors.New("oauth client unresolved for organization")
+		p.recordApplicationSetupErrors(ctx, integ.ID, applications, err)
+		return err
 	}
 	refreshToken, err := runtimeutil.DecryptString(
 		integ.EncryptedToken,
 		runtimeutil.IntegrationSecretAAD(integ.OrganizationID, "GOOGLE_WORKSPACE", integ.ExternalAccountID, "access_token"),
 	)
 	if err != nil {
-		return fmt.Errorf("decrypt refresh token: %w", err)
+		err = fmt.Errorf("decrypt refresh token: %w", err)
+		p.recordApplicationSetupErrors(ctx, integ.ID, applications, err)
+		return err
 	}
 	accessToken, err := p.exchangeRefreshToken(ctx, oauth, refreshToken)
 	if err != nil {
-		return fmt.Errorf("exchange refresh token: %w", err)
+		err = fmt.Errorf("exchange refresh token: %w", err)
+		p.recordApplicationSetupErrors(ctx, integ.ID, applications, err)
+		return err
 	}
 	for _, app := range applications {
 		if ctx.Err() != nil {
@@ -295,6 +301,19 @@ func (p *Poller) pollIntegrationApplications(ctx context.Context, integ integrat
 		_, _ = p.db.ExecContext(ctx, `UPDATE integration_connections SET last_sync_at = $1, updated_at = NOW() WHERE id = $2`, p.nowFn().UTC(), integ.ID)
 	}
 	return nil
+}
+
+func (p *Poller) recordApplicationSetupErrors(ctx context.Context, integrationID string, applications []string, setupErr error) {
+	for _, app := range applications {
+		if ctx.Err() != nil {
+			return
+		}
+		expected, err := p.loadCursor(ctx, integrationID, app)
+		if err != nil {
+			log.Printf("googleworkspacepoller: load cursor for setup error failed integ=%s app=%s: %v", integrationID, app, err)
+		}
+		p.recordError(ctx, integrationID, app, expected, setupErr)
+	}
 }
 
 // pollApplication lists activities for one (integration, application) pair

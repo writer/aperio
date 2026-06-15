@@ -164,11 +164,21 @@ test("source sync cursor state preserves queued backfills and BigQuery queue att
     /WHERE COALESCE\(google_workspace_sync_cursors\.last_error, ''\) NOT LIKE \$6[\s\S]*?last_event_time = \$7[\s\S]*?last_unique_qualifier = \$8/,
     "Reports cursor writes must not clear a queued backfill from an overlapping stale sweep"
   );
+  assert.match(
+    reports,
+    /func \(p \*Poller\) recordApplicationSetupErrors[\s\S]*?expected, err := p\.loadCursor\(ctx, integrationID, app\)[\s\S]*?p\.recordError\(ctx, integrationID, app, expected, setupErr\)/,
+    "Reports setup failures must load each stream cursor before recording errors so queued backfills can be replaced by the real failure"
+  );
   assert.match(bigquery, /syncstate\.BackfillQueuedPrefix\+"%"/);
   assert.match(
     bigquery,
     /WHERE COALESCE\(google_workspace_bigquery_sync_cursors\.last_error, ''\) NOT LIKE \$7[\s\S]*?last_event_time = \$8[\s\S]*?last_row_hash = \$9/,
     "BigQuery cursor writes must not clear a queued backfill from an overlapping stale sweep"
+  );
+  assert.match(
+    bigquery,
+    /func \(p \*BigQueryPoller\) recordBigQueryErrors[\s\S]*?expected, loadErr := p\.loadBigQueryCursor\(ctx, integrationID, recordType\)[\s\S]*?p\.recordBigQueryError\(ctx, integrationID, recordType, expected, err\)/,
+    "BigQuery setup failures must load each stream cursor before recording errors so queued backfills can be replaced by the real failure"
   );
   assert.match(status, /queueSource := "google\.bigquery\." \+ recordType/);
   assert.match(bigquery, /googleBigQueryQueueSource\(application\)/);
