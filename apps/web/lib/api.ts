@@ -31,7 +31,8 @@ export type Provider =
   | "ONE_PASSWORD"
   | "OKTA"
   | "MICROSOFT_365"
-  | "ATLASSIAN";
+  | "ATLASSIAN"
+  | "SALESFORCE";
 
 export type SignupPayload = {
   organizationName: string;
@@ -209,6 +210,11 @@ export type IntegrationCheckState = {
   integrationId: string;
   disabledChecks: string[];
   checks: FindingCheckStatus[];
+};
+
+export type CheckDisableInput = {
+  reason: string;
+  expiresAt: string;
 };
 
 export type SiemKind =
@@ -568,11 +574,13 @@ export async function fetchIntegrationChecks(integrationId: string) {
 
 export async function updateIntegrationChecks(
   integrationId: string,
-  disabledChecks: string[]
+  disabledChecks: string[],
+  disableInput?: CheckDisableInput
 ) {
   return aperioConnectClient.updateIntegrationChecks(
     integrationId,
-    disabledChecks
+    disabledChecks,
+    disableInput
   ) as Promise<{ data: IntegrationCheckState }>;
 }
 
@@ -877,6 +885,59 @@ export type SecurityOverview = {
   domainWideDelegations?: DomainWideDelegation[];
 };
 
+export type EmailDomainHealth = {
+  domain: string;
+  providerSources: string[];
+  status: "HEALTHY" | "WARNING" | "FAILING" | "UNKNOWN";
+  score: number;
+  spfStatus: "HEALTHY" | "WARNING" | "FAILING" | "UNKNOWN";
+  dkimStatus: "HEALTHY" | "WARNING" | "FAILING" | "UNKNOWN";
+  dmarcStatus: "HEALTHY" | "WARNING" | "FAILING" | "UNKNOWN";
+  lastCheckedAt: string;
+  issueCount: number;
+  failingIssueCount: number;
+};
+
+export type EmailDomainHealthIssue = {
+  id: string;
+  protocol: "SPF" | "DKIM" | "DMARC" | "MX" | "GENERAL";
+  severity: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW" | "INFO";
+  code: string;
+  title: string;
+  detail: string;
+  recommendation: string;
+};
+
+export type EmailDomainDkimSelector = {
+  selector: string;
+  status: "HEALTHY" | "WARNING" | "FAILING" | "UNKNOWN";
+  keyBits: number;
+  record: string;
+};
+
+export type EmailDomainHealthHistoryPoint = {
+  checkedAt: string;
+  status: "HEALTHY" | "WARNING" | "FAILING" | "UNKNOWN";
+  score: number;
+  issueCount: number;
+};
+
+export type EmailDomainHealthDetail = {
+  domain: EmailDomainHealth;
+  spfRecords: string[];
+  spfPolicy: string;
+  spfLookupCount: number;
+  dmarcRecords: string[];
+  dmarcPolicy: string;
+  dmarcPct: number;
+  dmarcRua: string[];
+  mxRecords: string[];
+  dkimSelectors: EmailDomainDkimSelector[];
+  relatedRecords: string[];
+  issues: EmailDomainHealthIssue[];
+  history: EmailDomainHealthHistoryPoint[];
+};
+
 export type CreateSecurityAssetPayload = {
   integrationId?: string;
   ownerUserId?: string;
@@ -985,6 +1046,26 @@ export async function fetchAuditLogs() {
 export async function fetchSecurityOverview() {
   return aperioConnectClient.getSecurityOverview() as Promise<{
     data: SecurityOverview;
+  }>;
+}
+
+export async function fetchEmailDomainHealth(options?: {
+  refreshIfStale?: boolean;
+}) {
+  return aperioConnectClient.listEmailDomainHealth(options) as Promise<{
+    data: EmailDomainHealth[];
+  }>;
+}
+
+export async function fetchEmailDomainHealthDetail(domain: string) {
+  return aperioConnectClient.getEmailDomainHealth(domain) as Promise<{
+    data: EmailDomainHealthDetail;
+  }>;
+}
+
+export async function refreshEmailDomainHealth(domain?: string) {
+  return aperioConnectClient.refreshEmailDomainHealth(domain) as Promise<{
+    data: EmailDomainHealth[];
   }>;
 }
 

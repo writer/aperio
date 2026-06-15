@@ -8,6 +8,7 @@ import {
   fetchConnectorRules,
   updateCustomRule,
   updateIntegrationChecks,
+  type CheckDisableInput,
   type ConnectorBuiltInRule,
   type ConnectorCustomRule,
   type ConnectorRulesResponse,
@@ -46,6 +47,56 @@ const EMPTY_DRAFT: CustomDraft = {
   predicateText: "{}",
   enabled: true
 };
+
+const DISABLE_WINDOW_DEFAULT_DAYS = 14;
+
+function normalizeDisableExpiry(input: string): string | null {
+  const raw = input.trim();
+  if (!raw) return null;
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
+  if (dateOnly) {
+    const year = Number(dateOnly[1]);
+    const month = Number(dateOnly[2]) - 1;
+    const day = Number(dateOnly[3]);
+    const parsed = new Date(Date.UTC(year, month, day, 23, 59, 59));
+    if (
+      parsed.getUTCFullYear() !== year ||
+      parsed.getUTCMonth() !== month ||
+      parsed.getUTCDate() !== day
+    ) {
+      return null;
+    }
+    return parsed.toISOString();
+  }
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+  return parsed.toISOString();
+}
+
+function collectDisableInput(ruleTitle: string): CheckDisableInput | null {
+  const reason = window.prompt(`Reason for disabling "${ruleTitle}"`, "");
+  if (reason === null) return null;
+  if (!reason.trim()) {
+    throw new Error("A disable reason is required.");
+  }
+  const defaultExpiry = new Date(
+    Date.now() + DISABLE_WINDOW_DEFAULT_DAYS * 24 * 60 * 60 * 1000
+  )
+    .toISOString()
+    .slice(0, 10);
+  const expiresInput = window.prompt(
+    "Disable until (YYYY-MM-DD or RFC3339 timestamp)",
+    defaultExpiry
+  );
+  if (expiresInput === null) return null;
+  const expiresAt = normalizeDisableExpiry(expiresInput);
+  if (!expiresAt) {
+    throw new Error("Disable expiry must be YYYY-MM-DD or RFC3339.");
+  }
+  return { reason: reason.trim(), expiresAt };
+}
 
 export function ConnectorRulesDialog({
   integrationId,
@@ -95,8 +146,8 @@ export function ConnectorRulesDialog({
       // disabled set. Without this, two rapid clicks on different switches
       // would each read the same stale `disabledIds` baseline and the
       // second updateIntegrationChecks would overwrite the first — silently
-      // re-enabling a rule the operator had just disabled (and undoing its
-      // auto-resolve). Pairing the refetch with savingRuleId locking ALL
+      // re-enabling a rule the operator had just disabled. Pairing the
+      // refetch with savingRuleId locking ALL
       // toggles below closes the race from both directions.
       setSavingRuleId(rule.id);
       try {
@@ -110,13 +161,21 @@ export function ConnectorRulesDialog({
         } else {
           next.add(rule.id);
         }
-        await updateIntegrationChecks(integrationId, Array.from(next));
+        let disableInput: CheckDisableInput | undefined;
+        if (!nextEnabled) {
+          const collected = collectDisableInput(rule.title);
+          if (!collected) {
+            return;
+          }
+          disableInput = collected;
+        }
+        await updateIntegrationChecks(integrationId, Array.from(next), disableInput);
         toast({
           tone: "success",
           title: nextEnabled ? "Rule enabled" : "Rule disabled",
           description: nextEnabled
             ? `${rule.title} is now scoring incoming events.`
-            : `${rule.title} disabled. Existing open findings auto-resolved with "Rule disabled by operator".`
+            : `${rule.title} disabled until re-enabled or expiry. Existing findings remain for audit history.`
         });
         await load();
       } catch (err) {
@@ -240,8 +299,8 @@ export function ConnectorRulesDialog({
         <DialogHeader>
           <DialogTitle>Finding rules: {integrationLabel}</DialogTitle>
           <DialogDescription>
-            Toggle built-in rules and add custom rules over the raw event payload. Disabling a rule
-            auto-resolves its open findings.
+            Toggle built-in rules and add custom rules over the raw event payload. Disabling a
+            built-in rule suppresses future detections for this integration.
           </DialogDescription>
         </DialogHeader>
 

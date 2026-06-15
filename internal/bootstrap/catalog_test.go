@@ -17,7 +17,7 @@ func TestConnectorCatalogExposesProviderFieldsAndScopes(t *testing.T) {
 		byProvider[definition.Provider] = definition
 	}
 
-	wantProviders := []string{"GITHUB", "SLACK", "GOOGLE_WORKSPACE", "ONE_PASSWORD", "OKTA", "MICROSOFT_365", "ATLASSIAN"}
+	wantProviders := []string{"GITHUB", "SLACK", "GOOGLE_WORKSPACE", "ONE_PASSWORD", "OKTA", "MICROSOFT_365", "ATLASSIAN", "SALESFORCE"}
 	if len(catalog) != len(wantProviders) {
 		t.Fatalf("expected %d connectors, got %d", len(wantProviders), len(catalog))
 	}
@@ -216,11 +216,25 @@ func TestDefaultDisabledChecksMatchCatalog(t *testing.T) {
 		"OKTA":             {"okta.suspicious_signin"},
 		"ONE_PASSWORD":     {"one_password.travel_mode_enabled"},
 		"GOOGLE_WORKSPACE": {},
+		"SALESFORCE":       {},
 	}
 	for provider, want := range cases {
 		got := compatDefaultDisabledChecks(provider)
 		if strings.Join(got, ",") != strings.Join(want, ",") {
 			t.Fatalf("provider %s default disabled checks = %v, want %v", provider, got, want)
+		}
+	}
+}
+
+func TestCriticalBaselineCheckSetMatchesCatalog(t *testing.T) {
+	for _, connector := range compatConnectorCatalog() {
+		baseline := compatCriticalBaselineCheckSet(connector.Provider)
+		for _, check := range connector.FindingChecks {
+			_, found := baseline[check.Key]
+			want := check.DefaultEnabled && strings.EqualFold(check.SeverityHint, "CRITICAL")
+			if found != want {
+				t.Fatalf("provider %s check %s baseline=%t want %t", connector.Provider, check.Key, found, want)
+			}
 		}
 	}
 }
@@ -234,7 +248,7 @@ func TestDefaultDisabledChecksMatchCatalog(t *testing.T) {
 // ingestionworker.RuleCatalog. Dropping any of these would silently
 // re-enable them on the first built-in toggle.
 func TestFindingChecksForProviderReturnsFullSet(t *testing.T) {
-	for _, provider := range []string{"GITHUB", "SLACK", "OKTA", "GOOGLE_WORKSPACE", "ONE_PASSWORD"} {
+	for _, provider := range []string{"GITHUB", "SLACK", "OKTA", "GOOGLE_WORKSPACE", "ONE_PASSWORD", "SALESFORCE"} {
 		got := compatFindingChecksForProvider(provider)
 		def := findConnectorDefinition(provider)
 		if def == nil {

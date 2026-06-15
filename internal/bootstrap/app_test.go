@@ -311,6 +311,15 @@ func TestCompatRateLimitUsesSeparateIPAndSubjectBuckets(t *testing.T) {
 	if _, _, ok := compatRateLimitPolicy("/api/v1/auth/workspaces/switch"); !ok {
 		t.Fatal("workspace switch re-auth must stay rate limited")
 	}
+	if _, _, ok := compatRateLimitPolicy(emailDomainHealthListRateLimitPath); !ok {
+		t.Fatal("email domain list path must stay rate limited")
+	}
+	if _, _, ok := compatRateLimitPolicy(emailDomainHealthGetRateLimitPath); !ok {
+		t.Fatal("email domain detail path must stay rate limited")
+	}
+	if _, _, ok := compatRateLimitPolicy(emailDomainHealthRefreshRatePath); !ok {
+		t.Fatal("email domain refresh path must stay rate limited")
+	}
 	for _, path := range []string{
 		"/api/v1/integrations/int_123/source-sync",
 		"/api/v1/integrations/int_123/source-backfill",

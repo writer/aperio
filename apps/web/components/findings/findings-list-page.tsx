@@ -84,6 +84,7 @@ export function FindingsListPage() {
         data={findings}
         loading={loading}
         error={error}
+        className="space-y-5"
         onRetry={() => void load("initial")}
         errorTitle="Unable to load findings"
         skeleton={

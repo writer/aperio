@@ -7,7 +7,8 @@ export const providers = [
   "ONE_PASSWORD",
   "OKTA",
   "MICROSOFT_365",
-  "ATLASSIAN"
+  "ATLASSIAN",
+  "SALESFORCE"
 ] as const;
 export const severities = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"] as const;
 export const findingStatuses = ["OPEN", "RESOLVED", "MUTED"] as const;

@@ -660,6 +660,51 @@ const rawConnectorCatalog: ConnectorDefinition[] = [
         secret: true
       }
     ]
+  },
+  {
+    provider: "SALESFORCE",
+    name: "Salesforce",
+    category: "Productivity",
+    availability: "production_ready",
+    description:
+      "Connect Salesforce through OAuth connected apps so Aperio can ingest org telemetry and evaluate custom rules on high-risk admin and data-sharing activity.",
+    readScopes: ["api", "refresh_token"],
+    remediationScopes: [],
+    remediationActions: [],
+    findingChecks: [],
+    docsUrl:
+      "https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/intro_rest.htm",
+    fields: [
+      {
+        key: "externalAccountId",
+        label: "Salesforce instance domain",
+        placeholder: "acme.my.salesforce.com",
+        helper: "Use your My Domain host without https://.",
+        type: "url",
+        required: true,
+        secret: false
+      },
+      {
+        key: "refreshToken",
+        label: "Connected App client ID",
+        placeholder: "3MVG9....",
+        helper:
+          "Consumer Key from the Salesforce Connected App (OAuth) configuration.",
+        type: "text",
+        required: true,
+        secret: false
+      },
+      {
+        key: "accessToken",
+        label: "Connected App client secret",
+        placeholder: "1955279925675241571",
+        helper:
+          "Consumer Secret from the Salesforce Connected App documentation flow.",
+        type: "password",
+        required: true,
+        secret: true
+      }
+    ]
   }
 ];
 

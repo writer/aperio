@@ -600,7 +600,11 @@ func (a *App) UpdateIntegrationChecks(
 		return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("unauthorized"))
 	}
 	id := strings.TrimSpace(req.Msg.IntegrationId)
-	result, err := a.compatUpdateIntegrationChecks(ctx, id, map[string]any{"disabledChecks": req.Msg.DisabledChecks}, auth)
+	result, err := a.compatUpdateIntegrationChecks(ctx, id, map[string]any{
+		"disabledChecks":   req.Msg.DisabledChecks,
+		"disableReason":    req.Msg.DisableReason,
+		"disableExpiresAt": req.Msg.DisableExpiresAt,
+	}, auth)
 	if err != nil {
 		return nil, err
 	}
@@ -1418,6 +1422,27 @@ func (a *App) ListRiskExceptions(
 	return connect.NewResponse(response), nil
 }
 
+func (a *App) ListEmailDomainHealth(
+	ctx context.Context,
+	req *connect.Request[aperiov1.ListEmailDomainHealthRequest],
+) (*connect.Response[aperiov1.ListEmailDomainHealthResponse], error) {
+	return a.listEmailDomainHealth(ctx, req)
+}
+
+func (a *App) GetEmailDomainHealth(
+	ctx context.Context,
+	req *connect.Request[aperiov1.GetEmailDomainHealthRequest],
+) (*connect.Response[aperiov1.GetEmailDomainHealthResponse], error) {
+	return a.getEmailDomainHealth(ctx, req)
+}
+
+func (a *App) RefreshEmailDomainHealth(
+	ctx context.Context,
+	req *connect.Request[aperiov1.RefreshEmailDomainHealthRequest],
+) (*connect.Response[aperiov1.RefreshEmailDomainHealthResponse], error) {
+	return a.refreshEmailDomainHealth(ctx, req)
+}
+
 func (a *App) authenticatedOrganization(ctx context.Context, header http.Header) (string, error) {
 	if a.db == nil {
 		return "", connect.NewError(connect.CodeUnavailable, errors.New("database not configured"))
@@ -1845,7 +1870,7 @@ func validateFindingFilters(severity string, status string, provider string) err
 	if status != "" && !allowedValue(status, "OPEN", "RESOLVED", "MUTED", "ALL") {
 		return errors.New("invalid status filter")
 	}
-	if provider != "" && !allowedValue(provider, "GITHUB", "SLACK", "GOOGLE_WORKSPACE", "ONE_PASSWORD", "OKTA", "MICROSOFT_365", "ATLASSIAN") {
+	if provider != "" && !allowedValue(provider, "GITHUB", "SLACK", "GOOGLE_WORKSPACE", "ONE_PASSWORD", "OKTA", "MICROSOFT_365", "ATLASSIAN", "SALESFORCE") {
 		return errors.New("invalid provider filter")
 	}
 	return nil

@@ -266,6 +266,23 @@ func rawConnectorCatalog() []connectorDefinition {
 				{Key: "accessToken", Label: "Admin API Key", Type: "password", Required: true, Secret: true},
 			},
 		},
+		{
+			Provider:           "SALESFORCE",
+			Name:               "Salesforce",
+			Category:           "Productivity",
+			Availability:       "production_ready",
+			Description:        "Connect Salesforce through OAuth connected apps so Aperio can ingest org telemetry and evaluate custom rules on high-risk admin and data-sharing activity.",
+			ReadScopes:         []string{"api", "refresh_token"},
+			RemediationScopes:  []string{},
+			RemediationActions: []remediationAction{},
+			FindingChecks:      []findingCheck{},
+			DocsURL:            "https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/intro_rest.htm",
+			Fields: []connectorField{
+				{Key: "externalAccountId", Label: "Salesforce instance domain", Placeholder: "acme.my.salesforce.com", Helper: "Use your My Domain host without https://.", Type: "url", Required: true, Secret: false},
+				{Key: "refreshToken", Label: "Connected App client ID", Placeholder: "3MVG9....", Helper: "Consumer Key from the Salesforce Connected App (OAuth) configuration.", Type: "text", Required: true, Secret: false},
+				{Key: "accessToken", Label: "Connected App client secret", Placeholder: "1955279925675241571", Helper: "Consumer Secret from the Salesforce Connected App documentation flow.", Type: "password", Required: true, Secret: true},
+			},
+		},
 	}
 }
 
@@ -412,6 +429,21 @@ func compatFindingChecksForProvider(provider string) []findingCheck {
 	out := make([]findingCheck, len(definition.FindingChecks))
 	copy(out, definition.FindingChecks)
 	return out
+}
+
+func compatCriticalBaselineCheckSet(provider string) map[string]struct{} {
+	checks := compatFindingChecksForProvider(provider)
+	baseline := make(map[string]struct{}, len(checks))
+	for _, check := range checks {
+		if !check.DefaultEnabled {
+			continue
+		}
+		if !strings.EqualFold(check.SeverityHint, "CRITICAL") {
+			continue
+		}
+		baseline[check.Key] = struct{}{}
+	}
+	return baseline
 }
 
 // compatFindingCheckStatuses overlays the integration's disabled set onto the

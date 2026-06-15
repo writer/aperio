@@ -5,6 +5,11 @@ import {
   type AuditLogEntry as ProtoAuditLogEntry,
   type AuthSession as ProtoAuthSession,
   type ConnectorDefinition as ProtoConnectorDefinition,
+  type EmailDomainDkimSelector as ProtoEmailDomainDkimSelector,
+  type EmailDomainHealth as ProtoEmailDomainHealth,
+  type EmailDomainHealthDetail as ProtoEmailDomainHealthDetail,
+  type EmailDomainHealthHistoryPoint as ProtoEmailDomainHealthHistoryPoint,
+  type EmailDomainHealthIssue as ProtoEmailDomainHealthIssue,
   type Finding as ProtoFinding,
   type GoogleMailboxScanConfig as ProtoGoogleMailboxScanConfig,
   type GoogleWorkspaceBigQueryConfig as ProtoGoogleWorkspaceBigQueryConfig,
@@ -67,7 +72,8 @@ export type ConnectFinding = {
       | "ONE_PASSWORD"
       | "OKTA"
       | "MICROSOFT_365"
-      | "ATLASSIAN";
+      | "ATLASSIAN"
+      | "SALESFORCE";
     displayName: string;
   };
 };
@@ -233,6 +239,11 @@ export type ConnectIntegrationCheckState = {
     defaultEnabled: boolean;
     enabled: boolean;
   }[];
+};
+
+export type ConnectCheckDisableInput = {
+  reason: string;
+  expiresAt: string;
 };
 
 export type ConnectConnectorBuiltInRule = {
@@ -631,6 +642,59 @@ export type ConnectSecurityOverview = {
     lastSyncAt: string | null;
     configuredAt: string;
   }[];
+};
+
+export type ConnectEmailDomainHealth = {
+  domain: string;
+  providerSources: string[];
+  status: "HEALTHY" | "WARNING" | "FAILING" | "UNKNOWN";
+  score: number;
+  spfStatus: "HEALTHY" | "WARNING" | "FAILING" | "UNKNOWN";
+  dkimStatus: "HEALTHY" | "WARNING" | "FAILING" | "UNKNOWN";
+  dmarcStatus: "HEALTHY" | "WARNING" | "FAILING" | "UNKNOWN";
+  lastCheckedAt: string;
+  issueCount: number;
+  failingIssueCount: number;
+};
+
+export type ConnectEmailDomainHealthIssue = {
+  id: string;
+  protocol: "SPF" | "DKIM" | "DMARC" | "MX" | "GENERAL";
+  severity: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW" | "INFO";
+  code: string;
+  title: string;
+  detail: string;
+  recommendation: string;
+};
+
+export type ConnectEmailDomainDkimSelector = {
+  selector: string;
+  status: "HEALTHY" | "WARNING" | "FAILING" | "UNKNOWN";
+  keyBits: number;
+  record: string;
+};
+
+export type ConnectEmailDomainHealthHistoryPoint = {
+  checkedAt: string;
+  status: "HEALTHY" | "WARNING" | "FAILING" | "UNKNOWN";
+  score: number;
+  issueCount: number;
+};
+
+export type ConnectEmailDomainHealthDetail = {
+  domain: ConnectEmailDomainHealth;
+  spfRecords: string[];
+  spfPolicy: string;
+  spfLookupCount: number;
+  dmarcRecords: string[];
+  dmarcPolicy: string;
+  dmarcPct: number;
+  dmarcRua: string[];
+  mxRecords: string[];
+  dkimSelectors: ConnectEmailDomainDkimSelector[];
+  relatedRecords: string[];
+  issues: ConnectEmailDomainHealthIssue[];
+  history: ConnectEmailDomainHealthHistoryPoint[];
 };
 
 export type ConnectCreateSecurityAssetPayload = {
@@ -1367,6 +1431,79 @@ function securityOverviewFromProto(
   };
 }
 
+function emailDomainHealthFromProto(
+  domain?: ProtoEmailDomainHealth | null
+): ConnectEmailDomainHealth {
+  return {
+    domain: domain?.domain ?? "",
+    providerSources: domain?.providerSources ?? [],
+    status: (domain?.status ?? "UNKNOWN") as ConnectEmailDomainHealth["status"],
+    score: domain?.score ?? 0,
+    spfStatus: (domain?.spfStatus ?? "UNKNOWN") as ConnectEmailDomainHealth["spfStatus"],
+    dkimStatus: (domain?.dkimStatus ?? "UNKNOWN") as ConnectEmailDomainHealth["dkimStatus"],
+    dmarcStatus: (domain?.dmarcStatus ?? "UNKNOWN") as ConnectEmailDomainHealth["dmarcStatus"],
+    lastCheckedAt: domain?.lastCheckedAt ?? "",
+    issueCount: domain?.issueCount ?? 0,
+    failingIssueCount: domain?.failingIssueCount ?? 0
+  };
+}
+
+function emailDomainIssueFromProto(
+  issue: ProtoEmailDomainHealthIssue
+): ConnectEmailDomainHealthIssue {
+  return {
+    id: issue.id,
+    protocol: issue.protocol as ConnectEmailDomainHealthIssue["protocol"],
+    severity: issue.severity as ConnectEmailDomainHealthIssue["severity"],
+    code: issue.code,
+    title: issue.title,
+    detail: issue.detail,
+    recommendation: issue.recommendation
+  };
+}
+
+function emailDomainDkimSelectorFromProto(
+  selector: ProtoEmailDomainDkimSelector
+): ConnectEmailDomainDkimSelector {
+  return {
+    selector: selector.selector,
+    status: selector.status as ConnectEmailDomainDkimSelector["status"],
+    keyBits: selector.keyBits,
+    record: selector.record
+  };
+}
+
+function emailDomainHistoryFromProto(
+  point: ProtoEmailDomainHealthHistoryPoint
+): ConnectEmailDomainHealthHistoryPoint {
+  return {
+    checkedAt: point.checkedAt,
+    status: point.status as ConnectEmailDomainHealthHistoryPoint["status"],
+    score: point.score,
+    issueCount: point.issueCount
+  };
+}
+
+function emailDomainHealthDetailFromProto(
+  detail: ProtoEmailDomainHealthDetail
+): ConnectEmailDomainHealthDetail {
+  return {
+    domain: emailDomainHealthFromProto(detail.domain),
+    spfRecords: detail.spfRecords,
+    spfPolicy: detail.spfPolicy,
+    spfLookupCount: detail.spfLookupCount,
+    dmarcRecords: detail.dmarcRecords,
+    dmarcPolicy: detail.dmarcPolicy,
+    dmarcPct: detail.dmarcPct,
+    dmarcRua: detail.dmarcRua,
+    mxRecords: detail.mxRecords,
+    dkimSelectors: detail.dkimSelectors.map(emailDomainDkimSelectorFromProto),
+    relatedRecords: detail.relatedRecords,
+    issues: detail.issues.map(emailDomainIssueFromProto),
+    history: detail.history.map(emailDomainHistoryFromProto)
+  };
+}
+
 export const aperioConnectClient = {
   async signup(payload: {
     organizationName: string;
@@ -1626,11 +1763,14 @@ export const aperioConnectClient = {
   },
   async updateIntegrationChecks(
     integrationId: string,
-    disabledChecks: string[]
+    disabledChecks: string[],
+    disableInput?: ConnectCheckDisableInput
   ): Promise<{ data: ConnectIntegrationCheckState }> {
     const response = await client.updateIntegrationChecks({
       integrationId,
-      disabledChecks
+      disabledChecks,
+      disableReason: disableInput?.reason ?? "",
+      disableExpiresAt: disableInput?.expiresAt ?? ""
     });
     if (!response.data) {
       throw new Error("Integration checks update failed");
@@ -2023,6 +2163,31 @@ export const aperioConnectClient = {
       throw new Error("Security overview unavailable");
     }
     return { data: securityOverviewFromProto(response.data) };
+  },
+  async listEmailDomainHealth(options?: {
+    refreshIfStale?: boolean;
+  }): Promise<{ data: ConnectEmailDomainHealth[] }> {
+    const response = await client.listEmailDomainHealth({
+      refreshIfStale: options?.refreshIfStale ?? false
+    });
+    return { data: response.data.map(emailDomainHealthFromProto) };
+  },
+  async getEmailDomainHealth(
+    domain: string
+  ): Promise<{ data: ConnectEmailDomainHealthDetail }> {
+    const response = await client.getEmailDomainHealth({ domain });
+    if (!response.data) {
+      throw new Error("Email domain health unavailable");
+    }
+    return { data: emailDomainHealthDetailFromProto(response.data) };
+  },
+  async refreshEmailDomainHealth(
+    domain?: string
+  ): Promise<{ data: ConnectEmailDomainHealth[] }> {
+    const response = await client.refreshEmailDomainHealth({
+      domain: domain ?? ""
+    });
+    return { data: response.data.map(emailDomainHealthFromProto) };
   },
   async listSecurityAssets(
     filters?: ConnectSecurityAssetsFilters

@@ -32,7 +32,8 @@ export const NAV_TREE: NavNode[] = [
     children: [
       { href: "/findings", label: "Findings" },
       { href: "/shadow-it", label: "Shadow IT" },
-      { href: "/security", label: "Security Graph" }
+      { href: "/security", label: "Security Graph" },
+      { href: "/security/email-domain-health", label: "Email Domain Health" }
     ]
   },
   {
@@ -66,8 +67,20 @@ function flattenLeaves(nodes: NavNode[]): NavLeaf[] {
 
 export const NAV_LINKS: NavLeaf[] = flattenLeaves(NAV_TREE);
 
+function pathMatchesHref(pathname: string, href: string) {
+  return href === "/"
+    ? pathname === "/"
+    : pathname === href || pathname.startsWith(`${href}/`);
+}
+
 function isPathActive(pathname: string, href: string) {
-  return href === "/" ? pathname === "/" : pathname.startsWith(href);
+  if (!pathMatchesHref(pathname, href)) return false;
+  return !NAV_LINKS.some(
+    (leaf) =>
+      leaf.href !== href &&
+      leaf.href.startsWith(`${href}/`) &&
+      pathMatchesHref(pathname, leaf.href)
+  );
 }
 
 function folderContainsActive(folder: NavFolder, pathname: string): boolean {

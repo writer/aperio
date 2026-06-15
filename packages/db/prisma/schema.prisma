@@ -21,6 +21,7 @@ enum SaaSProvider {
   OKTA
   MICROSOFT_365
   ATLASSIAN
+  SALESFORCE
 }
 
 enum IntegrationStatus {
@@ -231,6 +232,8 @@ model Organization {
   agentProposals    AgentProposal[]
   assets            SecurityAsset[]
   riskExceptions    RiskException[]
+  emailDomainHealthChecks EmailDomainHealthCheck[]
+  emailDomainHealthRuns EmailDomainHealthRun[]
   saasIdentities    SaasIdentity[]
   authTokens        AuthToken[]
   authEmailDeliveries AuthEmailDelivery[]
@@ -903,6 +906,50 @@ model RiskException {
   @@index([assetId])
   @@index([findingId])
   @@map("risk_exceptions")
+}
+
+model EmailDomainHealthCheck {
+  id               String       @id @default(cuid())
+  organizationId   String       @map("organization_id")
+  domain           String       @db.VarChar(255)
+  providerSources  String[]     @default([]) @map("provider_sources")
+  status           String       @default("UNKNOWN") @db.VarChar(16)
+  score            Int          @default(0)
+  spfStatus        String       @default("UNKNOWN") @map("spf_status") @db.VarChar(16)
+  dkimStatus       String       @default("UNKNOWN") @map("dkim_status") @db.VarChar(16)
+  dmarcStatus      String       @default("UNKNOWN") @map("dmarc_status") @db.VarChar(16)
+  issueCount       Int          @default(0) @map("issue_count")
+  failingIssueCount Int         @default(0) @map("failing_issue_count")
+  payload          Json         @default("{}")
+  lastCheckedAt    DateTime     @map("last_checked_at")
+  createdAt        DateTime     @default(now()) @map("created_at")
+  updatedAt        DateTime     @updatedAt @map("updated_at")
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  runs             EmailDomainHealthRun[]
+
+  @@unique([organizationId, domain])
+  @@index([organizationId, status, score])
+  @@index([organizationId, lastCheckedAt])
+  @@map("email_domain_health_checks")
+}
+
+model EmailDomainHealthRun {
+  id             String                @id @default(cuid())
+  checkId        String                @map("check_id")
+  organizationId String                @map("organization_id")
+  domain         String                @db.VarChar(255)
+  status         String                @db.VarChar(16)
+  score          Int
+  issueCount     Int                   @map("issue_count")
+  payload        Json                  @default("{}")
+  checkedAt      DateTime              @map("checked_at")
+  createdAt      DateTime              @default(now()) @map("created_at")
+  check          EmailDomainHealthCheck @relation(fields: [checkId], references: [id], onDelete: Cascade)
+  organization   Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([checkId, checkedAt])
+  @@index([organizationId, checkedAt])
+  @@map("email_domain_health_runs")
 }
 
 model OauthAppGrant {
