@@ -1365,6 +1365,27 @@ func (a *App) ListRiskExceptions(
 	return connect.NewResponse(response), nil
 }
 
+func (a *App) ListEmailDomainHealth(
+	ctx context.Context,
+	req *connect.Request[aperiov1.ListEmailDomainHealthRequest],
+) (*connect.Response[aperiov1.ListEmailDomainHealthResponse], error) {
+	return a.listEmailDomainHealth(ctx, req)
+}
+
+func (a *App) GetEmailDomainHealth(
+	ctx context.Context,
+	req *connect.Request[aperiov1.GetEmailDomainHealthRequest],
+) (*connect.Response[aperiov1.GetEmailDomainHealthResponse], error) {
+	return a.getEmailDomainHealth(ctx, req)
+}
+
+func (a *App) RefreshEmailDomainHealth(
+	ctx context.Context,
+	req *connect.Request[aperiov1.RefreshEmailDomainHealthRequest],
+) (*connect.Response[aperiov1.RefreshEmailDomainHealthResponse], error) {
+	return a.refreshEmailDomainHealth(ctx, req)
+}
+
 func (a *App) authenticatedOrganization(ctx context.Context, header http.Header) (string, error) {
 	if a.db == nil {
 		return "", connect.NewError(connect.CodeUnavailable, errors.New("database not configured"))

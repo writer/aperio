@@ -10,9 +10,11 @@ import {
   Search
 } from "lucide-react";
 import {
+  fetchEmailDomainHealth,
   fetchSecurityOverview,
   type AttackPath,
   type DomainWideDelegation,
+  type EmailDomainHealth,
   type SecurityAsset,
   type SecurityOverview
 } from "../../lib/api";
@@ -45,6 +47,7 @@ type SortDir = "asc" | "desc";
 
 export function SecurityPage() {
   const [overview, setOverview] = useState<SecurityOverview | null>(null);
+  const [domainHealth, setDomainHealth] = useState<EmailDomainHealth[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -52,8 +55,14 @@ export function SecurityPage() {
     setLoading(true);
     setError("");
     try {
-      const response = await fetchSecurityOverview();
-      setOverview(response.data);
+      const [overviewResponse, domainResponse] = await Promise.all([
+        fetchSecurityOverview(),
+        fetchEmailDomainHealth({ refreshIfStale: true }).catch(() => ({
+          data: [] as EmailDomainHealth[]
+        }))
+      ]);
+      setOverview(overviewResponse.data);
+      setDomainHealth(domainResponse.data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to load security");
     } finally {
@@ -72,12 +81,20 @@ export function SecurityPage() {
         title="Security graph"
         description="Privileged identities, risky OAuth apps, exposed data, attack paths, and ownership gaps."
         actions={
-          <Button variant="outline" asChild>
-            <Link href="/security/privileged-identities">
-              Privileged identities
-              <ArrowRight className="h-3.5 w-3.5" aria-hidden />
-            </Link>
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" asChild>
+              <Link href="/security/privileged-identities">
+                Privileged identities
+                <ArrowRight className="h-3.5 w-3.5" aria-hidden />
+              </Link>
+            </Button>
+            <Button variant="outline" asChild>
+              <Link href="/security/email-domain-health">
+                Email domain health
+                <ArrowRight className="h-3.5 w-3.5" aria-hidden />
+              </Link>
+            </Button>
+          </div>
         }
       />
 
@@ -85,6 +102,7 @@ export function SecurityPage() {
         data={overview}
         loading={loading}
         error={error}
+        className="space-y-5"
         onRetry={() => void load()}
         errorTitle="Unable to load security"
         skeleton={
@@ -136,6 +154,8 @@ export function SecurityPage() {
                 }
               />
             </section>
+
+            <EmailDomainHealthSummaryCard domains={domainHealth} />
 
             <AttackPathsCard paths={data.attackPaths} />
 
@@ -534,6 +554,49 @@ function AssetListCard({
       </CardContent>
     </Card>
   );
+}
+
+function EmailDomainHealthSummaryCard({
+  domains
+}: {
+  domains: EmailDomainHealth[];
+}) {
+  const failing = domains.filter((domain) => domain.status === "FAILING").length;
+  const warning = domains.filter((domain) => domain.status === "WARNING").length;
+  const healthy = domains.filter((domain) => domain.status === "HEALTHY").length;
+  const status =
+    failing > 0 ? "FAILING" : warning > 0 ? "WARNING" : domains.length > 0 ? "HEALTHY" : "UNKNOWN";
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Email domain health</CardTitle>
+        <CardDescription>
+          SPF, DKIM, and DMARC posture for domains auto-discovered from integrations.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant={statusBadgeVariant(status)}>{status.toLowerCase()}</Badge>
+          <span className="font-mono text-xs text-muted-foreground tabular-nums">
+            {domains.length} domains · {failing} failing · {warning} warning · {healthy} healthy
+          </span>
+        </div>
+        <Button variant="outline" size="sm" asChild>
+          <Link href="/security/email-domain-health">
+            Open domain health
+            <ArrowRight className="ml-2 h-3.5 w-3.5" aria-hidden />
+          </Link>
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+function statusBadgeVariant(status: "HEALTHY" | "WARNING" | "FAILING" | "UNKNOWN") {
+  if (status === "FAILING") return "critical";
+  if (status === "WARNING") return "warning";
+  if (status === "HEALTHY") return "secondary";
+  return "outline";
 }
 
 type Tone = "neutral" | "signal" | "critical";

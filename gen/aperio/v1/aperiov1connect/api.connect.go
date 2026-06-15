@@ -191,6 +191,15 @@ const (
 	// AperioServiceGetSecurityOverviewProcedure is the fully-qualified name of the AperioService's
 	// GetSecurityOverview RPC.
 	AperioServiceGetSecurityOverviewProcedure = "/aperio.v1.AperioService/GetSecurityOverview"
+	// AperioServiceListEmailDomainHealthProcedure is the fully-qualified name of the AperioService's
+	// ListEmailDomainHealth RPC.
+	AperioServiceListEmailDomainHealthProcedure = "/aperio.v1.AperioService/ListEmailDomainHealth"
+	// AperioServiceGetEmailDomainHealthProcedure is the fully-qualified name of the AperioService's
+	// GetEmailDomainHealth RPC.
+	AperioServiceGetEmailDomainHealthProcedure = "/aperio.v1.AperioService/GetEmailDomainHealth"
+	// AperioServiceRefreshEmailDomainHealthProcedure is the fully-qualified name of the AperioService's
+	// RefreshEmailDomainHealth RPC.
+	AperioServiceRefreshEmailDomainHealthProcedure = "/aperio.v1.AperioService/RefreshEmailDomainHealth"
 	// AperioServiceListSecurityAssetsProcedure is the fully-qualified name of the AperioService's
 	// ListSecurityAssets RPC.
 	AperioServiceListSecurityAssetsProcedure = "/aperio.v1.AperioService/ListSecurityAssets"
@@ -279,6 +288,9 @@ type AperioServiceClient interface {
 	UpdateMemberRole(context.Context, *connect.Request[v1.UpdateMemberRoleRequest]) (*connect.Response[v1.UpdateMemberRoleResponse], error)
 	ListAuditLogs(context.Context, *connect.Request[v1.ListAuditLogsRequest]) (*connect.Response[v1.ListAuditLogsResponse], error)
 	GetSecurityOverview(context.Context, *connect.Request[v1.GetSecurityOverviewRequest]) (*connect.Response[v1.GetSecurityOverviewResponse], error)
+	ListEmailDomainHealth(context.Context, *connect.Request[v1.ListEmailDomainHealthRequest]) (*connect.Response[v1.ListEmailDomainHealthResponse], error)
+	GetEmailDomainHealth(context.Context, *connect.Request[v1.GetEmailDomainHealthRequest]) (*connect.Response[v1.GetEmailDomainHealthResponse], error)
+	RefreshEmailDomainHealth(context.Context, *connect.Request[v1.RefreshEmailDomainHealthRequest]) (*connect.Response[v1.RefreshEmailDomainHealthResponse], error)
 	ListSecurityAssets(context.Context, *connect.Request[v1.ListSecurityAssetsRequest]) (*connect.Response[v1.ListSecurityAssetsResponse], error)
 	CreateSecurityAsset(context.Context, *connect.Request[v1.CreateSecurityAssetRequest]) (*connect.Response[v1.CreateSecurityAssetResponse], error)
 	UpdateSecurityAsset(context.Context, *connect.Request[v1.UpdateSecurityAssetRequest]) (*connect.Response[v1.UpdateSecurityAssetResponse], error)
@@ -626,6 +638,24 @@ func NewAperioServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(aperioServiceMethods.ByName("GetSecurityOverview")),
 			connect.WithClientOptions(opts...),
 		),
+		listEmailDomainHealth: connect.NewClient[v1.ListEmailDomainHealthRequest, v1.ListEmailDomainHealthResponse](
+			httpClient,
+			baseURL+AperioServiceListEmailDomainHealthProcedure,
+			connect.WithSchema(aperioServiceMethods.ByName("ListEmailDomainHealth")),
+			connect.WithClientOptions(opts...),
+		),
+		getEmailDomainHealth: connect.NewClient[v1.GetEmailDomainHealthRequest, v1.GetEmailDomainHealthResponse](
+			httpClient,
+			baseURL+AperioServiceGetEmailDomainHealthProcedure,
+			connect.WithSchema(aperioServiceMethods.ByName("GetEmailDomainHealth")),
+			connect.WithClientOptions(opts...),
+		),
+		refreshEmailDomainHealth: connect.NewClient[v1.RefreshEmailDomainHealthRequest, v1.RefreshEmailDomainHealthResponse](
+			httpClient,
+			baseURL+AperioServiceRefreshEmailDomainHealthProcedure,
+			connect.WithSchema(aperioServiceMethods.ByName("RefreshEmailDomainHealth")),
+			connect.WithClientOptions(opts...),
+		),
 		listSecurityAssets: connect.NewClient[v1.ListSecurityAssetsRequest, v1.ListSecurityAssetsResponse](
 			httpClient,
 			baseURL+AperioServiceListSecurityAssetsProcedure,
@@ -745,6 +775,9 @@ type aperioServiceClient struct {
 	updateMemberRole                      *connect.Client[v1.UpdateMemberRoleRequest, v1.UpdateMemberRoleResponse]
 	listAuditLogs                         *connect.Client[v1.ListAuditLogsRequest, v1.ListAuditLogsResponse]
 	getSecurityOverview                   *connect.Client[v1.GetSecurityOverviewRequest, v1.GetSecurityOverviewResponse]
+	listEmailDomainHealth                 *connect.Client[v1.ListEmailDomainHealthRequest, v1.ListEmailDomainHealthResponse]
+	getEmailDomainHealth                  *connect.Client[v1.GetEmailDomainHealthRequest, v1.GetEmailDomainHealthResponse]
+	refreshEmailDomainHealth              *connect.Client[v1.RefreshEmailDomainHealthRequest, v1.RefreshEmailDomainHealthResponse]
 	listSecurityAssets                    *connect.Client[v1.ListSecurityAssetsRequest, v1.ListSecurityAssetsResponse]
 	createSecurityAsset                   *connect.Client[v1.CreateSecurityAssetRequest, v1.CreateSecurityAssetResponse]
 	updateSecurityAsset                   *connect.Client[v1.UpdateSecurityAssetRequest, v1.UpdateSecurityAssetResponse]
@@ -1029,6 +1062,21 @@ func (c *aperioServiceClient) GetSecurityOverview(ctx context.Context, req *conn
 	return c.getSecurityOverview.CallUnary(ctx, req)
 }
 
+// ListEmailDomainHealth calls aperio.v1.AperioService.ListEmailDomainHealth.
+func (c *aperioServiceClient) ListEmailDomainHealth(ctx context.Context, req *connect.Request[v1.ListEmailDomainHealthRequest]) (*connect.Response[v1.ListEmailDomainHealthResponse], error) {
+	return c.listEmailDomainHealth.CallUnary(ctx, req)
+}
+
+// GetEmailDomainHealth calls aperio.v1.AperioService.GetEmailDomainHealth.
+func (c *aperioServiceClient) GetEmailDomainHealth(ctx context.Context, req *connect.Request[v1.GetEmailDomainHealthRequest]) (*connect.Response[v1.GetEmailDomainHealthResponse], error) {
+	return c.getEmailDomainHealth.CallUnary(ctx, req)
+}
+
+// RefreshEmailDomainHealth calls aperio.v1.AperioService.RefreshEmailDomainHealth.
+func (c *aperioServiceClient) RefreshEmailDomainHealth(ctx context.Context, req *connect.Request[v1.RefreshEmailDomainHealthRequest]) (*connect.Response[v1.RefreshEmailDomainHealthResponse], error) {
+	return c.refreshEmailDomainHealth.CallUnary(ctx, req)
+}
+
 // ListSecurityAssets calls aperio.v1.AperioService.ListSecurityAssets.
 func (c *aperioServiceClient) ListSecurityAssets(ctx context.Context, req *connect.Request[v1.ListSecurityAssetsRequest]) (*connect.Response[v1.ListSecurityAssetsResponse], error) {
 	return c.listSecurityAssets.CallUnary(ctx, req)
@@ -1135,6 +1183,9 @@ type AperioServiceHandler interface {
 	UpdateMemberRole(context.Context, *connect.Request[v1.UpdateMemberRoleRequest]) (*connect.Response[v1.UpdateMemberRoleResponse], error)
 	ListAuditLogs(context.Context, *connect.Request[v1.ListAuditLogsRequest]) (*connect.Response[v1.ListAuditLogsResponse], error)
 	GetSecurityOverview(context.Context, *connect.Request[v1.GetSecurityOverviewRequest]) (*connect.Response[v1.GetSecurityOverviewResponse], error)
+	ListEmailDomainHealth(context.Context, *connect.Request[v1.ListEmailDomainHealthRequest]) (*connect.Response[v1.ListEmailDomainHealthResponse], error)
+	GetEmailDomainHealth(context.Context, *connect.Request[v1.GetEmailDomainHealthRequest]) (*connect.Response[v1.GetEmailDomainHealthResponse], error)
+	RefreshEmailDomainHealth(context.Context, *connect.Request[v1.RefreshEmailDomainHealthRequest]) (*connect.Response[v1.RefreshEmailDomainHealthResponse], error)
 	ListSecurityAssets(context.Context, *connect.Request[v1.ListSecurityAssetsRequest]) (*connect.Response[v1.ListSecurityAssetsResponse], error)
 	CreateSecurityAsset(context.Context, *connect.Request[v1.CreateSecurityAssetRequest]) (*connect.Response[v1.CreateSecurityAssetResponse], error)
 	UpdateSecurityAsset(context.Context, *connect.Request[v1.UpdateSecurityAssetRequest]) (*connect.Response[v1.UpdateSecurityAssetResponse], error)
@@ -1478,6 +1529,24 @@ func NewAperioServiceHandler(svc AperioServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(aperioServiceMethods.ByName("GetSecurityOverview")),
 		connect.WithHandlerOptions(opts...),
 	)
+	aperioServiceListEmailDomainHealthHandler := connect.NewUnaryHandler(
+		AperioServiceListEmailDomainHealthProcedure,
+		svc.ListEmailDomainHealth,
+		connect.WithSchema(aperioServiceMethods.ByName("ListEmailDomainHealth")),
+		connect.WithHandlerOptions(opts...),
+	)
+	aperioServiceGetEmailDomainHealthHandler := connect.NewUnaryHandler(
+		AperioServiceGetEmailDomainHealthProcedure,
+		svc.GetEmailDomainHealth,
+		connect.WithSchema(aperioServiceMethods.ByName("GetEmailDomainHealth")),
+		connect.WithHandlerOptions(opts...),
+	)
+	aperioServiceRefreshEmailDomainHealthHandler := connect.NewUnaryHandler(
+		AperioServiceRefreshEmailDomainHealthProcedure,
+		svc.RefreshEmailDomainHealth,
+		connect.WithSchema(aperioServiceMethods.ByName("RefreshEmailDomainHealth")),
+		connect.WithHandlerOptions(opts...),
+	)
 	aperioServiceListSecurityAssetsHandler := connect.NewUnaryHandler(
 		AperioServiceListSecurityAssetsProcedure,
 		svc.ListSecurityAssets,
@@ -1648,6 +1717,12 @@ func NewAperioServiceHandler(svc AperioServiceHandler, opts ...connect.HandlerOp
 			aperioServiceListAuditLogsHandler.ServeHTTP(w, r)
 		case AperioServiceGetSecurityOverviewProcedure:
 			aperioServiceGetSecurityOverviewHandler.ServeHTTP(w, r)
+		case AperioServiceListEmailDomainHealthProcedure:
+			aperioServiceListEmailDomainHealthHandler.ServeHTTP(w, r)
+		case AperioServiceGetEmailDomainHealthProcedure:
+			aperioServiceGetEmailDomainHealthHandler.ServeHTTP(w, r)
+		case AperioServiceRefreshEmailDomainHealthProcedure:
+			aperioServiceRefreshEmailDomainHealthHandler.ServeHTTP(w, r)
 		case AperioServiceListSecurityAssetsProcedure:
 			aperioServiceListSecurityAssetsHandler.ServeHTTP(w, r)
 		case AperioServiceCreateSecurityAssetProcedure:
@@ -1891,6 +1966,18 @@ func (UnimplementedAperioServiceHandler) ListAuditLogs(context.Context, *connect
 
 func (UnimplementedAperioServiceHandler) GetSecurityOverview(context.Context, *connect.Request[v1.GetSecurityOverviewRequest]) (*connect.Response[v1.GetSecurityOverviewResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("aperio.v1.AperioService.GetSecurityOverview is not implemented"))
+}
+
+func (UnimplementedAperioServiceHandler) ListEmailDomainHealth(context.Context, *connect.Request[v1.ListEmailDomainHealthRequest]) (*connect.Response[v1.ListEmailDomainHealthResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("aperio.v1.AperioService.ListEmailDomainHealth is not implemented"))
+}
+
+func (UnimplementedAperioServiceHandler) GetEmailDomainHealth(context.Context, *connect.Request[v1.GetEmailDomainHealthRequest]) (*connect.Response[v1.GetEmailDomainHealthResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("aperio.v1.AperioService.GetEmailDomainHealth is not implemented"))
+}
+
+func (UnimplementedAperioServiceHandler) RefreshEmailDomainHealth(context.Context, *connect.Request[v1.RefreshEmailDomainHealthRequest]) (*connect.Response[v1.RefreshEmailDomainHealthResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("aperio.v1.AperioService.RefreshEmailDomainHealth is not implemented"))
 }
 
 func (UnimplementedAperioServiceHandler) ListSecurityAssets(context.Context, *connect.Request[v1.ListSecurityAssetsRequest]) (*connect.Response[v1.ListSecurityAssetsResponse], error) {

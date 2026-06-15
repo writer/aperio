@@ -61,6 +61,9 @@ service AperioService {
   rpc UpdateMemberRole(UpdateMemberRoleRequest) returns (UpdateMemberRoleResponse);
   rpc ListAuditLogs(ListAuditLogsRequest) returns (ListAuditLogsResponse);
   rpc GetSecurityOverview(GetSecurityOverviewRequest) returns (GetSecurityOverviewResponse);
+  rpc ListEmailDomainHealth(ListEmailDomainHealthRequest) returns (ListEmailDomainHealthResponse);
+  rpc GetEmailDomainHealth(GetEmailDomainHealthRequest) returns (GetEmailDomainHealthResponse);
+  rpc RefreshEmailDomainHealth(RefreshEmailDomainHealthRequest) returns (RefreshEmailDomainHealthResponse);
   rpc ListSecurityAssets(ListSecurityAssetsRequest) returns (ListSecurityAssetsResponse);
   rpc CreateSecurityAsset(CreateSecurityAssetRequest) returns (CreateSecurityAssetResponse);
   rpc UpdateSecurityAsset(UpdateSecurityAssetRequest) returns (UpdateSecurityAssetResponse);
@@ -960,6 +963,83 @@ message DomainWideDelegation {
   int32 open_mailbox_findings = 10;
   string last_sync_at = 11;
   string configured_at = 12;
+}
+
+message ListEmailDomainHealthRequest {
+  bool refresh_if_stale = 1;
+}
+
+message ListEmailDomainHealthResponse {
+  repeated EmailDomainHealth data = 1;
+}
+
+message GetEmailDomainHealthRequest {
+  string domain = 1;
+}
+
+message GetEmailDomainHealthResponse {
+  EmailDomainHealthDetail data = 1;
+}
+
+message RefreshEmailDomainHealthRequest {
+  string domain = 1;
+}
+
+message RefreshEmailDomainHealthResponse {
+  repeated EmailDomainHealth data = 1;
+}
+
+message EmailDomainHealth {
+  string domain = 1;
+  repeated string provider_sources = 2;
+  string status = 3;
+  int32 score = 4;
+  string spf_status = 5;
+  string dkim_status = 6;
+  string dmarc_status = 7;
+  string last_checked_at = 8;
+  int32 issue_count = 9;
+  int32 failing_issue_count = 10;
+}
+
+message EmailDomainHealthIssue {
+  string id = 1;
+  string protocol = 2;
+  string severity = 3;
+  string code = 4;
+  string title = 5;
+  string detail = 6;
+  string recommendation = 7;
+}
+
+message EmailDomainDkimSelector {
+  string selector = 1;
+  string status = 2;
+  int32 key_bits = 3;
+  string record = 4;
+}
+
+message EmailDomainHealthHistoryPoint {
+  string checked_at = 1;
+  string status = 2;
+  int32 score = 3;
+  int32 issue_count = 4;
+}
+
+message EmailDomainHealthDetail {
+  EmailDomainHealth domain = 1;
+  repeated string spf_records = 2;
+  string spf_policy = 3;
+  int32 spf_lookup_count = 4;
+  repeated string dmarc_records = 5;
+  string dmarc_policy = 6;
+  int32 dmarc_pct = 7;
+  repeated string dmarc_rua = 8;
+  repeated string mx_records = 9;
+  repeated EmailDomainDkimSelector dkim_selectors = 10;
+  repeated string related_records = 11;
+  repeated EmailDomainHealthIssue issues = 12;
+  repeated EmailDomainHealthHistoryPoint history = 13;
 }
 
 message ListSecurityAssetsRequest {
