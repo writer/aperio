@@ -167,6 +167,44 @@ export type GoogleWorkspaceBigQueryValidation = {
   runtimeTokenPresent: boolean;
 };
 
+export type IntegrationSourceSyncState = {
+  sourceKind: string;
+  streamName: string;
+  displayName: string;
+  status: string;
+  cursorTime: string | null;
+  lastAttemptAt: string | null;
+  lastSuccessAt: string | null;
+  lastError: string | null;
+  lagSeconds: bigint;
+  rowsSeen: bigint;
+  rowsEnqueued: bigint;
+  queueQueued: bigint;
+  queueRunning: bigint;
+  queueFailed: bigint;
+  queueDeadLetter: bigint;
+  queueSucceeded: bigint;
+  syncNowSupported: boolean;
+  backfillSupported: boolean;
+  queueSource: string;
+};
+
+export type IntegrationSyncStatus = {
+  integrationId: string;
+  provider: Provider;
+  generatedAt: string;
+  sources: IntegrationSourceSyncState[];
+};
+
+export type IntegrationSourceSyncAction = {
+  integrationId: string;
+  sourceKind: string;
+  streamName: string;
+  queued: boolean;
+  message: string;
+  requestedAt: string;
+};
+
 export type IntegrationCheckState = {
   integrationId: string;
   disabledChecks: string[];
@@ -580,6 +618,33 @@ export async function forceSyncIntegration(integrationId: string) {
       findingsOpened: number;
       sources: string[];
     };
+  }>;
+}
+
+export async function fetchIntegrationSyncStatus(integrationId: string) {
+  return aperioConnectClient.getIntegrationSyncStatus(
+    integrationId
+  ) as Promise<{ data: IntegrationSyncStatus }>;
+}
+
+export async function runIntegrationSourceSync(input: {
+  integrationId: string;
+  sourceKind?: string;
+  streamName?: string;
+}) {
+  return aperioConnectClient.runIntegrationSourceSync(input) as Promise<{
+    data: IntegrationSourceSyncAction;
+  }>;
+}
+
+export async function backfillIntegrationSource(input: {
+  integrationId: string;
+  sourceKind: string;
+  streamName: string;
+  fromTime: string;
+}) {
+  return aperioConnectClient.backfillIntegrationSource(input) as Promise<{
+    data: IntegrationSourceSyncAction;
   }>;
 }
 

@@ -895,6 +895,59 @@ func (a *App) ForceSyncIntegration(
 	}), nil
 }
 
+func (a *App) GetIntegrationSyncStatus(
+	ctx context.Context,
+	req *connect.Request[aperiov1.GetIntegrationSyncStatusRequest],
+) (*connect.Response[aperiov1.GetIntegrationSyncStatusResponse], error) {
+	auth, err := a.compatAuthFromSession(ctx, req.Header())
+	if err != nil {
+		return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("unauthorized"))
+	}
+	status, err := a.getIntegrationSyncStatus(ctx, strings.TrimSpace(req.Msg.IntegrationId), auth)
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(&aperiov1.GetIntegrationSyncStatusResponse{Data: status}), nil
+}
+
+func (a *App) RunIntegrationSourceSync(
+	ctx context.Context,
+	req *connect.Request[aperiov1.RunIntegrationSourceSyncRequest],
+) (*connect.Response[aperiov1.RunIntegrationSourceSyncResponse], error) {
+	auth, err := a.compatAuthFromSession(ctx, req.Header())
+	if err != nil {
+		return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("unauthorized"))
+	}
+	id := strings.TrimSpace(req.Msg.IntegrationId)
+	if err := a.rateLimitSourceSync(ctx, req.Header(), req.Peer().Addr, id, "source-sync", auth); err != nil {
+		return nil, err
+	}
+	action, err := a.runIntegrationSourceSync(ctx, id, req.Msg.SourceKind, req.Msg.StreamName, auth)
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(&aperiov1.RunIntegrationSourceSyncResponse{Data: action}), nil
+}
+
+func (a *App) BackfillIntegrationSource(
+	ctx context.Context,
+	req *connect.Request[aperiov1.BackfillIntegrationSourceRequest],
+) (*connect.Response[aperiov1.BackfillIntegrationSourceResponse], error) {
+	auth, err := a.compatAuthFromSession(ctx, req.Header())
+	if err != nil {
+		return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("unauthorized"))
+	}
+	id := strings.TrimSpace(req.Msg.IntegrationId)
+	if err := a.rateLimitSourceSync(ctx, req.Header(), req.Peer().Addr, id, "source-backfill", auth); err != nil {
+		return nil, err
+	}
+	action, err := a.backfillIntegrationSource(ctx, id, req.Msg.SourceKind, req.Msg.StreamName, req.Msg.FromTime, auth)
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(&aperiov1.BackfillIntegrationSourceResponse{Data: action}), nil
+}
+
 func (a *App) ListSiemCatalog(
 	ctx context.Context,
 	req *connect.Request[aperiov1.ListSiemCatalogRequest],

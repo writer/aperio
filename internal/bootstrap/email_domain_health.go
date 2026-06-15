@@ -2,12 +2,15 @@ package bootstrap
 
 import (
 	"context"
+	"crypto/rsa"
+	"crypto/x509"
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
+	"net/http"
 	"net/url"
 	"regexp"
 	"sort"
@@ -19,7 +22,11 @@ import (
 	aperiov1 "github.com/writer/aperio/gen/aperio/v1"
 )
 
-const emailDomainHealthStaleWindow = 12 * time.Hour
+const (
+	emailDomainHealthStaleWindow      = 12 * time.Hour
+	emailDomainHealthBulkRefreshLimit = 10
+	emailDomainHealthRefreshRatePath  = "/api/v1/security/email-domain-health/refresh"
+)
 
 var emailDomainPattern = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$`)
 
@@ -187,6 +194,9 @@ func (a *App) refreshEmailDomainHealth(
 	if err != nil {
 		return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("unauthorized"))
 	}
+	if err := a.compatRateLimit(ctx, req.Header(), req.Peer().Addr, http.MethodPost, emailDomainHealthRefreshRatePath, typedRateLimitSubjectBody(auth)); err != nil {
+		return nil, err
+	}
 	sources, err := a.discoverEmailDomainSources(ctx, auth.OrganizationID)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, errors.New("email domain discovery unavailable"))
@@ -206,16 +216,41 @@ func (a *App) refreshEmailDomainHealth(
 			return nil, connect.NewError(connect.CodeNotFound, errors.New("domain not discovered from integrations"))
 		}
 		sources = []domainSource{source}
+	} else {
+		existing, err := a.loadEmailDomainCheckTimes(ctx, auth.OrganizationID)
+		if err != nil {
+			return nil, connect.NewError(connect.CodeInternal, errors.New("email domain checks unavailable"))
+		}
+		sources = staleEmailDomainSources(sources, existing, time.Now().UTC(), emailDomainHealthBulkRefreshLimit)
+		if len(sources) == 0 {
+			rows, err := a.listEmailDomainHealthRows(ctx, auth.OrganizationID, sourceDomainSet(sources))
+			if err != nil {
+				return nil, connect.NewError(connect.CodeInternal, errors.New("email domain health unavailable"))
+			}
+			response := &aperiov1.RefreshEmailDomainHealthResponse{Data: make([]*aperiov1.EmailDomainHealth, 0, len(rows))}
+			for _, row := range rows {
+				response.Data = append(response.Data, emailDomainHealthProto(row))
+			}
+			return connect.NewResponse(response), nil
+		}
 	}
+	refreshSources := append([]domainSource(nil), sources...)
 	updated, err := a.refreshEmailDomainHealthChecks(ctx, auth.OrganizationID, sources)
 	if err != nil {
 		return nil, err
 	}
 	a.writeCompatAudit(ctx, auth, "security.email_domain_health.refresh", "organization", auth.OrganizationID, map[string]any{
-		"domains":         sourceDomainNames(sources),
-		"domainCount":     len(sources),
+		"domains":         sourceDomainNames(refreshSources),
+		"domainCount":     len(refreshSources),
 		"requestedDomain": requested,
 	})
+	if requested == "" {
+		rows, err := a.listEmailDomainHealthRows(ctx, auth.OrganizationID, sourceDomainSet(refreshSources))
+		if err != nil {
+			return nil, connect.NewError(connect.CodeInternal, errors.New("email domain health unavailable"))
+		}
+		updated = rows
+	}
 	response := &aperiov1.RefreshEmailDomainHealthResponse{Data: make([]*aperiov1.EmailDomainHealth, 0, len(updated))}
 	for _, row := range updated {
 		response.Data = append(response.Data, emailDomainHealthProto(row))
@@ -346,6 +381,21 @@ func (a *App) discoverEmailDomainSources(ctx context.Context, organizationID str
 		return out[i].Domain < out[j].Domain
 	})
 	return out, nil
+}
+
+func staleEmailDomainSources(sources []domainSource, existing map[string]time.Time, now time.Time, limit int) []domainSource {
+	out := make([]domainSource, 0, len(sources))
+	for _, source := range sources {
+		lastCheckedAt, ok := existing[source.Domain]
+		if ok && now.Sub(lastCheckedAt.UTC()) < emailDomainHealthStaleWindow {
+			continue
+		}
+		out = append(out, source)
+		if limit > 0 && len(out) >= limit {
+			break
+		}
+	}
+	return out
 }
 
 func normalizeDomainCandidate(raw string) string {
@@ -908,18 +958,33 @@ func spfLookupCount(record string) int {
 }
 
 func dkimKeyBits(publicKey string) (int, bool) {
-	cleaned := strings.ReplaceAll(strings.TrimSpace(publicKey), " ", "")
+	cleaned := strings.Join(strings.Fields(publicKey), "")
 	if cleaned == "" {
 		return 0, false
 	}
 	decoded, err := base64.StdEncoding.DecodeString(cleaned)
 	if err != nil {
-		return 0, false
+		decoded, err = base64.RawStdEncoding.DecodeString(cleaned)
+		if err != nil {
+			return 0, false
+		}
 	}
 	if len(decoded) == 0 {
 		return 0, false
 	}
-	return len(decoded) * 8, true
+	parsed, err := x509.ParsePKIXPublicKey(decoded)
+	if err == nil {
+		key, ok := parsed.(*rsa.PublicKey)
+		if !ok || key.N == nil || key.N.Sign() <= 0 {
+			return 0, false
+		}
+		return key.N.BitLen(), true
+	}
+	key, err := x509.ParsePKCS1PublicKey(decoded)
+	if err != nil || key.N == nil || key.N.Sign() <= 0 {
+		return 0, false
+	}
+	return key.N.BitLen(), true
 }
 
 func sortIssues(issues []emailDomainIssue) {

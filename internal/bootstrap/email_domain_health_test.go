@@ -3,10 +3,18 @@ package bootstrap
 import (
 	"bytes"
 	"context"
+	"crypto/rsa"
+	"crypto/x509"
 	"encoding/base64"
 	"errors"
+	"math/big"
 	"net"
+	"net/http"
 	"testing"
+	"time"
+
+	"connectrpc.com/connect"
+	aperiov1 "github.com/writer/aperio/gen/aperio/v1"
 )
 
 type fakeEmailDNSResolver struct {
@@ -30,6 +38,16 @@ func (f fakeEmailDNSResolver) LookupMX(_ context.Context, name string) ([]*net.M
 	return f.mx[name], nil
 }
 
+func dkimTestPublicKey(t *testing.T, bits int) string {
+	t.Helper()
+	modulus := new(big.Int).Lsh(big.NewInt(1), uint(bits-1))
+	der, err := x509.MarshalPKIXPublicKey(&rsa.PublicKey{N: modulus, E: 65537})
+	if err != nil {
+		t.Fatalf("marshal DKIM test key: %v", err)
+	}
+	return base64.StdEncoding.EncodeToString(der)
+}
+
 func TestNormalizeDomainCandidate(t *testing.T) {
 	cases := map[string]string{
 		"example.com":                    "example.com",
@@ -48,7 +66,7 @@ func TestNormalizeDomainCandidate(t *testing.T) {
 }
 
 func TestEvaluateEmailDomainHealthHealthy(t *testing.T) {
-	key := base64.StdEncoding.EncodeToString(bytes.Repeat([]byte{1}, 256))
+	key := dkimTestPublicKey(t, 2048)
 	resolver := fakeEmailDNSResolver{
 		txt: map[string][]string{
 			"example.com": {
@@ -93,7 +111,7 @@ func TestEvaluateEmailDomainHealthHealthy(t *testing.T) {
 }
 
 func TestEvaluateEmailDomainHealthDetectsIssues(t *testing.T) {
-	weakKey := base64.StdEncoding.EncodeToString(bytes.Repeat([]byte{1}, 64))
+	weakKey := dkimTestPublicKey(t, 512)
 	resolver := fakeEmailDNSResolver{
 		txt: map[string][]string{
 			"risky.example.com": {
@@ -126,6 +144,58 @@ func TestEvaluateEmailDomainHealthDetectsIssues(t *testing.T) {
 	}
 	if !containsIssueCode(result.Payload.Issues, "dkim_weak_key") {
 		t.Fatalf("expected dkim_weak_key issue, got %+v", result.Payload.Issues)
+	}
+}
+
+func TestDKIMKeyBitsUsesRSAModulusLength(t *testing.T) {
+	key := dkimTestPublicKey(t, 1024)
+	got, ok := dkimKeyBits(key)
+	if !ok {
+		t.Fatal("expected generated SPKI key to parse")
+	}
+	if got != 1024 {
+		t.Fatalf("dkimKeyBits = %d, want RSA modulus length 1024", got)
+	}
+
+	rawBytes := base64.StdEncoding.EncodeToString(bytes.Repeat([]byte{1}, 256))
+	if got, ok := dkimKeyBits(rawBytes); ok {
+		t.Fatalf("raw base64 bytes parsed as %d-bit key, want invalid", got)
+	}
+}
+
+func TestStaleEmailDomainSourcesHonorsWindowAndLimit(t *testing.T) {
+	now := time.Date(2026, 6, 15, 12, 0, 0, 0, time.UTC)
+	sources := []domainSource{
+		{Domain: "fresh.example.com"},
+		{Domain: "missing.example.com"},
+		{Domain: "stale.example.com"},
+		{Domain: "old.example.com"},
+	}
+	existing := map[string]time.Time{
+		"fresh.example.com": now.Add(-time.Hour),
+		"stale.example.com": now.Add(-13 * time.Hour),
+		"old.example.com":   now.Add(-24 * time.Hour),
+	}
+
+	got := staleEmailDomainSources(sources, existing, now, 2)
+	if len(got) != 2 {
+		t.Fatalf("stale sources length = %d, want 2: %+v", len(got), got)
+	}
+	if got[0].Domain != "missing.example.com" || got[1].Domain != "stale.example.com" {
+		t.Fatalf("stale sources = %+v, want missing then stale within limit", got)
+	}
+}
+
+func TestRefreshEmailDomainHealthHonorsRateLimit(t *testing.T) {
+	app, auth := newTestDBApp(t)
+	ctx := context.Background()
+	header := seedSessionHeader(t, app, auth)
+	seedExhaustedRateLimitBucket(t, app, header, http.MethodPost, emailDomainHealthRefreshRatePath)
+
+	req := connect.NewRequest(&aperiov1.RefreshEmailDomainHealthRequest{})
+	copyCompatHeaders(req.Header(), header)
+	if _, err := app.RefreshEmailDomainHealth(ctx, req); connect.CodeOf(err) != connect.CodeResourceExhausted {
+		t.Fatalf("expected refresh to be rate limited, got %v", err)
 	}
 }
 

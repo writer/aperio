@@ -380,19 +380,21 @@ func TestGoogleWorkspaceLegacyJobIDPreservesUpgradeIdempotency(t *testing.T) {
 	}
 }
 
-func TestGoogleWorkspaceScopedJobIDScopesDedupeByTenantIntegrationAndApplication(t *testing.T) {
+func TestGoogleWorkspaceScopedJobIDScopesDedupeByTenantIntegrationSourceAndApplication(t *testing.T) {
 	baseInteg := integrationRow{ID: "int_1", OrganizationID: "org_1"}
 	baseActivity := reportsActivity{UniqueQualifier: "same-google-qualifier"}
 	baseEvent := reportsEvent{Name: "change_user_access"}
-	baseID := googleWorkspaceScopedJobID(baseInteg, "drive", baseActivity, baseEvent)
+	baseSource := googleReportsQueueSource("drive")
+	baseID := googleWorkspaceScopedJobID(baseInteg, baseSource, "drive", baseActivity, baseEvent)
 
 	cases := map[string]string{
-		"same input":       googleWorkspaceScopedJobID(baseInteg, "drive", baseActivity, baseEvent),
-		"different org":    googleWorkspaceScopedJobID(integrationRow{ID: "int_1", OrganizationID: "org_2"}, "drive", baseActivity, baseEvent),
-		"different integ":  googleWorkspaceScopedJobID(integrationRow{ID: "int_2", OrganizationID: "org_1"}, "drive", baseActivity, baseEvent),
-		"different app":    googleWorkspaceScopedJobID(baseInteg, "admin", baseActivity, baseEvent),
-		"different event":  googleWorkspaceScopedJobID(baseInteg, "drive", baseActivity, reportsEvent{Name: "change_document_visibility"}),
-		"different source": googleWorkspaceScopedJobID(baseInteg, "drive", reportsActivity{UniqueQualifier: "other-google-qualifier"}, baseEvent),
+		"same input":             googleWorkspaceScopedJobID(baseInteg, baseSource, "drive", baseActivity, baseEvent),
+		"different org":          googleWorkspaceScopedJobID(integrationRow{ID: "int_1", OrganizationID: "org_2"}, baseSource, "drive", baseActivity, baseEvent),
+		"different integ":        googleWorkspaceScopedJobID(integrationRow{ID: "int_2", OrganizationID: "org_1"}, baseSource, "drive", baseActivity, baseEvent),
+		"different queue source": googleWorkspaceScopedJobID(baseInteg, googleBigQueryQueueSource("drive"), "drive", baseActivity, baseEvent),
+		"different app":          googleWorkspaceScopedJobID(baseInteg, googleReportsQueueSource("admin"), "admin", baseActivity, baseEvent),
+		"different event":        googleWorkspaceScopedJobID(baseInteg, baseSource, "drive", baseActivity, reportsEvent{Name: "change_document_visibility"}),
+		"different source event": googleWorkspaceScopedJobID(baseInteg, baseSource, "drive", reportsActivity{UniqueQualifier: "other-google-qualifier"}, baseEvent),
 	}
 
 	if cases["same input"] != baseID {
@@ -405,6 +407,18 @@ func TestGoogleWorkspaceScopedJobIDScopesDedupeByTenantIntegrationAndApplication
 		if got == baseID {
 			t.Fatalf("%s must not collide with base job id %s", label, baseID)
 		}
+	}
+}
+
+func TestGoogleWorkspaceQueueSourcesSeparateReportsAndBigQuery(t *testing.T) {
+	if got := googleReportsQueueSource("drive"); got != "google.reports.drive" {
+		t.Fatalf("reports queue source = %q", got)
+	}
+	if got := googleBigQueryQueueSource("drive"); got != "google.bigquery.drive" {
+		t.Fatalf("BigQuery queue source = %q", got)
+	}
+	if googleReportsQueueSource("drive") == googleBigQueryQueueSource("drive") {
+		t.Fatal("Reports and BigQuery streams must not share ingestion queue attribution")
 	}
 }
 

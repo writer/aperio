@@ -146,6 +146,15 @@ const (
 	// AperioServiceForceSyncIntegrationProcedure is the fully-qualified name of the AperioService's
 	// ForceSyncIntegration RPC.
 	AperioServiceForceSyncIntegrationProcedure = "/aperio.v1.AperioService/ForceSyncIntegration"
+	// AperioServiceGetIntegrationSyncStatusProcedure is the fully-qualified name of the AperioService's
+	// GetIntegrationSyncStatus RPC.
+	AperioServiceGetIntegrationSyncStatusProcedure = "/aperio.v1.AperioService/GetIntegrationSyncStatus"
+	// AperioServiceRunIntegrationSourceSyncProcedure is the fully-qualified name of the AperioService's
+	// RunIntegrationSourceSync RPC.
+	AperioServiceRunIntegrationSourceSyncProcedure = "/aperio.v1.AperioService/RunIntegrationSourceSync"
+	// AperioServiceBackfillIntegrationSourceProcedure is the fully-qualified name of the
+	// AperioService's BackfillIntegrationSource RPC.
+	AperioServiceBackfillIntegrationSourceProcedure = "/aperio.v1.AperioService/BackfillIntegrationSource"
 	// AperioServiceListSiemCatalogProcedure is the fully-qualified name of the AperioService's
 	// ListSiemCatalog RPC.
 	AperioServiceListSiemCatalogProcedure = "/aperio.v1.AperioService/ListSiemCatalog"
@@ -273,6 +282,9 @@ type AperioServiceClient interface {
 	SetIntegrationOAuthClient(context.Context, *connect.Request[v1.SetIntegrationOAuthClientRequest]) (*connect.Response[v1.SetIntegrationOAuthClientResponse], error)
 	ClearIntegrationOAuthClient(context.Context, *connect.Request[v1.ClearIntegrationOAuthClientRequest]) (*connect.Response[v1.ClearIntegrationOAuthClientResponse], error)
 	ForceSyncIntegration(context.Context, *connect.Request[v1.ForceSyncIntegrationRequest]) (*connect.Response[v1.ForceSyncIntegrationResponse], error)
+	GetIntegrationSyncStatus(context.Context, *connect.Request[v1.GetIntegrationSyncStatusRequest]) (*connect.Response[v1.GetIntegrationSyncStatusResponse], error)
+	RunIntegrationSourceSync(context.Context, *connect.Request[v1.RunIntegrationSourceSyncRequest]) (*connect.Response[v1.RunIntegrationSourceSyncResponse], error)
+	BackfillIntegrationSource(context.Context, *connect.Request[v1.BackfillIntegrationSourceRequest]) (*connect.Response[v1.BackfillIntegrationSourceResponse], error)
 	ListSiemCatalog(context.Context, *connect.Request[v1.ListSiemCatalogRequest]) (*connect.Response[v1.ListSiemCatalogResponse], error)
 	ListSiemDestinations(context.Context, *connect.Request[v1.ListSiemDestinationsRequest]) (*connect.Response[v1.ListSiemDestinationsResponse], error)
 	CreateSiemDestination(context.Context, *connect.Request[v1.CreateSiemDestinationRequest]) (*connect.Response[v1.CreateSiemDestinationResponse], error)
@@ -548,6 +560,24 @@ func NewAperioServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(aperioServiceMethods.ByName("ForceSyncIntegration")),
 			connect.WithClientOptions(opts...),
 		),
+		getIntegrationSyncStatus: connect.NewClient[v1.GetIntegrationSyncStatusRequest, v1.GetIntegrationSyncStatusResponse](
+			httpClient,
+			baseURL+AperioServiceGetIntegrationSyncStatusProcedure,
+			connect.WithSchema(aperioServiceMethods.ByName("GetIntegrationSyncStatus")),
+			connect.WithClientOptions(opts...),
+		),
+		runIntegrationSourceSync: connect.NewClient[v1.RunIntegrationSourceSyncRequest, v1.RunIntegrationSourceSyncResponse](
+			httpClient,
+			baseURL+AperioServiceRunIntegrationSourceSyncProcedure,
+			connect.WithSchema(aperioServiceMethods.ByName("RunIntegrationSourceSync")),
+			connect.WithClientOptions(opts...),
+		),
+		backfillIntegrationSource: connect.NewClient[v1.BackfillIntegrationSourceRequest, v1.BackfillIntegrationSourceResponse](
+			httpClient,
+			baseURL+AperioServiceBackfillIntegrationSourceProcedure,
+			connect.WithSchema(aperioServiceMethods.ByName("BackfillIntegrationSource")),
+			connect.WithClientOptions(opts...),
+		),
 		listSiemCatalog: connect.NewClient[v1.ListSiemCatalogRequest, v1.ListSiemCatalogResponse](
 			httpClient,
 			baseURL+AperioServiceListSiemCatalogProcedure,
@@ -760,6 +790,9 @@ type aperioServiceClient struct {
 	setIntegrationOAuthClient             *connect.Client[v1.SetIntegrationOAuthClientRequest, v1.SetIntegrationOAuthClientResponse]
 	clearIntegrationOAuthClient           *connect.Client[v1.ClearIntegrationOAuthClientRequest, v1.ClearIntegrationOAuthClientResponse]
 	forceSyncIntegration                  *connect.Client[v1.ForceSyncIntegrationRequest, v1.ForceSyncIntegrationResponse]
+	getIntegrationSyncStatus              *connect.Client[v1.GetIntegrationSyncStatusRequest, v1.GetIntegrationSyncStatusResponse]
+	runIntegrationSourceSync              *connect.Client[v1.RunIntegrationSourceSyncRequest, v1.RunIntegrationSourceSyncResponse]
+	backfillIntegrationSource             *connect.Client[v1.BackfillIntegrationSourceRequest, v1.BackfillIntegrationSourceResponse]
 	listSiemCatalog                       *connect.Client[v1.ListSiemCatalogRequest, v1.ListSiemCatalogResponse]
 	listSiemDestinations                  *connect.Client[v1.ListSiemDestinationsRequest, v1.ListSiemDestinationsResponse]
 	createSiemDestination                 *connect.Client[v1.CreateSiemDestinationRequest, v1.CreateSiemDestinationResponse]
@@ -987,6 +1020,21 @@ func (c *aperioServiceClient) ForceSyncIntegration(ctx context.Context, req *con
 	return c.forceSyncIntegration.CallUnary(ctx, req)
 }
 
+// GetIntegrationSyncStatus calls aperio.v1.AperioService.GetIntegrationSyncStatus.
+func (c *aperioServiceClient) GetIntegrationSyncStatus(ctx context.Context, req *connect.Request[v1.GetIntegrationSyncStatusRequest]) (*connect.Response[v1.GetIntegrationSyncStatusResponse], error) {
+	return c.getIntegrationSyncStatus.CallUnary(ctx, req)
+}
+
+// RunIntegrationSourceSync calls aperio.v1.AperioService.RunIntegrationSourceSync.
+func (c *aperioServiceClient) RunIntegrationSourceSync(ctx context.Context, req *connect.Request[v1.RunIntegrationSourceSyncRequest]) (*connect.Response[v1.RunIntegrationSourceSyncResponse], error) {
+	return c.runIntegrationSourceSync.CallUnary(ctx, req)
+}
+
+// BackfillIntegrationSource calls aperio.v1.AperioService.BackfillIntegrationSource.
+func (c *aperioServiceClient) BackfillIntegrationSource(ctx context.Context, req *connect.Request[v1.BackfillIntegrationSourceRequest]) (*connect.Response[v1.BackfillIntegrationSourceResponse], error) {
+	return c.backfillIntegrationSource.CallUnary(ctx, req)
+}
+
 // ListSiemCatalog calls aperio.v1.AperioService.ListSiemCatalog.
 func (c *aperioServiceClient) ListSiemCatalog(ctx context.Context, req *connect.Request[v1.ListSiemCatalogRequest]) (*connect.Response[v1.ListSiemCatalogResponse], error) {
 	return c.listSiemCatalog.CallUnary(ctx, req)
@@ -1168,6 +1216,9 @@ type AperioServiceHandler interface {
 	SetIntegrationOAuthClient(context.Context, *connect.Request[v1.SetIntegrationOAuthClientRequest]) (*connect.Response[v1.SetIntegrationOAuthClientResponse], error)
 	ClearIntegrationOAuthClient(context.Context, *connect.Request[v1.ClearIntegrationOAuthClientRequest]) (*connect.Response[v1.ClearIntegrationOAuthClientResponse], error)
 	ForceSyncIntegration(context.Context, *connect.Request[v1.ForceSyncIntegrationRequest]) (*connect.Response[v1.ForceSyncIntegrationResponse], error)
+	GetIntegrationSyncStatus(context.Context, *connect.Request[v1.GetIntegrationSyncStatusRequest]) (*connect.Response[v1.GetIntegrationSyncStatusResponse], error)
+	RunIntegrationSourceSync(context.Context, *connect.Request[v1.RunIntegrationSourceSyncRequest]) (*connect.Response[v1.RunIntegrationSourceSyncResponse], error)
+	BackfillIntegrationSource(context.Context, *connect.Request[v1.BackfillIntegrationSourceRequest]) (*connect.Response[v1.BackfillIntegrationSourceResponse], error)
 	ListSiemCatalog(context.Context, *connect.Request[v1.ListSiemCatalogRequest]) (*connect.Response[v1.ListSiemCatalogResponse], error)
 	ListSiemDestinations(context.Context, *connect.Request[v1.ListSiemDestinationsRequest]) (*connect.Response[v1.ListSiemDestinationsResponse], error)
 	CreateSiemDestination(context.Context, *connect.Request[v1.CreateSiemDestinationRequest]) (*connect.Response[v1.CreateSiemDestinationResponse], error)
@@ -1439,6 +1490,24 @@ func NewAperioServiceHandler(svc AperioServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(aperioServiceMethods.ByName("ForceSyncIntegration")),
 		connect.WithHandlerOptions(opts...),
 	)
+	aperioServiceGetIntegrationSyncStatusHandler := connect.NewUnaryHandler(
+		AperioServiceGetIntegrationSyncStatusProcedure,
+		svc.GetIntegrationSyncStatus,
+		connect.WithSchema(aperioServiceMethods.ByName("GetIntegrationSyncStatus")),
+		connect.WithHandlerOptions(opts...),
+	)
+	aperioServiceRunIntegrationSourceSyncHandler := connect.NewUnaryHandler(
+		AperioServiceRunIntegrationSourceSyncProcedure,
+		svc.RunIntegrationSourceSync,
+		connect.WithSchema(aperioServiceMethods.ByName("RunIntegrationSourceSync")),
+		connect.WithHandlerOptions(opts...),
+	)
+	aperioServiceBackfillIntegrationSourceHandler := connect.NewUnaryHandler(
+		AperioServiceBackfillIntegrationSourceProcedure,
+		svc.BackfillIntegrationSource,
+		connect.WithSchema(aperioServiceMethods.ByName("BackfillIntegrationSource")),
+		connect.WithHandlerOptions(opts...),
+	)
 	aperioServiceListSiemCatalogHandler := connect.NewUnaryHandler(
 		AperioServiceListSiemCatalogProcedure,
 		svc.ListSiemCatalog,
@@ -1687,6 +1756,12 @@ func NewAperioServiceHandler(svc AperioServiceHandler, opts ...connect.HandlerOp
 			aperioServiceClearIntegrationOAuthClientHandler.ServeHTTP(w, r)
 		case AperioServiceForceSyncIntegrationProcedure:
 			aperioServiceForceSyncIntegrationHandler.ServeHTTP(w, r)
+		case AperioServiceGetIntegrationSyncStatusProcedure:
+			aperioServiceGetIntegrationSyncStatusHandler.ServeHTTP(w, r)
+		case AperioServiceRunIntegrationSourceSyncProcedure:
+			aperioServiceRunIntegrationSourceSyncHandler.ServeHTTP(w, r)
+		case AperioServiceBackfillIntegrationSourceProcedure:
+			aperioServiceBackfillIntegrationSourceHandler.ServeHTTP(w, r)
 		case AperioServiceListSiemCatalogProcedure:
 			aperioServiceListSiemCatalogHandler.ServeHTTP(w, r)
 		case AperioServiceListSiemDestinationsProcedure:
@@ -1906,6 +1981,18 @@ func (UnimplementedAperioServiceHandler) ClearIntegrationOAuthClient(context.Con
 
 func (UnimplementedAperioServiceHandler) ForceSyncIntegration(context.Context, *connect.Request[v1.ForceSyncIntegrationRequest]) (*connect.Response[v1.ForceSyncIntegrationResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("aperio.v1.AperioService.ForceSyncIntegration is not implemented"))
+}
+
+func (UnimplementedAperioServiceHandler) GetIntegrationSyncStatus(context.Context, *connect.Request[v1.GetIntegrationSyncStatusRequest]) (*connect.Response[v1.GetIntegrationSyncStatusResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("aperio.v1.AperioService.GetIntegrationSyncStatus is not implemented"))
+}
+
+func (UnimplementedAperioServiceHandler) RunIntegrationSourceSync(context.Context, *connect.Request[v1.RunIntegrationSourceSyncRequest]) (*connect.Response[v1.RunIntegrationSourceSyncResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("aperio.v1.AperioService.RunIntegrationSourceSync is not implemented"))
+}
+
+func (UnimplementedAperioServiceHandler) BackfillIntegrationSource(context.Context, *connect.Request[v1.BackfillIntegrationSourceRequest]) (*connect.Response[v1.BackfillIntegrationSourceResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("aperio.v1.AperioService.BackfillIntegrationSource is not implemented"))
 }
 
 func (UnimplementedAperioServiceHandler) ListSiemCatalog(context.Context, *connect.Request[v1.ListSiemCatalogRequest]) (*connect.Response[v1.ListSiemCatalogResponse], error) {

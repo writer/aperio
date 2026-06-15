@@ -36,10 +36,13 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/writer/aperio/internal/runtimeutil"
+	"github.com/writer/aperio/internal/syncstate"
+	"github.com/writer/aperio/internal/syncwake"
 )
 
 const (
@@ -203,6 +206,7 @@ func (p *Poller) Tick(ctx context.Context) error {
 // integration so stale notifications (e.g. for a since-disconnected row) do
 // not surface as errors.
 func (p *Poller) WakeIntegration(ctx context.Context, integrationID string) error {
+	integrationID, application := syncwake.Decode(integrationID)
 	if strings.TrimSpace(integrationID) == "" {
 		return nil
 	}
@@ -217,6 +221,12 @@ func (p *Poller) WakeIntegration(ctx context.Context, integrationID string) erro
 			return nil
 		}
 		return fmt.Errorf("load integration %s: %w", integrationID, err)
+	}
+	if application != "" {
+		if !slices.Contains(p.applications, application) {
+			return nil
+		}
+		return p.pollIntegrationApplications(ctx, integ, []string{application}, false)
 	}
 	return p.pollIntegration(ctx, integ)
 }
@@ -247,37 +257,63 @@ func (p *Poller) connectedIntegrations(ctx context.Context) ([]integrationRow, e
 // client, exchanges the stored refresh token for a one-shot access token, and
 // fans out one HTTP call per application.
 func (p *Poller) pollIntegration(ctx context.Context, integ integrationRow) error {
+	return p.pollIntegrationApplications(ctx, integ, p.applications, true)
+}
+
+func (p *Poller) pollIntegrationApplications(ctx context.Context, integ integrationRow, applications []string, refreshConnector bool) error {
 	oauth, ok := p.resolver.ResolveGoogleOAuthClient(ctx, integ.OrganizationID)
 	if !ok {
-		return errors.New("oauth client unresolved for organization")
+		err := errors.New("oauth client unresolved for organization")
+		p.recordApplicationSetupErrors(ctx, integ.ID, applications, err)
+		return err
 	}
 	refreshToken, err := runtimeutil.DecryptString(
 		integ.EncryptedToken,
 		runtimeutil.IntegrationSecretAAD(integ.OrganizationID, "GOOGLE_WORKSPACE", integ.ExternalAccountID, "access_token"),
 	)
 	if err != nil {
-		return fmt.Errorf("decrypt refresh token: %w", err)
+		err = fmt.Errorf("decrypt refresh token: %w", err)
+		p.recordApplicationSetupErrors(ctx, integ.ID, applications, err)
+		return err
 	}
 	accessToken, err := p.exchangeRefreshToken(ctx, oauth, refreshToken)
 	if err != nil {
-		return fmt.Errorf("exchange refresh token: %w", err)
+		err = fmt.Errorf("exchange refresh token: %w", err)
+		p.recordApplicationSetupErrors(ctx, integ.ID, applications, err)
+		return err
 	}
-	for _, app := range p.applications {
+	for _, app := range applications {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
 		if err := p.pollApplication(ctx, integ, app, accessToken); err != nil {
 			// Surface to the cursor row so operators can see why a specific
 			// application stopped advancing without grepping logs.
-			p.recordError(ctx, integ.ID, app, err)
+			expected, _ := cursorFromPollError(err)
+			p.recordError(ctx, integ.ID, app, expected, err)
 			log.Printf("googleworkspacepoller: integ=%s app=%s poll failed: %v", integ.ID, app, err)
 			continue
 		}
 	}
 	// Best-effort update of integration_connections.last_sync_at so the UI
 	// reflects a recent successful sweep even if one application failed.
-	_, _ = p.db.ExecContext(ctx, `UPDATE integration_connections SET last_sync_at = $1, updated_at = NOW() WHERE id = $2`, p.nowFn().UTC(), integ.ID)
+	if refreshConnector {
+		_, _ = p.db.ExecContext(ctx, `UPDATE integration_connections SET last_sync_at = $1, updated_at = NOW() WHERE id = $2`, p.nowFn().UTC(), integ.ID)
+	}
 	return nil
+}
+
+func (p *Poller) recordApplicationSetupErrors(ctx context.Context, integrationID string, applications []string, setupErr error) {
+	for _, app := range applications {
+		if ctx.Err() != nil {
+			return
+		}
+		expected, err := p.loadCursor(ctx, integrationID, app)
+		if err != nil {
+			log.Printf("googleworkspacepoller: load cursor for setup error failed integ=%s app=%s: %v", integrationID, app, err)
+		}
+		p.recordError(ctx, integrationID, app, expected, setupErr)
+	}
 }
 
 // pollApplication lists activities for one (integration, application) pair
@@ -292,16 +328,22 @@ func (p *Poller) pollApplication(ctx context.Context, integ integrationRow, appl
 	if err != nil {
 		return fmt.Errorf("load cursor: %w", err)
 	}
+	cursorErr := func(err error) error {
+		if err == nil {
+			return nil
+		}
+		return cursorPollError{cursor: cursor, err: err}
+	}
 	startTime := cursor.LastEventTime
 	if startTime.IsZero() {
 		startTime = p.nowFn().Add(-p.lookback).UTC()
 	}
 	activities, exhausted, err := p.listActivities(ctx, application, accessToken, startTime, cursor)
 	if err != nil {
-		return err
+		return cursorErr(err)
 	}
 	if len(activities) == 0 {
-		p.touchCursor(ctx, integ.ID, application, cursor.LastEventTime, cursor.LastUniqueQualifier)
+		p.touchCursor(ctx, integ.ID, application, cursor, cursor.LastEventTime, cursor.LastUniqueQualifier)
 		return nil
 	}
 	// Google returns activities ordered DESC; flip to ASC so the cursor
@@ -318,7 +360,7 @@ func (p *Poller) pollApplication(ctx context.Context, integ integrationRow, appl
 			if err := p.enqueueEvent(ctx, integ, application, activity, event); err != nil {
 				log.Printf("googleworkspacepoller: enqueue failed integ=%s app=%s id=%s: %v",
 					integ.ID, application, activity.UniqueQualifier, err)
-				return err
+				return cursorErr(err)
 			}
 		}
 	}
@@ -327,7 +369,7 @@ func (p *Poller) pollApplication(ctx context.Context, integ integrationRow, appl
 			integ.ID, application, p.maxPages, len(activities))
 	}
 	next := nextCursorAfterSweep(activities, exhausted, cursor)
-	p.touchCursor(ctx, integ.ID, application, next.LastEventTime, next.LastUniqueQualifier)
+	p.touchCursor(ctx, integ.ID, application, cursor, next.LastEventTime, next.LastUniqueQualifier)
 	return nil
 }
 
@@ -371,6 +413,28 @@ func nextCursorAfterSweep(activities []reportsActivity, exhausted bool, current 
 type cursorRow struct {
 	LastEventTime       time.Time
 	LastUniqueQualifier string
+	LastError           string
+}
+
+type cursorPollError struct {
+	cursor cursorRow
+	err    error
+}
+
+func (e cursorPollError) Error() string {
+	return e.err.Error()
+}
+
+func (e cursorPollError) Unwrap() error {
+	return e.err
+}
+
+func cursorFromPollError(err error) (cursorRow, bool) {
+	var pollErr cursorPollError
+	if errors.As(err, &pollErr) {
+		return pollErr.cursor, true
+	}
+	return cursorRow{}, false
 }
 
 func (c cursorRow) isStrictlyAfter(t time.Time, qualifier string) bool {
@@ -388,18 +452,20 @@ func (c cursorRow) isStrictlyAfter(t time.Time, qualifier string) bool {
 
 func (p *Poller) loadCursor(ctx context.Context, integrationID, application string) (cursorRow, error) {
 	var c cursorRow
+	var lastErr sql.NullString
 	err := p.db.QueryRowContext(ctx, `
-		SELECT last_event_time, last_unique_qualifier
+		SELECT last_event_time, last_unique_qualifier, last_error
 		FROM google_workspace_sync_cursors
 		WHERE integration_id = $1 AND application = $2
-	`, integrationID, application).Scan(&c.LastEventTime, &c.LastUniqueQualifier)
+	`, integrationID, application).Scan(&c.LastEventTime, &c.LastUniqueQualifier, &lastErr)
 	if errors.Is(err, sql.ErrNoRows) {
 		return cursorRow{}, nil
 	}
+	c.LastError = lastErr.String
 	return c, err
 }
 
-func (p *Poller) touchCursor(ctx context.Context, integrationID, application string, eventTime time.Time, qualifier string) {
+func (p *Poller) touchCursor(ctx context.Context, integrationID, application string, expected cursorRow, eventTime time.Time, qualifier string) {
 	// We always upsert: on first poll the cursor row doesn't exist yet, on
 	// subsequent polls it must advance even when no new activities arrived
 	// (so last_polled_at moves forward and last_error clears).
@@ -415,13 +481,18 @@ func (p *Poller) touchCursor(ctx context.Context, integrationID, application str
 			last_unique_qualifier = EXCLUDED.last_unique_qualifier,
 			last_polled_at = EXCLUDED.last_polled_at,
 			last_error = NULL
-	`, integrationID, application, eventTime, qualifier, p.nowFn().UTC())
+		WHERE COALESCE(google_workspace_sync_cursors.last_error, '') NOT LIKE $6
+		   OR (
+				google_workspace_sync_cursors.last_event_time = $7
+				AND google_workspace_sync_cursors.last_unique_qualifier = $8
+		   )
+	`, integrationID, application, eventTime, qualifier, p.nowFn().UTC(), syncstate.BackfillQueuedPrefix+"%", expected.LastEventTime, expected.LastUniqueQualifier)
 	if err != nil {
 		log.Printf("googleworkspacepoller: touchCursor failed integ=%s app=%s: %v", integrationID, application, err)
 	}
 }
 
-func (p *Poller) recordError(ctx context.Context, integrationID, application string, pollErr error) {
+func (p *Poller) recordError(ctx context.Context, integrationID, application string, expected cursorRow, pollErr error) {
 	msg := pollErr.Error()
 	if len(msg) > 480 {
 		msg = msg[:480]
@@ -433,7 +504,12 @@ func (p *Poller) recordError(ctx context.Context, integrationID, application str
 		ON CONFLICT (integration_id, application) DO UPDATE SET
 			last_polled_at = EXCLUDED.last_polled_at,
 			last_error = EXCLUDED.last_error
-	`, integrationID, application, p.nowFn().Add(-p.lookback).UTC(), p.nowFn().UTC(), msg)
+		WHERE COALESCE(google_workspace_sync_cursors.last_error, '') NOT LIKE $6
+		   OR (
+				google_workspace_sync_cursors.last_event_time = $7
+				AND google_workspace_sync_cursors.last_unique_qualifier = $8
+		   )
+	`, integrationID, application, p.nowFn().Add(-p.lookback).UTC(), p.nowFn().UTC(), msg, syncstate.BackfillQueuedPrefix+"%", expected.LastEventTime, expected.LastUniqueQualifier)
 	if err != nil {
 		log.Printf("googleworkspacepoller: recordError failed integ=%s app=%s: %v", integrationID, application, err)
 	}
@@ -459,6 +535,10 @@ func (p *Poller) enqueueEvent(ctx context.Context, integ integrationRow, applica
 }
 
 func enqueueGoogleWorkspaceEvent(ctx context.Context, db *sql.DB, integ integrationRow, application string, activity reportsActivity, event reportsEvent) error {
+	return enqueueGoogleWorkspaceEventWithSource(ctx, db, integ, application, googleReportsQueueSource(application), activity, event)
+}
+
+func enqueueGoogleWorkspaceEventWithSource(ctx context.Context, db *sql.DB, integ integrationRow, application, source string, activity reportsActivity, event reportsEvent) error {
 	ownerDomain := resolveOwnerDomain(integ, activity, event.Parameters)
 	mapped := MapEventType(application, event.Name, event.Parameters, ownerDomain)
 	if mapped == "" {
@@ -474,7 +554,6 @@ func enqueueGoogleWorkspaceEvent(ctx context.Context, db *sql.DB, integ integrat
 	if err != nil {
 		return err
 	}
-	source := "google.reports." + application
 	legacyID := googleWorkspaceLegacyJobID(activity, event)
 	err = insertGoogleWorkspaceIngestionJob(ctx, db, legacyID, integ, mapped, source, activity, payloadJSON)
 	if err == nil {
@@ -492,11 +571,19 @@ func enqueueGoogleWorkspaceEvent(ctx context.Context, db *sql.DB, integ integrat
 		// keeps the worker queue idempotent and preserves pre-scoped job IDs.
 		return nil
 	}
-	err = insertGoogleWorkspaceIngestionJob(ctx, db, googleWorkspaceScopedJobID(integ, application, activity, event), integ, mapped, source, activity, payloadJSON)
+	err = insertGoogleWorkspaceIngestionJob(ctx, db, googleWorkspaceScopedJobID(integ, source, application, activity, event), integ, mapped, source, activity, payloadJSON)
 	if err != nil && isUniqueViolation(err) {
 		return nil
 	}
 	return err
+}
+
+func googleReportsQueueSource(application string) string {
+	return "google.reports." + application
+}
+
+func googleBigQueryQueueSource(recordType string) string {
+	return "google.bigquery." + recordType
 }
 
 func insertGoogleWorkspaceIngestionJob(ctx context.Context, db *sql.DB, id string, integ integrationRow, mapped, source string, activity reportsActivity, payloadJSON []byte) error {
@@ -543,10 +630,11 @@ func googleWorkspaceLegacyJobID(activity reportsActivity, event reportsEvent) st
 	return "ijb_" + activity.UniqueQualifier + "_" + event.Name
 }
 
-func googleWorkspaceScopedJobID(integ integrationRow, application string, activity reportsActivity, event reportsEvent) string {
+func googleWorkspaceScopedJobID(integ integrationRow, source, application string, activity reportsActivity, event reportsEvent) string {
 	sum := sha256.Sum256([]byte(strings.Join([]string{
 		integ.OrganizationID,
 		integ.ID,
+		source,
 		application,
 		activity.UniqueQualifier,
 		event.Name,
