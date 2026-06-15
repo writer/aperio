@@ -75,7 +75,11 @@ func (a *App) getIntegrationSyncStatus(ctx context.Context, integrationID string
 		if err != nil {
 			return nil, internalServerError("get Google Directory sync status", err)
 		}
-		oauth, err := a.googleOAuthSyncState(ctx, integ.ID, now)
+		identitiesSeeded, err := a.googleWorkspaceIdentitiesSeeded(ctx, integ.ID)
+		if err != nil {
+			return nil, internalServerError("get Google Workspace identity seed state", err)
+		}
+		oauth, err := a.googleOAuthSyncState(ctx, integ.ID, now, identitiesSeeded)
 		if err != nil {
 			return nil, internalServerError("get Google OAuth sync status", err)
 		}
@@ -112,6 +116,15 @@ func (a *App) runIntegrationSourceSync(ctx context.Context, integrationID, sourc
 	stream := strings.ToLower(strings.TrimSpace(streamName))
 	if err := validateSourceStream(kind, stream, integ.BigQueryEnabled); err != nil {
 		return nil, err
+	}
+	if kind == sourceGoogleOAuth {
+		identitiesSeeded, err := a.googleWorkspaceIdentitiesSeeded(ctx, integ.ID)
+		if err != nil {
+			return nil, internalServerError("check Google Workspace identity seed state", err)
+		}
+		if !identitiesSeeded {
+			return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("Directory users must sync before OAuth grants"))
+		}
 	}
 	channels, err := syncWakeChannelsForSource(kind, integ.BigQueryEnabled)
 	if err != nil {
@@ -380,8 +393,8 @@ func (a *App) googleDirectorySyncState(ctx context.Context, integrationID string
 	return nil, err
 }
 
-func (a *App) googleOAuthSyncState(ctx context.Context, integrationID string, now time.Time) (*aperiov1.IntegrationSourceSyncState, error) {
-	state := newSyncState(sourceGoogleOAuth, "grants", "OAuth app grants", "", queueCounts{}, true, false)
+func (a *App) googleOAuthSyncState(ctx context.Context, integrationID string, now time.Time, identitiesSeeded bool) (*aperiov1.IntegrationSourceSyncState, error) {
+	state := newSyncState(sourceGoogleOAuth, "grants", "OAuth app grants", "", queueCounts{}, identitiesSeeded, false)
 	var syncedAt time.Time
 	var appCount, grantCount int64
 	var lastErr string
@@ -402,6 +415,20 @@ func (a *App) googleOAuthSyncState(ctx context.Context, integrationID string, no
 		return state, nil
 	}
 	return nil, err
+}
+
+func (a *App) googleWorkspaceIdentitiesSeeded(ctx context.Context, integrationID string) (bool, error) {
+	var seeded bool
+	err := a.db.QueryRowContext(ctx, `
+		SELECT EXISTS (
+			SELECT 1
+			FROM saas_identities
+			WHERE integration_id = $1
+			  AND provider = 'GOOGLE_WORKSPACE'
+			  AND status <> 'SUSPENDED'
+		)
+	`, integrationID).Scan(&seeded)
+	return seeded, err
 }
 
 func ingestionQueueSyncStates(queues map[string]queueCounts) []*aperiov1.IntegrationSourceSyncState {

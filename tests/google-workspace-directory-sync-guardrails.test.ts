@@ -215,6 +215,16 @@ test("source sync all waits for Directory before waking OAuth", () => {
     /kind == "all" && channel == GoogleWorkspaceDirectorySyncWakeChannel[\s\S]*?syncwake\.Encode\(integ\.ID, syncwake\.ModeOAuthAfterDirectorySync\)/,
     "Sync all must tag the Directory wake so the Directory worker chains OAuth only after identities refresh"
   );
+  assert.match(
+    status,
+    /kind == sourceGoogleOAuth[\s\S]*?googleWorkspaceIdentitiesSeeded\(ctx, integ\.ID\)[\s\S]*?connect\.CodeFailedPrecondition/,
+    "Direct OAuth source sync must be rejected until Directory has seeded saas_identities"
+  );
+  assert.match(
+    status,
+    /newSyncState\(sourceGoogleOAuth, "grants", "OAuth app grants", "", queueCounts\{\}, identitiesSeeded, false\)/,
+    "OAuth source row must stay disabled until Google Workspace identities exist"
+  );
 
   const directoryCmd = readRepoFile("cmd/google-workspace-directory-sync/main.go");
   assert.match(

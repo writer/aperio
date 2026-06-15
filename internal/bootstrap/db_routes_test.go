@@ -2210,8 +2210,31 @@ func TestDBIntegrationSyncStatusAndBackfill(t *testing.T) {
 	if directory := findSource("google_directory", "users"); directory.RowsSeen != 42 || directory.BackfillSupported {
 		t.Fatalf("unexpected directory source status: %#v", directory)
 	}
-	if oauth := findSource("google_oauth", "grants"); oauth.RowsSeen != 9 || oauth.BackfillSupported {
+	if oauth := findSource("google_oauth", "grants"); oauth.RowsSeen != 9 || oauth.BackfillSupported || oauth.SyncNowSupported {
 		t.Fatalf("unexpected OAuth source status: %#v", oauth)
+	}
+	oauthSyncReq := connect.NewRequest(&aperiov1.RunIntegrationSourceSyncRequest{
+		IntegrationId: integrationID,
+		SourceKind:    "google_oauth",
+		StreamName:    "grants",
+	})
+	copyCompatHeaders(oauthSyncReq.Header(), header)
+	if _, err := app.RunIntegrationSourceSync(ctx, oauthSyncReq); connect.CodeOf(err) != connect.CodeFailedPrecondition {
+		t.Fatalf("OAuth source sync before identities code = %v (%v), want failed precondition", connect.CodeOf(err), err)
+	}
+	if _, err := app.db.ExecContext(ctx, `
+		INSERT INTO saas_identities
+			(id, organization_id, integration_id, provider, external_id, display_name, kind, status, linked_asset_ids, is_privileged, is_external, mfa_enabled, risk_score, created_at, updated_at)
+		VALUES ($1, $2, $3, 'GOOGLE_WORKSPACE', 'user-1', 'Workspace Admin', 'USER', 'ACTIVE', $4, true, false, true, 0, NOW(), NOW())
+	`, compatID("sid"), auth.OrganizationID, integrationID, []string{"google-user-asset"}); err != nil {
+		t.Fatalf("seed Google identity: %v", err)
+	}
+	resp, err = app.GetIntegrationSyncStatus(ctx, req)
+	if err != nil {
+		t.Fatalf("get sync status after identity seed: %v", err)
+	}
+	if oauth := findSource("google_oauth", "grants"); !oauth.SyncNowSupported {
+		t.Fatalf("OAuth source sync should be enabled after identity seed: %#v", oauth)
 	}
 
 	backfillFrom := now.Add(-2 * time.Hour).UTC().Truncate(time.Second)
