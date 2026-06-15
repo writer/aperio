@@ -188,6 +188,7 @@ func TestStaleEmailDomainSourcesHonorsWindowAndLimit(t *testing.T) {
 
 func TestRefreshEmailDomainHealthHonorsRateLimit(t *testing.T) {
 	app, auth := newTestDBApp(t)
+	auth = seedOrgAdmin(t, app, auth.OrganizationID)
 	ctx := context.Background()
 	header := seedSessionHeader(t, app, auth)
 	seedExhaustedRateLimitBucket(t, app, header, http.MethodPost, emailDomainHealthRefreshRatePath)
