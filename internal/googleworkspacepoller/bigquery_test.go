@@ -33,6 +33,9 @@ func TestBigQueryActivityTableUsesViewDataset(t *testing.T) {
 	if !strings.Contains(query, "ORDER BY CASE") || !strings.Contains(query, "time_usec_int > @cursor_usec") || !strings.Contains(query, "row_hash > @cursor_hash") {
 		t.Fatalf("query must prioritize rows after the saved cursor without filtering out the overlap window: %s", query)
 	}
+	if !strings.Contains(query, "ELSE -time_usec_int") {
+		t.Fatalf("query must scan late-lookback overlap rows nearest the cursor first: %s", query)
+	}
 	if strings.Contains(query, "WHERE @cursor_usec") {
 		t.Fatalf("query must not filter out the late-lookback overlap window: %s", query)
 	}

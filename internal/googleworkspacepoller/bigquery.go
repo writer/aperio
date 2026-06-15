@@ -851,7 +851,14 @@ ORDER BY CASE
     OR (time_usec_int = @cursor_usec AND row_hash > @cursor_hash)
   THEN 0
   ELSE 1
-END, time_usec_int ASC, row_hash ASC
+END,
+CASE
+  WHEN @cursor_usec = 0
+    OR time_usec_int > @cursor_usec
+    OR (time_usec_int = @cursor_usec AND row_hash > @cursor_hash)
+  THEN time_usec_int
+  ELSE -time_usec_int
+END ASC, row_hash ASC
 LIMIT %d`, cfg.ProjectID, cfg.DatasetID, cfg.activityTable(), cfg.partitionTimeExpression("t"), limit), nil
 }
 
