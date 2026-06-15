@@ -175,6 +175,39 @@ test("source sync cursor state preserves queued backfills and BigQuery queue att
   assert.match(reports, /googleReportsQueueSource\(application\)/);
 });
 
+test("source sync all waits for Directory before waking OAuth", () => {
+  const status = readRepoFile("internal/bootstrap/sync_status.go");
+  const allCase = status.match(/case "all":[\s\S]*?return channels, nil/);
+  assert.ok(allCase, "syncWakeChannelsForSource must keep an explicit all-source branch");
+  assert.doesNotMatch(
+    allCase![0],
+    /GoogleWorkspaceOAuthSyncWakeChannel/,
+    "Sync all must not wake OAuth in parallel with Directory; OAuth depends on freshly refreshed saas_identities"
+  );
+  assert.match(
+    status,
+    /kind == "all" && channel == GoogleWorkspaceDirectorySyncWakeChannel[\s\S]*?syncwake\.Encode\(integ\.ID, syncwake\.ModeOAuthAfterDirectorySync\)/,
+    "Sync all must tag the Directory wake so the Directory worker chains OAuth only after identities refresh"
+  );
+
+  const directoryCmd = readRepoFile("cmd/google-workspace-directory-sync/main.go");
+  assert.match(
+    directoryCmd,
+    /syncwake\.Decode\(notification\.Payload\)/,
+    "Directory wake listener must decode the source-sync mode payload"
+  );
+  assert.match(
+    directoryCmd,
+    /worker\.WakeIntegration\(ctx, integrationID\)[\s\S]*?mode != syncwake\.ModeOAuthAfterDirectorySync[\s\S]*?notifyOAuthAfterDirectorySync\(ctx, notifyDB, integrationID\)/,
+    "Directory worker must notify OAuth only after the Directory refresh succeeds"
+  );
+  assert.match(
+    directoryCmd,
+    /SELECT pg_notify\(\$1, \$2\)[\s\S]*?bootstrap\.GoogleWorkspaceOAuthSyncWakeChannel/,
+    "Directory worker must use the OAuth wake channel for the chained follow-up"
+  );
+});
+
 test("directory sync owned in migration matrix", () => {
   const matrix = JSON.parse(readRepoFile("tests/fixtures/migration-ownership/migration-matrix.json"));
   const entry = matrix.entries.find((e: { id: string }) => e.id === "cmd-google-workspace-directory-sync-go-default");

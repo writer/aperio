@@ -121,16 +121,22 @@ func (a *App) runIntegrationSourceSync(ctx context.Context, integrationID, sourc
 		payload := integ.ID
 		if stream != "" && (kind == sourceGoogleReports || kind == sourceGoogleBigQuery) {
 			payload = syncwake.Encode(integ.ID, stream)
+		} else if kind == "all" && channel == GoogleWorkspaceDirectorySyncWakeChannel {
+			payload = syncwake.Encode(integ.ID, syncwake.ModeOAuthAfterDirectorySync)
 		}
 		if _, err := a.db.ExecContext(ctx, `SELECT pg_notify($1, $2)`, channel, payload); err != nil {
 			return nil, internalServerError("run integration source sync", err)
 		}
 	}
-	a.writeCompatAudit(ctx, auth, "integration.source_sync.requested", "integration_connection", integ.ID, map[string]any{
+	audit := map[string]any{
 		"sourceKind": kind,
 		"streamName": stream,
 		"channels":   channels,
-	})
+	}
+	if kind == "all" {
+		audit["chainedChannels"] = []string{GoogleWorkspaceOAuthSyncWakeChannel}
+	}
+	a.writeCompatAudit(ctx, auth, "integration.source_sync.requested", "integration_connection", integ.ID, audit)
 	return &aperiov1.IntegrationSourceSyncAction{
 		IntegrationId: integ.ID,
 		SourceKind:    kind,
@@ -533,7 +539,6 @@ func syncWakeChannelsForSource(kind string, bigQueryEnabled bool) ([]string, err
 		channels := []string{
 			GoogleWorkspaceSyncWakeChannel,
 			GoogleWorkspaceDirectorySyncWakeChannel,
-			GoogleWorkspaceOAuthSyncWakeChannel,
 		}
 		if bigQueryEnabled {
 			channels = append(channels, GoogleWorkspaceBigQuerySyncWakeChannel)

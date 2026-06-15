@@ -13,6 +13,7 @@ func TestEncodeDecode(t *testing.T) {
 		{name: "legacy id", payload: "  int_123  ", wantID: "int_123"},
 		{name: "stream payload", payload: "int_123\tdrive", wantID: "int_123", wantStream: "drive"},
 		{name: "encoded stream", wantID: "int_123", wantStream: "admin", encodedFrom: []string{" int_123 ", " admin "}},
+		{name: "encoded wake mode", wantID: "int_123", wantStream: ModeOAuthAfterDirectorySync, encodedFrom: []string{" int_123 ", " " + ModeOAuthAfterDirectorySync + " "}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -2,7 +2,10 @@ package syncwake
 
 import "strings"
 
-const separator = "\t"
+const (
+	separator                   = "\t"
+	ModeOAuthAfterDirectorySync = "oauth_after_directory_sync"
+)
 
 func Encode(integrationID, streamName string) string {
 	id := strings.TrimSpace(integrationID)
