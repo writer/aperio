@@ -176,12 +176,26 @@ func (a *App) getEmailDomainHealth(
 		sourceByDomain[source.Domain] = source
 	}
 	if source, ok := sourceByDomain[domain]; ok {
-		if err := a.ensureEmailDomainHealthChecks(ctx, auth, []domainSource{source}, true); err != nil {
-			return nil, err
+		toRefresh, err := a.emailDomainSourcesNeedingRefresh(ctx, auth.OrganizationID, []domainSource{source}, true, 0)
+		if err != nil {
+			return nil, connect.NewError(connect.CodeInternal, errors.New("email domain checks unavailable"))
+		}
+		if len(toRefresh) > 0 {
+			if err := a.compatRateLimit(ctx, req.Header(), req.Peer().Addr, http.MethodPost, emailDomainHealthRefreshRatePath, typedRateLimitSubjectBody(auth)); err != nil {
+				return nil, err
+			}
+			if _, err := a.refreshEmailDomainHealthChecks(ctx, auth.OrganizationID, toRefresh); err != nil {
+				return nil, err
+			}
 		}
 	}
 	row, err := a.getEmailDomainHealthRow(ctx, auth.OrganizationID, domain)
 	if errors.Is(err, sql.ErrNoRows) {
+		if source, ok := sourceByDomain[domain]; ok {
+			return connect.NewResponse(&aperiov1.GetEmailDomainHealthResponse{
+				Data: emailDomainHealthDetailProto(unknownEmailDomainHealthRow(source), nil),
+			}), nil
+		}
 		return nil, connect.NewError(connect.CodeNotFound, errors.New("email domain not found"))
 	}
 	if err != nil {
@@ -266,18 +280,6 @@ func (a *App) refreshEmailDomainHealth(
 		response.Data = append(response.Data, emailDomainHealthProto(row))
 	}
 	return connect.NewResponse(response), nil
-}
-
-func (a *App) ensureEmailDomainHealthChecks(ctx context.Context, auth compatAuth, sources []domainSource, refreshStale bool) error {
-	toRefresh, err := a.emailDomainSourcesNeedingRefresh(ctx, auth.OrganizationID, sources, refreshStale, 0)
-	if err != nil {
-		return connect.NewError(connect.CodeInternal, errors.New("email domain checks unavailable"))
-	}
-	if len(toRefresh) == 0 {
-		return nil
-	}
-	_, refreshErr := a.refreshEmailDomainHealthChecks(ctx, auth.OrganizationID, toRefresh)
-	return refreshErr
 }
 
 func (a *App) emailDomainSourcesNeedingRefresh(ctx context.Context, organizationID string, sources []domainSource, refreshStale bool, limit int) ([]domainSource, error) {
@@ -464,6 +466,28 @@ func sourceDomainNames(sources []domainSource) []string {
 	return out
 }
 
+func unknownEmailDomainHealthRow(source domainSource) emailDomainHealthRow {
+	return emailDomainHealthRow{
+		Domain:          source.Domain,
+		ProviderSources: append([]string(nil), source.Providers...),
+		Status:          "UNKNOWN",
+		SPFStatus:       "UNKNOWN",
+		DKIMStatus:      "UNKNOWN",
+		DMARCStatus:     "UNKNOWN",
+		Payload: emailDomainHealthPayload{
+			SPFRecords:    []string{},
+			DMARCRecords:  []string{},
+			DMARCRua:      []string{},
+			MXRecords:     []string{},
+			DKIMSelectors: []emailDomainDKIMPayload{},
+			Related:       []string{},
+			Issues:        []emailDomainIssue{},
+		},
+		IssueCount:        0,
+		FailingIssueCount: 0,
+	}
+}
+
 func (a *App) loadEmailDomainCheckTimes(ctx context.Context, organizationID string) (map[string]time.Time, error) {
 	rows, err := a.db.QueryContext(ctx, `
 		SELECT domain, last_checked_at
@@ -593,6 +617,7 @@ func (a *App) listEmailDomainHealthRows(ctx context.Context, organizationID stri
 	}
 	defer rows.Close()
 	out := make([]emailDomainHealthRow, 0, len(discovered))
+	seen := make(map[string]struct{}, len(discovered))
 	for rows.Next() {
 		var row emailDomainHealthRow
 		var providersJSON string
@@ -613,16 +638,30 @@ func (a *App) listEmailDomainHealthRows(ctx context.Context, organizationID stri
 		); err != nil {
 			return nil, err
 		}
-		if _, ok := discovered[row.Domain]; !ok {
+		source, ok := discovered[row.Domain]
+		if !ok {
 			continue
 		}
 		_ = json.Unmarshal([]byte(providersJSON), &row.ProviderSources)
 		_ = json.Unmarshal([]byte(payloadJSON), &row.Payload)
+		if len(source.Providers) > 0 {
+			row.ProviderSources = append([]string(nil), source.Providers...)
+		}
+		seen[row.Domain] = struct{}{}
 		out = append(out, row)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
+	for domain, source := range discovered {
+		if _, ok := seen[domain]; ok {
+			continue
+		}
+		out = append(out, unknownEmailDomainHealthRow(source))
+	}
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].Domain < out[j].Domain
+	})
 	return out, nil
 }
 
@@ -707,7 +746,7 @@ func evaluateEmailDomainHealth(ctx context.Context, resolver emailDNSResolver, d
 	spfRecords := filterTXTPrefix(spfTXT, "v=spf1")
 	payload.SPFRecords = spfRecords
 	if spfErr != nil {
-		issues = append(issues, issueFor("SPF", "MEDIUM", "spf_lookup_failed", "SPF lookup failed", spfErr.Error(), "Confirm authoritative DNS responds for SPF TXT records."))
+		issues = append(issues, issueFor("SPF", "MEDIUM", "spf_lookup_failed", "SPF lookup failed", dnsLookupFailureDetail("SPF TXT"), "Confirm authoritative DNS responds for SPF TXT records."))
 	}
 	if len(spfRecords) == 0 {
 		issues = append(issues, issueFor("SPF", "HIGH", "spf_missing", "SPF record missing", "No SPF TXT record was found for this domain.", "Publish a single SPF TXT record that ends with '-all'."))
@@ -738,7 +777,7 @@ func evaluateEmailDomainHealth(ctx context.Context, resolver emailDNSResolver, d
 	dmarcRecords := filterTXTPrefix(dmarcTXT, "v=dmarc1")
 	payload.DMARCRecords = dmarcRecords
 	if dmarcErr != nil {
-		issues = append(issues, issueFor("DMARC", "MEDIUM", "dmarc_lookup_failed", "DMARC lookup failed", dmarcErr.Error(), "Confirm _dmarc TXT records resolve."))
+		issues = append(issues, issueFor("DMARC", "MEDIUM", "dmarc_lookup_failed", "DMARC lookup failed", dnsLookupFailureDetail("DMARC TXT"), "Confirm _dmarc TXT records resolve."))
 	}
 	if len(dmarcRecords) == 0 {
 		issues = append(issues, issueFor("DMARC", "HIGH", "dmarc_missing", "DMARC record missing", "No DMARC TXT record was found.", "Publish a DMARC record with at least p=none and reporting, then move to p=quarantine/reject."))
@@ -816,7 +855,7 @@ func evaluateEmailDomainHealth(ctx context.Context, resolver emailDNSResolver, d
 
 	mxRecords, mxErr := resolver.LookupMX(ctx, domain)
 	if mxErr != nil {
-		issues = append(issues, issueFor("MX", "MEDIUM", "mx_lookup_failed", "MX lookup failed", mxErr.Error(), "Verify MX records exist and can be resolved publicly."))
+		issues = append(issues, issueFor("MX", "MEDIUM", "mx_lookup_failed", "MX lookup failed", dnsLookupFailureDetail("MX"), "Verify MX records exist and can be resolved publicly."))
 	}
 	if len(mxRecords) == 0 {
 		issues = append(issues, issueFor("MX", "MEDIUM", "mx_missing", "MX records missing", "No MX records were found for this domain.", "Publish MX records for inbound mail delivery."))
@@ -886,6 +925,10 @@ func issueFor(protocol, severity, code, title, detail, recommendation string) em
 		Detail:         detail,
 		Recommendation: recommendation,
 	}
+}
+
+func dnsLookupFailureDetail(recordType string) string {
+	return fmt.Sprintf("%s lookup did not complete successfully. Confirm the record resolves from public DNS.", recordType)
 }
 
 func parseTagRecord(record string) map[string]string {
@@ -1138,6 +1181,10 @@ func overallStatus(spfStatus, dkimStatus, dmarcStatus string, issues []emailDoma
 }
 
 func emailDomainHealthProto(row emailDomainHealthRow) *aperiov1.EmailDomainHealth {
+	lastCheckedAt := ""
+	if !row.LastCheckedAt.IsZero() {
+		lastCheckedAt = row.LastCheckedAt.UTC().Format(time.RFC3339Nano)
+	}
 	return &aperiov1.EmailDomainHealth{
 		Domain:            row.Domain,
 		ProviderSources:   row.ProviderSources,
@@ -1146,7 +1193,7 @@ func emailDomainHealthProto(row emailDomainHealthRow) *aperiov1.EmailDomainHealt
 		SpfStatus:         row.SPFStatus,
 		DkimStatus:        row.DKIMStatus,
 		DmarcStatus:       row.DMARCStatus,
-		LastCheckedAt:     row.LastCheckedAt.UTC().Format(time.RFC3339Nano),
+		LastCheckedAt:     lastCheckedAt,
 		IssueCount:        int32(row.IssueCount),
 		FailingIssueCount: int32(row.FailingIssueCount),
 	}

@@ -182,6 +182,33 @@ func TestEvaluateEmailDomainHealthDetectsIssues(t *testing.T) {
 	}
 }
 
+func TestEvaluateEmailDomainHealthSanitizesLookupErrors(t *testing.T) {
+	rawErr := errors.New("lookup example.com on 10.0.0.53:53: server misbehaving")
+	resolver := fakeEmailDNSResolver{
+		txtErr: map[string]error{
+			"example.com":        rawErr,
+			"_dmarc.example.com": rawErr,
+		},
+		mxErr: map[string]error{
+			"example.com": rawErr,
+		},
+	}
+
+	result := evaluateEmailDomainHealth(context.Background(), resolver, "example.com", []string{"GOOGLE_WORKSPACE"})
+	for _, code := range []string{"spf_lookup_failed", "dmarc_lookup_failed", "mx_lookup_failed"} {
+		issue, ok := issueByCode(result.Payload.Issues, code)
+		if !ok {
+			t.Fatalf("expected issue %s in %+v", code, result.Payload.Issues)
+		}
+		if issue.Detail == rawErr.Error() || strings.Contains(issue.Detail, "10.0.0.53") || strings.Contains(issue.Detail, "server misbehaving") {
+			t.Fatalf("issue %s leaked raw resolver detail: %q", code, issue.Detail)
+		}
+		if !strings.Contains(issue.Detail, "public DNS") {
+			t.Fatalf("issue %s detail = %q, want sanitized public DNS guidance", code, issue.Detail)
+		}
+	}
+}
+
 func TestDKIMKeyBitsUsesRSAModulusLength(t *testing.T) {
 	key := dkimTestPublicKey(t, 1024)
 	got, ok, enforceRSAThresholds := dkimKeyBits(key, "rsa")
@@ -259,6 +286,22 @@ func TestListEmailDomainHealthRefreshHonorsRateLimit(t *testing.T) {
 	}
 }
 
+func TestGetEmailDomainHealthRefreshHonorsRateLimit(t *testing.T) {
+	app, auth := newTestDBApp(t)
+	auth = seedOrgAdmin(t, app, auth.OrganizationID)
+	ctx := context.Background()
+	domain := "get-rate-" + strings.ToLower(randomBase36(8)) + ".example.com"
+	seedEmailDomainIntegration(t, app, auth, domain)
+	header := seedSessionHeader(t, app, auth)
+	seedExhaustedRateLimitBucket(t, app, header, http.MethodPost, emailDomainHealthRefreshRatePath)
+
+	req := connect.NewRequest(&aperiov1.GetEmailDomainHealthRequest{Domain: domain})
+	copyCompatHeaders(req.Header(), header)
+	if _, err := app.GetEmailDomainHealth(ctx, req); connect.CodeOf(err) != connect.CodeResourceExhausted {
+		t.Fatalf("expected get refresh to be rate limited, got %v", err)
+	}
+}
+
 func TestRefreshEmailDomainHealthReturnsFreshRowsWhenNothingStale(t *testing.T) {
 	app, auth := newTestDBApp(t)
 	auth = seedOrgAdmin(t, app, auth.OrganizationID)
@@ -290,6 +333,52 @@ func TestRefreshEmailDomainHealthReturnsFreshRowsWhenNothingStale(t *testing.T) 
 	}
 	if len(resp.Msg.Data) != 1 || resp.Msg.Data[0].Domain != domain {
 		t.Fatalf("refresh all data = %+v, want existing fresh row for %s", resp.Msg.Data, domain)
+	}
+}
+
+func TestListEmailDomainHealthRowsIncludesUncheckedDiscoveredDomains(t *testing.T) {
+	app, auth := newTestDBApp(t)
+	ctx := context.Background()
+	checkedDomain := "checked-" + strings.ToLower(randomBase36(8)) + ".example.com"
+	uncheckedDomain := "unchecked-" + strings.ToLower(randomBase36(8)) + ".example.com"
+	if _, err := app.upsertEmailDomainHealthCheck(ctx, auth.OrganizationID, emailDomainHealthRow{
+		Domain:            checkedDomain,
+		ProviderSources:   []string{"GOOGLE_WORKSPACE"},
+		Status:            "HEALTHY",
+		Score:             100,
+		SPFStatus:         "HEALTHY",
+		DKIMStatus:        "HEALTHY",
+		DMARCStatus:       "HEALTHY",
+		LastCheckedAt:     time.Now().UTC(),
+		Payload:           emptyEmailDomainHealthPayload(),
+		IssueCount:        0,
+		FailingIssueCount: 0,
+	}); err != nil {
+		t.Fatalf("seed checked email domain health row: %v", err)
+	}
+
+	rows, err := app.listEmailDomainHealthRows(ctx, auth.OrganizationID, sourceDomainSet([]domainSource{
+		{Domain: checkedDomain, Providers: []string{"GOOGLE_WORKSPACE"}},
+		{Domain: uncheckedDomain, Providers: []string{"MICROSOFT_365"}},
+	}))
+	if err != nil {
+		t.Fatalf("list email domain health rows: %v", err)
+	}
+	if len(rows) != 2 {
+		t.Fatalf("rows length = %d, want 2: %+v", len(rows), rows)
+	}
+	unchecked := rows[1]
+	if rows[0].Domain != checkedDomain || unchecked.Domain != uncheckedDomain {
+		t.Fatalf("rows = %+v, want checked then unchecked domains", rows)
+	}
+	if unchecked.Status != "UNKNOWN" || unchecked.SPFStatus != "UNKNOWN" || unchecked.DKIMStatus != "UNKNOWN" || unchecked.DMARCStatus != "UNKNOWN" {
+		t.Fatalf("unchecked row statuses = %+v, want UNKNOWN statuses", unchecked)
+	}
+	if unchecked.LastCheckedAt.Format(time.RFC3339Nano) != "0001-01-01T00:00:00Z" || emailDomainHealthProto(unchecked).LastCheckedAt != "" {
+		t.Fatalf("unchecked last checked = %q / proto %q, want empty proto timestamp", unchecked.LastCheckedAt.Format(time.RFC3339Nano), emailDomainHealthProto(unchecked).LastCheckedAt)
+	}
+	if len(unchecked.ProviderSources) != 1 || unchecked.ProviderSources[0] != "MICROSOFT_365" {
+		t.Fatalf("unchecked provider sources = %v, want [MICROSOFT_365]", unchecked.ProviderSources)
 	}
 }
 
@@ -327,6 +416,15 @@ func containsIssueCode(issues []emailDomainIssue, code string) bool {
 		}
 	}
 	return false
+}
+
+func issueByCode(issues []emailDomainIssue, code string) (emailDomainIssue, bool) {
+	for _, issue := range issues {
+		if issue.Code == code {
+			return issue, true
+		}
+	}
+	return emailDomainIssue{}, false
 }
 
 func TestDiscoverEmailDomainSourcesIncludesIdentityEmails(t *testing.T) {
