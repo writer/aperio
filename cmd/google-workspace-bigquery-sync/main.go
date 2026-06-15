@@ -124,13 +124,14 @@ func drainWakeNotifications(ctx context.Context, conn *pgx.Conn, poller *googlew
 		}
 		waitCtx, stopWaiting := context.WithTimeout(ctx, notificationPollInterval)
 		notification, err := conn.WaitForNotification(waitCtx)
+		waitErr := waitCtx.Err()
 		stopWaiting()
 		if err != nil {
 			if ctx.Err() != nil {
 				log.Printf("google-workspace-bigquery-sync: -once interrupted before wake-triggered syncs completed: %v", ctx.Err())
 				return
 			}
-			if waitCtx.Err() != nil {
+			if waitErr != nil {
 				if active.Load() == 0 && idleSince.IsZero() {
 					idleSince = time.Now()
 				}

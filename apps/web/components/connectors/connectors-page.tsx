@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useId, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import {
   CheckCircle2,
   Copy,
@@ -550,29 +550,57 @@ function IntegrationSyncStatusDialog({
   const [backfillSource, setBackfillSource] =
     useState<IntegrationSourceSyncState | null>(null);
   const [backfillFrom, setBackfillFrom] = useState("");
+  const activeIntegrationIdRef = useRef("");
+  const refreshSeqRef = useRef(0);
 
   const integrationId = integration?.id ?? "";
+  activeIntegrationIdRef.current = integrationId;
   const refresh = useCallback(async () => {
-    if (!integrationId) return;
+    const requestedIntegrationId = integrationId;
+    if (!requestedIntegrationId) return;
+    const refreshSeq = refreshSeqRef.current + 1;
+    refreshSeqRef.current = refreshSeq;
     setLoading(true);
     setError("");
     try {
-      const result = await fetchIntegrationSyncStatus(integrationId);
+      const result = await fetchIntegrationSyncStatus(requestedIntegrationId);
+      if (
+        activeIntegrationIdRef.current !== requestedIntegrationId ||
+        refreshSeqRef.current !== refreshSeq
+      ) {
+        return;
+      }
       setStatus(result.data);
     } catch (err) {
+      if (
+        activeIntegrationIdRef.current !== requestedIntegrationId ||
+        refreshSeqRef.current !== refreshSeq
+      ) {
+        return;
+      }
       setError(err instanceof Error ? err.message : "Unable to load sync status");
     } finally {
-      setLoading(false);
+      if (
+        activeIntegrationIdRef.current === requestedIntegrationId &&
+        refreshSeqRef.current === refreshSeq
+      ) {
+        setLoading(false);
+      }
     }
   }, [integrationId]);
 
   useEffect(() => {
     if (!open) {
+      refreshSeqRef.current += 1;
       setStatus(null);
+      setError("");
       setBackfillSource(null);
       setBackfillFrom("");
       return;
     }
+    setStatus(null);
+    setBackfillSource(null);
+    setBackfillFrom("");
     void refresh();
   }, [open, refresh]);
 

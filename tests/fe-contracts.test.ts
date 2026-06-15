@@ -185,6 +185,9 @@ test("connector sync status exposes per-source recovery controls", () => {
   assert.match(page, /integration\.provider === "GOOGLE_WORKSPACE" \? \(/);
   assert.match(page, /onClick=\{\(\) => setSyncStatusIntegration\(integration\)\}/);
   assert.match(page, /fetchIntegrationSyncStatus/);
+  assert.match(page, /activeIntegrationIdRef/);
+  assert.match(page, /refreshSeqRef/);
+  assert.match(page, /activeIntegrationIdRef\.current !== requestedIntegrationId/);
   assert.match(page, /runIntegrationSourceSync/);
   assert.match(page, /backfillIntegrationSource/);
   assert.match(page, /Queue backfill/);

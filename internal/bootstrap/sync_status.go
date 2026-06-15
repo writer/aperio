@@ -14,6 +14,7 @@ import (
 	"connectrpc.com/connect"
 	aperiov1 "github.com/writer/aperio/gen/aperio/v1"
 	"github.com/writer/aperio/internal/googleworkspacepoller"
+	"github.com/writer/aperio/internal/syncstate"
 	"github.com/writer/aperio/internal/syncwake"
 )
 
@@ -23,7 +24,7 @@ const (
 	sourceGoogleDirectory = "google_directory"
 	sourceGoogleOAuth     = "google_oauth"
 	sourceIngestionQueue  = "ingestion_queue"
-	backfillQueuedPrefix  = "backfill queued; waiting for worker confirmation"
+	backfillQueuedPrefix  = syncstate.BackfillQueuedPrefix
 )
 
 type integrationSyncContext struct {
@@ -316,7 +317,7 @@ func (a *App) googleReportsSyncStates(ctx context.Context, integrationID string,
 func (a *App) googleBigQuerySyncStates(ctx context.Context, integrationID string, queues map[string]queueCounts, now time.Time) ([]*aperiov1.IntegrationSourceSyncState, error) {
 	states := make(map[string]*aperiov1.IntegrationSourceSyncState, len(googleworkspacepoller.DefaultApplications))
 	for _, recordType := range googleworkspacepoller.DefaultApplications {
-		queueSource := "google.reports." + recordType
+		queueSource := "google.bigquery." + recordType
 		states[recordType] = newSyncState(sourceGoogleBigQuery, recordType, "BigQuery export: "+recordType, queueSource, queues[queueSource], true, true)
 	}
 	rows, err := a.db.QueryContext(ctx, `
@@ -337,7 +338,7 @@ func (a *App) googleBigQuerySyncStates(ctx context.Context, integrationID string
 		}
 		state, ok := states[recordType]
 		if !ok {
-			queueSource := "google.reports." + recordType
+			queueSource := "google.bigquery." + recordType
 			state = newSyncState(sourceGoogleBigQuery, recordType, "BigQuery export: "+recordType, queueSource, queues[queueSource], true, true)
 			states[recordType] = state
 		}
@@ -519,11 +520,11 @@ func validateSourceStream(kind, stream string, bigQueryEnabled bool) error {
 }
 
 func queuedBackfillMessage(from time.Time) string {
-	return backfillQueuedPrefix + " from " + from.UTC().Format(time.RFC3339Nano)
+	return syncstate.BackfillQueuedMessage(from)
 }
 
 func isQueuedBackfill(lastErr string) bool {
-	return strings.HasPrefix(strings.TrimSpace(lastErr), backfillQueuedPrefix)
+	return syncstate.IsBackfillQueued(lastErr)
 }
 
 func syncWakeChannelsForSource(kind string, bigQueryEnabled bool) ([]string, error) {

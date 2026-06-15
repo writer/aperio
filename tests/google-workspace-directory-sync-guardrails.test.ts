@@ -129,6 +129,11 @@ test("source sync wake paths preserve one-shot and error visibility", () => {
     assert.match(source, /drainWakeNotifications\(ctx, listener,/, `${file} must drain wake notifications in -once mode`);
     assert.match(source, /var active atomic\.Int64/, `${file} must keep draining while wake-triggered work is active`);
     assert.match(source, /notificationPollInterval/, `${file} must poll for additional once-mode wake notifications`);
+    assert.match(
+      source,
+      /waitErr := waitCtx\.Err\(\)[\s\S]*?stopWaiting\(\)[\s\S]*?if waitErr != nil/,
+      `${file} must inspect the wait timeout before canceling the timeout context`
+    );
   }
   for (const file of [
     "internal/googleworkspacedirectorysync/sync.go",
@@ -146,6 +151,28 @@ test("source sync wake paths preserve one-shot and error visibility", () => {
       `${file} must not advance last_synced_at on failed full sweeps`
     );
   }
+});
+
+test("source sync cursor state preserves queued backfills and BigQuery queue attribution", () => {
+  const reports = readRepoFile("internal/googleworkspacepoller/poller.go");
+  const bigquery = readRepoFile("internal/googleworkspacepoller/bigquery.go");
+  const status = readRepoFile("internal/bootstrap/sync_status.go");
+
+  assert.match(reports, /syncstate\.BackfillQueuedPrefix\+"%"/);
+  assert.match(
+    reports,
+    /WHERE COALESCE\(google_workspace_sync_cursors\.last_error, ''\) NOT LIKE \$6[\s\S]*?last_event_time = \$7[\s\S]*?last_unique_qualifier = \$8/,
+    "Reports cursor writes must not clear a queued backfill from an overlapping stale sweep"
+  );
+  assert.match(bigquery, /syncstate\.BackfillQueuedPrefix\+"%"/);
+  assert.match(
+    bigquery,
+    /WHERE COALESCE\(google_workspace_bigquery_sync_cursors\.last_error, ''\) NOT LIKE \$7[\s\S]*?last_event_time = \$8[\s\S]*?last_row_hash = \$9/,
+    "BigQuery cursor writes must not clear a queued backfill from an overlapping stale sweep"
+  );
+  assert.match(status, /queueSource := "google\.bigquery\." \+ recordType/);
+  assert.match(bigquery, /googleBigQueryQueueSource\(application\)/);
+  assert.match(reports, /googleReportsQueueSource\(application\)/);
 });
 
 test("directory sync owned in migration matrix", () => {
