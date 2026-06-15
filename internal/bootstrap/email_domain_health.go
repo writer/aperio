@@ -2,6 +2,7 @@ package bootstrap
 
 import (
 	"context"
+	"crypto/ed25519"
 	"crypto/rsa"
 	"crypto/x509"
 	"database/sql"
@@ -131,8 +132,17 @@ func (a *App) listEmailDomainHealth(
 	if len(sources) == 0 {
 		return connect.NewResponse(&aperiov1.ListEmailDomainHealthResponse{Data: []*aperiov1.EmailDomainHealth{}}), nil
 	}
-	if err := a.ensureEmailDomainHealthChecks(ctx, auth, sources, req.Msg.RefreshIfStale); err != nil {
-		return nil, err
+	toRefresh, err := a.emailDomainSourcesNeedingRefresh(ctx, auth.OrganizationID, sources, req.Msg.RefreshIfStale, emailDomainHealthBulkRefreshLimit)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, errors.New("email domain checks unavailable"))
+	}
+	if len(toRefresh) > 0 {
+		if err := a.compatRateLimit(ctx, req.Header(), req.Peer().Addr, http.MethodPost, emailDomainHealthRefreshRatePath, typedRateLimitSubjectBody(auth)); err != nil {
+			return nil, err
+		}
+		if _, err := a.refreshEmailDomainHealthChecks(ctx, auth.OrganizationID, toRefresh); err != nil {
+			return nil, err
+		}
 	}
 	rows, err := a.listEmailDomainHealthRows(ctx, auth.OrganizationID, sourceDomainSet(sources))
 	if err != nil {
@@ -204,6 +214,7 @@ func (a *App) refreshEmailDomainHealth(
 	if len(sources) == 0 {
 		return connect.NewResponse(&aperiov1.RefreshEmailDomainHealthResponse{Data: []*aperiov1.EmailDomainHealth{}}), nil
 	}
+	discoveredSources := append([]domainSource(nil), sources...)
 	requested := strings.TrimSpace(req.Msg.Domain)
 	if requested != "" {
 		domain := normalizeDomainCandidate(requested)
@@ -217,13 +228,12 @@ func (a *App) refreshEmailDomainHealth(
 		}
 		sources = []domainSource{source}
 	} else {
-		existing, err := a.loadEmailDomainCheckTimes(ctx, auth.OrganizationID)
+		sources, err = a.emailDomainSourcesNeedingRefresh(ctx, auth.OrganizationID, sources, true, emailDomainHealthBulkRefreshLimit)
 		if err != nil {
 			return nil, connect.NewError(connect.CodeInternal, errors.New("email domain checks unavailable"))
 		}
-		sources = staleEmailDomainSources(sources, existing, time.Now().UTC(), emailDomainHealthBulkRefreshLimit)
 		if len(sources) == 0 {
-			rows, err := a.listEmailDomainHealthRows(ctx, auth.OrganizationID, sourceDomainSet(sources))
+			rows, err := a.listEmailDomainHealthRows(ctx, auth.OrganizationID, sourceDomainSet(discoveredSources))
 			if err != nil {
 				return nil, connect.NewError(connect.CodeInternal, errors.New("email domain health unavailable"))
 			}
@@ -245,7 +255,7 @@ func (a *App) refreshEmailDomainHealth(
 		"requestedDomain": requested,
 	})
 	if requested == "" {
-		rows, err := a.listEmailDomainHealthRows(ctx, auth.OrganizationID, sourceDomainSet(refreshSources))
+		rows, err := a.listEmailDomainHealthRows(ctx, auth.OrganizationID, sourceDomainSet(discoveredSources))
 		if err != nil {
 			return nil, connect.NewError(connect.CodeInternal, errors.New("email domain health unavailable"))
 		}
@@ -259,27 +269,23 @@ func (a *App) refreshEmailDomainHealth(
 }
 
 func (a *App) ensureEmailDomainHealthChecks(ctx context.Context, auth compatAuth, sources []domainSource, refreshStale bool) error {
-	existing, err := a.loadEmailDomainCheckTimes(ctx, auth.OrganizationID)
+	toRefresh, err := a.emailDomainSourcesNeedingRefresh(ctx, auth.OrganizationID, sources, refreshStale, 0)
 	if err != nil {
 		return connect.NewError(connect.CodeInternal, errors.New("email domain checks unavailable"))
-	}
-	now := time.Now().UTC()
-	toRefresh := make([]domainSource, 0, len(sources))
-	for _, source := range sources {
-		lastCheckedAt, ok := existing[source.Domain]
-		if !ok {
-			toRefresh = append(toRefresh, source)
-			continue
-		}
-		if refreshStale && now.Sub(lastCheckedAt.UTC()) >= emailDomainHealthStaleWindow {
-			toRefresh = append(toRefresh, source)
-		}
 	}
 	if len(toRefresh) == 0 {
 		return nil
 	}
 	_, refreshErr := a.refreshEmailDomainHealthChecks(ctx, auth.OrganizationID, toRefresh)
 	return refreshErr
+}
+
+func (a *App) emailDomainSourcesNeedingRefresh(ctx context.Context, organizationID string, sources []domainSource, refreshStale bool, limit int) ([]domainSource, error) {
+	existing, err := a.loadEmailDomainCheckTimes(ctx, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	return emailDomainSourcesNeedingRefresh(sources, existing, time.Now().UTC(), refreshStale, limit), nil
 }
 
 func (a *App) refreshEmailDomainHealthChecks(ctx context.Context, organizationID string, sources []domainSource) ([]emailDomainHealthRow, error) {
@@ -383,12 +389,14 @@ func (a *App) discoverEmailDomainSources(ctx context.Context, organizationID str
 	return out, nil
 }
 
-func staleEmailDomainSources(sources []domainSource, existing map[string]time.Time, now time.Time, limit int) []domainSource {
+func emailDomainSourcesNeedingRefresh(sources []domainSource, existing map[string]time.Time, now time.Time, refreshStale bool, limit int) []domainSource {
 	out := make([]domainSource, 0, len(sources))
 	for _, source := range sources {
 		lastCheckedAt, ok := existing[source.Domain]
-		if ok && now.Sub(lastCheckedAt.UTC()) < emailDomainHealthStaleWindow {
-			continue
+		if ok {
+			if !refreshStale || now.Sub(lastCheckedAt.UTC()) < emailDomainHealthStaleWindow {
+				continue
+			}
 		}
 		out = append(out, source)
 		if limit > 0 && len(out) >= limit {
@@ -777,19 +785,19 @@ func evaluateEmailDomainHealth(ctx context.Context, resolver emailDNSResolver, d
 		record := dkimRecords[0]
 		tags := parseTagRecord(record)
 		keyValue := strings.TrimSpace(tags["p"])
-		keyBits, keyValid := dkimKeyBits(keyValue)
+		keyBits, keyValid, enforceRSAThresholds := dkimKeyBits(keyValue, tags["k"])
 		selectorStatus := "HEALTHY"
 		if keyValue == "" {
 			selectorStatus = "FAILING"
-			issues = append(issues, issueFor("DKIM", "HIGH", "dkim_missing_key", "DKIM public key missing", fmt.Sprintf("Selector %s is missing p= key material.", selector), "Publish a valid RSA key in p=."))
+			issues = append(issues, issueFor("DKIM", "HIGH", "dkim_missing_key", "DKIM public key missing", fmt.Sprintf("Selector %s is missing p= key material.", selector), "Publish valid DKIM public key material in p=."))
 		} else if !keyValid {
 			selectorStatus = "FAILING"
-			issues = append(issues, issueFor("DKIM", "HIGH", "dkim_invalid_key_material", "DKIM key material is malformed", fmt.Sprintf("Selector %s has invalid base64 in p= key material.", selector), "Publish a valid base64-encoded DKIM RSA key in p=."))
+			issues = append(issues, issueFor("DKIM", "HIGH", "dkim_invalid_key_material", "DKIM key material is malformed", fmt.Sprintf("Selector %s has invalid p= key material.", selector), "Publish valid base64-encoded DKIM public key material in p=."))
 		}
-		if keyValid && keyBits > 0 && keyBits < 1024 {
+		if enforceRSAThresholds && keyValid && keyBits > 0 && keyBits < 1024 {
 			selectorStatus = "FAILING"
 			issues = append(issues, issueFor("DKIM", "CRITICAL", "dkim_weak_key", "DKIM key is too weak", fmt.Sprintf("Selector %s key size is %d bits.", selector, keyBits), "Rotate selector to at least 2048-bit RSA key material."))
-		} else if keyValid && keyBits >= 1024 && keyBits < 2048 {
+		} else if enforceRSAThresholds && keyValid && keyBits >= 1024 && keyBits < 2048 {
 			if selectorStatus != "FAILING" {
 				selectorStatus = "WARNING"
 			}
@@ -957,19 +965,23 @@ func spfLookupCount(record string) int {
 	return count
 }
 
-func dkimKeyBits(publicKey string) (int, bool) {
-	cleaned := strings.Join(strings.Fields(publicKey), "")
-	if cleaned == "" {
-		return 0, false
+func dkimKeyBits(publicKey, keyType string) (int, bool, bool) {
+	normalizedType := strings.ToLower(strings.TrimSpace(keyType))
+	switch normalizedType {
+	case "", "rsa":
+		bits, ok := dkimRSAKeyBits(publicKey)
+		return bits, ok, true
+	case "ed25519":
+		bits, ok := dkimEd25519KeyBits(publicKey)
+		return bits, ok, false
+	default:
+		return 0, false, false
 	}
-	decoded, err := base64.StdEncoding.DecodeString(cleaned)
-	if err != nil {
-		decoded, err = base64.RawStdEncoding.DecodeString(cleaned)
-		if err != nil {
-			return 0, false
-		}
-	}
-	if len(decoded) == 0 {
+}
+
+func dkimRSAKeyBits(publicKey string) (int, bool) {
+	decoded, ok := decodeDKIMPublicKey(publicKey)
+	if !ok {
 		return 0, false
 	}
 	parsed, err := x509.ParsePKIXPublicKey(decoded)
@@ -985,6 +997,43 @@ func dkimKeyBits(publicKey string) (int, bool) {
 		return 0, false
 	}
 	return key.N.BitLen(), true
+}
+
+func dkimEd25519KeyBits(publicKey string) (int, bool) {
+	decoded, ok := decodeDKIMPublicKey(publicKey)
+	if !ok {
+		return 0, false
+	}
+	if len(decoded) == ed25519.PublicKeySize {
+		return ed25519.PublicKeySize * 8, true
+	}
+	parsed, err := x509.ParsePKIXPublicKey(decoded)
+	if err != nil {
+		return 0, false
+	}
+	key, ok := parsed.(ed25519.PublicKey)
+	if !ok || len(key) != ed25519.PublicKeySize {
+		return 0, false
+	}
+	return len(key) * 8, true
+}
+
+func decodeDKIMPublicKey(publicKey string) ([]byte, bool) {
+	cleaned := strings.Join(strings.Fields(publicKey), "")
+	if cleaned == "" {
+		return nil, false
+	}
+	decoded, err := base64.StdEncoding.DecodeString(cleaned)
+	if err != nil {
+		decoded, err = base64.RawStdEncoding.DecodeString(cleaned)
+		if err != nil {
+			return nil, false
+		}
+	}
+	if len(decoded) == 0 {
+		return nil, false
+	}
+	return decoded, true
 }
 
 func sortIssues(issues []emailDomainIssue) {

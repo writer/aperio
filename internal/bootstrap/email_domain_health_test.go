@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"bytes"
 	"context"
+	"crypto/ed25519"
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/base64"
@@ -10,6 +11,7 @@ import (
 	"math/big"
 	"net"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -110,6 +112,39 @@ func TestEvaluateEmailDomainHealthHealthy(t *testing.T) {
 	}
 }
 
+func TestEvaluateEmailDomainHealthAcceptsEd25519DKIM(t *testing.T) {
+	key := base64.StdEncoding.EncodeToString(bytes.Repeat([]byte{7}, ed25519.PublicKeySize))
+	resolver := fakeEmailDNSResolver{
+		txt: map[string][]string{
+			"example.com": {
+				"v=spf1 include:_spf.google.com -all",
+			},
+			"_dmarc.example.com": {
+				"v=DMARC1; p=reject; pct=100; rua=mailto:dmarc@example.com",
+			},
+			"default._domainkey.example.com": {
+				"v=DKIM1; k=ed25519; p=" + key,
+			},
+		},
+		mx: map[string][]*net.MX{
+			"example.com": {
+				{Host: "aspmx.l.google.com.", Pref: 1},
+			},
+		},
+	}
+
+	result := evaluateEmailDomainHealth(context.Background(), resolver, "example.com", []string{"GOOGLE_WORKSPACE"})
+	if result.DKIMStatus != "HEALTHY" {
+		t.Fatalf("dkim status = %s, want HEALTHY; issues=%+v", result.DKIMStatus, result.Payload.Issues)
+	}
+	if containsIssueCode(result.Payload.Issues, "dkim_invalid_key_material") {
+		t.Fatalf("valid Ed25519 key was marked malformed: %+v", result.Payload.Issues)
+	}
+	if len(result.Payload.DKIMSelectors) != 1 || result.Payload.DKIMSelectors[0].KeyBits != 256 {
+		t.Fatalf("ed25519 selector = %+v, want one 256-bit selector", result.Payload.DKIMSelectors)
+	}
+}
+
 func TestEvaluateEmailDomainHealthDetectsIssues(t *testing.T) {
 	weakKey := dkimTestPublicKey(t, 512)
 	resolver := fakeEmailDNSResolver{
@@ -149,21 +184,24 @@ func TestEvaluateEmailDomainHealthDetectsIssues(t *testing.T) {
 
 func TestDKIMKeyBitsUsesRSAModulusLength(t *testing.T) {
 	key := dkimTestPublicKey(t, 1024)
-	got, ok := dkimKeyBits(key)
+	got, ok, enforceRSAThresholds := dkimKeyBits(key, "rsa")
 	if !ok {
 		t.Fatal("expected generated SPKI key to parse")
+	}
+	if !enforceRSAThresholds {
+		t.Fatal("expected RSA key to enforce RSA thresholds")
 	}
 	if got != 1024 {
 		t.Fatalf("dkimKeyBits = %d, want RSA modulus length 1024", got)
 	}
 
 	rawBytes := base64.StdEncoding.EncodeToString(bytes.Repeat([]byte{1}, 256))
-	if got, ok := dkimKeyBits(rawBytes); ok {
+	if got, ok, _ := dkimKeyBits(rawBytes, "rsa"); ok {
 		t.Fatalf("raw base64 bytes parsed as %d-bit key, want invalid", got)
 	}
 }
 
-func TestStaleEmailDomainSourcesHonorsWindowAndLimit(t *testing.T) {
+func TestEmailDomainSourcesNeedingRefreshHonorsWindowAndLimit(t *testing.T) {
 	now := time.Date(2026, 6, 15, 12, 0, 0, 0, time.UTC)
 	sources := []domainSource{
 		{Domain: "fresh.example.com"},
@@ -177,12 +215,17 @@ func TestStaleEmailDomainSourcesHonorsWindowAndLimit(t *testing.T) {
 		"old.example.com":   now.Add(-24 * time.Hour),
 	}
 
-	got := staleEmailDomainSources(sources, existing, now, 2)
+	got := emailDomainSourcesNeedingRefresh(sources, existing, now, true, 2)
 	if len(got) != 2 {
 		t.Fatalf("stale sources length = %d, want 2: %+v", len(got), got)
 	}
 	if got[0].Domain != "missing.example.com" || got[1].Domain != "stale.example.com" {
 		t.Fatalf("stale sources = %+v, want missing then stale within limit", got)
+	}
+
+	missingOnly := emailDomainSourcesNeedingRefresh(sources, existing, now, false, 10)
+	if len(missingOnly) != 1 || missingOnly[0].Domain != "missing.example.com" {
+		t.Fatalf("missing-only sources = %+v, want missing.example.com", missingOnly)
 	}
 }
 
@@ -197,6 +240,82 @@ func TestRefreshEmailDomainHealthHonorsRateLimit(t *testing.T) {
 	copyCompatHeaders(req.Header(), header)
 	if _, err := app.RefreshEmailDomainHealth(ctx, req); connect.CodeOf(err) != connect.CodeResourceExhausted {
 		t.Fatalf("expected refresh to be rate limited, got %v", err)
+	}
+}
+
+func TestListEmailDomainHealthRefreshHonorsRateLimit(t *testing.T) {
+	app, auth := newTestDBApp(t)
+	auth = seedOrgAdmin(t, app, auth.OrganizationID)
+	ctx := context.Background()
+	domain := "list-rate-" + strings.ToLower(randomBase36(8)) + ".example.com"
+	seedEmailDomainIntegration(t, app, auth, domain)
+	header := seedSessionHeader(t, app, auth)
+	seedExhaustedRateLimitBucket(t, app, header, http.MethodPost, emailDomainHealthRefreshRatePath)
+
+	req := connect.NewRequest(&aperiov1.ListEmailDomainHealthRequest{RefreshIfStale: true})
+	copyCompatHeaders(req.Header(), header)
+	if _, err := app.ListEmailDomainHealth(ctx, req); connect.CodeOf(err) != connect.CodeResourceExhausted {
+		t.Fatalf("expected list refresh to be rate limited, got %v", err)
+	}
+}
+
+func TestRefreshEmailDomainHealthReturnsFreshRowsWhenNothingStale(t *testing.T) {
+	app, auth := newTestDBApp(t)
+	auth = seedOrgAdmin(t, app, auth.OrganizationID)
+	ctx := context.Background()
+	domain := "fresh-" + strings.ToLower(randomBase36(8)) + ".example.com"
+	seedEmailDomainIntegration(t, app, auth, domain)
+	if _, err := app.upsertEmailDomainHealthCheck(ctx, auth.OrganizationID, emailDomainHealthRow{
+		Domain:            domain,
+		ProviderSources:   []string{"GOOGLE_WORKSPACE"},
+		Status:            "HEALTHY",
+		Score:             100,
+		SPFStatus:         "HEALTHY",
+		DKIMStatus:        "HEALTHY",
+		DMARCStatus:       "HEALTHY",
+		LastCheckedAt:     time.Now().UTC(),
+		Payload:           emptyEmailDomainHealthPayload(),
+		IssueCount:        0,
+		FailingIssueCount: 0,
+	}); err != nil {
+		t.Fatalf("seed fresh email domain health row: %v", err)
+	}
+
+	req := connect.NewRequest(&aperiov1.RefreshEmailDomainHealthRequest{})
+	copyCompatHeaders(req.Header(), seedSessionHeader(t, app, auth))
+	resp, err := app.RefreshEmailDomainHealth(ctx, req)
+	if err != nil {
+		t.Fatalf("refresh all with fresh rows: %v", err)
+	}
+	if len(resp.Msg.Data) != 1 || resp.Msg.Data[0].Domain != domain {
+		t.Fatalf("refresh all data = %+v, want existing fresh row for %s", resp.Msg.Data, domain)
+	}
+}
+
+func seedEmailDomainIntegration(t *testing.T, app *App, auth compatAuth, domain string) {
+	t.Helper()
+	if _, err := app.compatCreateIntegration(context.Background(), map[string]any{
+		"provider":          "GOOGLE_WORKSPACE",
+		"displayName":       "Google Workspace",
+		"externalAccountId": domain,
+		"mode":              "READ_ONLY",
+		"credentials": map[string]any{
+			"accessToken": "access-token-" + randomBase36(8),
+		},
+	}, auth); err != nil {
+		t.Fatalf("seed email domain integration: %v", err)
+	}
+}
+
+func emptyEmailDomainHealthPayload() emailDomainHealthPayload {
+	return emailDomainHealthPayload{
+		SPFRecords:    []string{},
+		DMARCRecords:  []string{},
+		DMARCRua:      []string{},
+		MXRecords:     []string{},
+		DKIMSelectors: []emailDomainDKIMPayload{},
+		Related:       []string{},
+		Issues:        []emailDomainIssue{},
 	}
 }
 
