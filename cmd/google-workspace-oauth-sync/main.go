@@ -127,6 +127,13 @@ func drainWakeNotifications(ctx context.Context, conn *pgx.Conn, worker *googlew
 			return
 		}
 		if time.Now().After(deadline) {
+			if active.Load() > 0 {
+				if !listenerFailed {
+					log.Printf("google-workspace-oauth-sync: -once wake drain budget elapsed; waiting for %d active sync(s) to finish", active.Load())
+				}
+				listenerFailed = true
+				continue
+			}
 			log.Printf("google-workspace-oauth-sync: -once exiting after %s; some wake-triggered syncs may not have completed", onceWakeWorkBudget)
 			return
 		}

@@ -546,7 +546,7 @@ function IntegrationSyncStatusDialog({
   const [status, setStatus] = useState<IntegrationSyncStatus | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [busySource, setBusySource] = useState<string | null>(null);
+  const [busySources, setBusySources] = useState<Set<string>>(() => new Set());
   const [backfillSource, setBackfillSource] =
     useState<IntegrationSourceSyncState | null>(null);
   const [backfillFrom, setBackfillFrom] = useState("");
@@ -606,8 +606,9 @@ function IntegrationSyncStatusDialog({
 
   async function syncSource(source: IntegrationSourceSyncState) {
     if (!integrationId) return;
-    const key = sourceKey(source);
-    setBusySource(key);
+    const key = sourceBusyKey(integrationId, source);
+    if (busySources.has(key)) return;
+    setBusySources((current) => new Set(current).add(key));
     try {
       await runIntegrationSourceSync({
         integrationId,
@@ -624,14 +625,19 @@ function IntegrationSyncStatusDialog({
         tone: "error"
       });
     } finally {
-      setBusySource(null);
+      setBusySources((current) => {
+        const next = new Set(current);
+        next.delete(key);
+        return next;
+      });
     }
   }
 
   async function runBackfill() {
     if (!integrationId || !backfillSource || !backfillFrom) return;
-    const key = sourceKey(backfillSource);
-    setBusySource(key);
+    const key = sourceBusyKey(integrationId, backfillSource);
+    if (busySources.has(key)) return;
+    setBusySources((current) => new Set(current).add(key));
     try {
       await backfillIntegrationSource({
         integrationId,
@@ -654,7 +660,11 @@ function IntegrationSyncStatusDialog({
         tone: "error"
       });
     } finally {
-      setBusySource(null);
+      setBusySources((current) => {
+        const next = new Set(current);
+        next.delete(key);
+        return next;
+      });
     }
   }
 
@@ -771,7 +781,7 @@ function IntegrationSyncStatusDialog({
                         size="sm"
                         variant="outline"
                         onClick={() => void syncSource(source)}
-                        disabled={busySource === sourceKey(source)}
+                        disabled={busySources.has(sourceBusyKey(integrationId, source))}
                       >
                         Sync
                       </Button>
@@ -781,7 +791,7 @@ function IntegrationSyncStatusDialog({
                         size="sm"
                         variant="outline"
                         onClick={() => setBackfillSource(source)}
-                        disabled={busySource === sourceKey(source)}
+                        disabled={busySources.has(sourceBusyKey(integrationId, source))}
                       >
                         Backfill
                       </Button>
@@ -815,7 +825,13 @@ function IntegrationSyncStatusDialog({
                   >
                     Cancel
                   </Button>
-                  <Button onClick={() => void runBackfill()} disabled={!backfillFrom}>
+                  <Button
+                    onClick={() => void runBackfill()}
+                    disabled={
+                      !backfillFrom ||
+                      busySources.has(sourceBusyKey(integrationId, backfillSource))
+                    }
+                  >
                     Queue backfill
                   </Button>
                 </div>
@@ -830,6 +846,10 @@ function IntegrationSyncStatusDialog({
 
 function sourceKey(source: IntegrationSourceSyncState): string {
   return `${source.sourceKind}:${source.streamName}`;
+}
+
+function sourceBusyKey(integrationId: string, source: IntegrationSourceSyncState): string {
+  return `${integrationId}:${sourceKey(source)}`;
 }
 
 function syncStatusBadgeVariant(status: string): "success" | "destructive" | "secondary" | "outline" {

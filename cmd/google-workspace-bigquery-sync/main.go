@@ -123,6 +123,13 @@ func drainWakeNotifications(ctx context.Context, conn *pgx.Conn, poller *googlew
 			return
 		}
 		if time.Now().After(deadline) {
+			if active.Load() > 0 {
+				if !listenerFailed {
+					log.Printf("google-workspace-bigquery-sync: -once wake drain budget elapsed; waiting for %d active sync(s) to finish", active.Load())
+				}
+				listenerFailed = true
+				continue
+			}
 			log.Printf("google-workspace-bigquery-sync: -once exiting after %s; some wake-triggered syncs may not have completed", onceWakeWorkBudget)
 			return
 		}

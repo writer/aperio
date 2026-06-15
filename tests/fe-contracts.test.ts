@@ -193,6 +193,26 @@ test("connector sync status exposes per-source recovery controls", () => {
   assert.match(page, /Queue backfill/);
   assert.match(
     page,
+    /useState<Set<string>>\(\(\) => new Set\(\)\)/,
+    "Per-source row actions must track multiple in-flight busy keys independently"
+  );
+  assert.match(
+    page,
+    /setBusySources\(\(current\) => new Set\(current\)\.add\(key\)\)/,
+    "Starting a row action must add only that row's busy key"
+  );
+  assert.match(
+    page,
+    /next\.delete\(key\);[\s\S]*?return next;/,
+    "Finishing a row action must clear only that row's busy key"
+  );
+  assert.match(
+    page,
+    /busySources\.has\(sourceBusyKey\(integrationId, source\)\)/,
+    "Row actions must disable from the per-source busy set"
+  );
+  assert.match(
+    page,
     /disabled=\{\s*syncingId !== null \|\| !supportsForceSync\(integration\)\s*\}/,
     "Sync all must be disabled while any connector sync request is in flight"
   );

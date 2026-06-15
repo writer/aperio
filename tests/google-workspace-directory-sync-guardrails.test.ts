@@ -132,6 +132,11 @@ test("source sync wake paths preserve one-shot and error visibility", () => {
     assert.match(source, /listenerFailed := false/, `${file} must track listener failures separately from active wake work`);
     assert.match(
       source,
+      /if time\.Now\(\)\.After\(deadline\) \{[\s\S]*?if active\.Load\(\) > 0 \{[\s\S]*?wake drain budget elapsed[\s\S]*?listenerFailed = true[\s\S]*?continue/,
+      `${file} must wait for active wake work instead of canceling it when the once-mode drain budget elapses`
+    );
+    assert.match(
+      source,
       /if listenerFailed && active\.Load\(\) == 0[\s\S]*?return/,
       `${file} must not exit after listener failure until active wake work finishes`
     );
