@@ -60,8 +60,8 @@ export function DashboardPage() {
     <div className="flex flex-col gap-6">
       <PageHeader
         eyebrow="Overview"
-        title="Posture dashboard"
-        description="Tenant-scoped posture, ingestion, incidents, and the latest open findings."
+        title="SaaS Detection & Response"
+        description="Tenant-scoped SaaS detections, ingestion, incidents, and the latest open findings."
         actions={
           <Button
             variant="outline"
@@ -93,7 +93,7 @@ export function DashboardPage() {
       ) : null}
 
       <section
-        aria-label="Posture metrics"
+        aria-label="SaaS detection metrics"
         className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
       >
         {loading || !metrics ? (

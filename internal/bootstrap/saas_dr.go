@@ -63,10 +63,16 @@ type saasResponseActionRow struct {
 	Status           string
 	ApprovalRequired bool
 	Rationale        string
+	ProposedByID     string
+	ProposedByEmail  string
+	ProposedByName   string
 	ApprovedByID     string
 	ApprovedByEmail  string
 	ApprovedByName   string
 	ApprovedAt       sql.NullTime
+	ExecutedByID     string
+	ExecutedByEmail  string
+	ExecutedByName   string
 	ExecutedAt       sql.NullTime
 	ErrorMessage     string
 	ResultJSON       string
@@ -191,6 +197,27 @@ func (a *App) ProposeSaasResponseAction(
 		return nil, err
 	}
 	return connect.NewResponse(&aperiov1.ProposeSaasResponseActionResponse{Data: action.toProto()}), nil
+}
+
+func (a *App) ApproveSaasResponseAction(
+	ctx context.Context,
+	req *connect.Request[aperiov1.ApproveSaasResponseActionRequest],
+) (*connect.Response[aperiov1.ApproveSaasResponseActionResponse], error) {
+	auth, err := a.compatAuthFromSession(ctx, req.Header())
+	if err != nil {
+		return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("unauthorized"))
+	}
+	if err := requireCompatRole(auth, "OWNER", "ADMIN"); err != nil {
+		return nil, err
+	}
+	action, err := a.approveSaasResponseAction(ctx, auth, req.Msg)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, connect.NewError(connect.CodeNotFound, errors.New("response action not found"))
+	}
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(&aperiov1.ApproveSaasResponseActionResponse{Data: action.toProto()}), nil
 }
 
 func (a *App) ExecuteSaasResponseAction(
@@ -452,7 +479,7 @@ func (row saasIncidentRow) toProto() *aperiov1.SaasIncident {
 		LastActivityAt:               row.LastActivityAt.UTC().Format(time.RFC3339Nano),
 		SlaDueAt:                     nullTimeString(row.SLADueAt),
 		ResolvedAt:                   nullTimeString(row.ResolvedAt),
-		CerebroContextJson:           row.CerebroContextJSON,
+		CerebroContextJson:           normalizeCerebroContextJSON(row.CerebroContextJSON),
 		CreatedAt:                    row.CreatedAt.UTC().Format(time.RFC3339Nano),
 		UpdatedAt:                    row.UpdatedAt.UTC().Format(time.RFC3339Nano),
 		FindingCount:                 row.FindingCount,
@@ -632,18 +659,28 @@ func saasResponseActionSelectSQL(suffix string) string {
 			sra.status::text,
 			sra.approval_required,
 			sra.rationale,
+			COALESCE(proposed_by.id, ''),
+			COALESCE(proposed_by.email, ''),
+			COALESCE(proposed_by.display_name, ''),
 			COALESCE(approved_by.id, ''),
 			COALESCE(approved_by.email, ''),
 			COALESCE(approved_by.display_name, ''),
 			sra.approved_at,
+			COALESCE(executed_by.id, ''),
+			COALESCE(executed_by.email, ''),
+			COALESCE(executed_by.display_name, ''),
 			sra.executed_at,
 			COALESCE(sra.error_message, ''),
 			sra.result::text,
 			sra.created_at,
 			sra.updated_at
 		FROM saas_response_actions sra
+		LEFT JOIN users proposed_by ON proposed_by.id = sra.proposed_by_user_id
+			AND proposed_by.organization_id = sra.organization_id
 		LEFT JOIN users approved_by ON approved_by.id = sra.approved_by_user_id
 			AND approved_by.organization_id = sra.organization_id
+		LEFT JOIN users executed_by ON executed_by.id = sra.executed_by_user_id
+			AND executed_by.organization_id = sra.organization_id
 	` + suffix
 }
 
@@ -676,10 +713,16 @@ func scanSaasResponseActionRow(scanner saasResponseActionScanner) (saasResponseA
 		&row.Status,
 		&row.ApprovalRequired,
 		&row.Rationale,
+		&row.ProposedByID,
+		&row.ProposedByEmail,
+		&row.ProposedByName,
 		&row.ApprovedByID,
 		&row.ApprovedByEmail,
 		&row.ApprovedByName,
 		&row.ApprovedAt,
+		&row.ExecutedByID,
+		&row.ExecutedByEmail,
+		&row.ExecutedByName,
 		&row.ExecutedAt,
 		&row.ErrorMessage,
 		&row.ResultJSON,
@@ -708,6 +751,13 @@ func (row saasResponseActionRow) toProto() *aperiov1.SaasResponseAction {
 		CreatedAt:        row.CreatedAt.UTC().Format(time.RFC3339Nano),
 		UpdatedAt:        row.UpdatedAt.UTC().Format(time.RFC3339Nano),
 	}
+	if row.ProposedByID != "" {
+		action.ProposedBy = &aperiov1.SecurityPrincipal{
+			Id:          row.ProposedByID,
+			Email:       row.ProposedByEmail,
+			DisplayName: row.ProposedByName,
+		}
+	}
 	if row.ApprovedByID != "" {
 		action.ApprovedBy = &aperiov1.SecurityPrincipal{
 			Id:          row.ApprovedByID,
@@ -715,8 +765,20 @@ func (row saasResponseActionRow) toProto() *aperiov1.SaasResponseAction {
 			DisplayName: row.ApprovedByName,
 		}
 	}
+	if row.ExecutedByID != "" {
+		action.ExecutedBy = &aperiov1.SecurityPrincipal{
+			Id:          row.ExecutedByID,
+			Email:       row.ExecutedByEmail,
+			DisplayName: row.ExecutedByName,
+		}
+	}
 	return action
 }
+
+// maxSaasIncidentLinkedFindings caps how many findings a single CreateSaasIncident
+// call can attach. The cap protects against pathological requests that would
+// otherwise hold a long transaction open while linking thousands of rows.
+const maxSaasIncidentLinkedFindings = 100
 
 func (a *App) createSaasIncident(ctx context.Context, auth compatAuth, req *aperiov1.CreateSaasIncidentRequest) (string, error) {
 	title := strings.TrimSpace(req.Title)
@@ -724,9 +786,12 @@ func (a *App) createSaasIncident(ctx context.Context, auth compatAuth, req *aper
 	if err := validateSaasIncidentInput(title, severity); err != nil {
 		return "", connect.NewError(connect.CodeInvalidArgument, err)
 	}
+	if len(req.FindingIds) > maxSaasIncidentLinkedFindings {
+		return "", connect.NewError(connect.CodeInvalidArgument, errors.New("too many linked findings"))
+	}
 	summary := strings.TrimSpace(req.Summary)
 	if summary == "" {
-		summary = "Posture incident opened from Aperio."
+		summary = "SaaS incident opened from Aperio."
 	}
 	tx, err := a.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -781,6 +846,8 @@ func (a *App) createSaasIncident(ctx context.Context, auth compatAuth, req *aper
 	if err := insertSaasTimelineEvent(ctx, tx, auth.OrganizationID, incidentID, "", "", "CEREBRO_CONTEXT", "Cerebro context attached", "Aperio will enrich this incident with Cerebro posture, graph, ownership, and finding context.", "cerebro", "CEREBRO", cerebroEvidence, now.Add(time.Millisecond)); err != nil {
 		return "", err
 	}
+	linkerID := sql.NullString{String: strings.TrimSpace(auth.UserID), Valid: strings.TrimSpace(auth.UserID) != ""}
+	linkedFindings := make([]string, 0, len(req.FindingIds))
 	for _, rawID := range req.FindingIds {
 		findingID := strings.TrimSpace(rawID)
 		if findingID == "" {
@@ -797,12 +864,13 @@ func (a *App) createSaasIncident(ctx context.Context, auth compatAuth, req *aper
 			return "", internalServerError("saas_incident.finding_lookup", err)
 		}
 		if _, err := tx.ExecContext(ctx, `
-			INSERT INTO saas_incident_findings (id, organization_id, incident_id, finding_id, created_at)
-			VALUES ($1,$2,$3,$4,$5)
+			INSERT INTO saas_incident_findings (id, organization_id, incident_id, finding_id, linked_by_user_id, created_at)
+			VALUES ($1,$2,$3,$4,$5,$6)
 			ON CONFLICT (incident_id, finding_id) DO NOTHING
-		`, compatID("iln"), auth.OrganizationID, incidentID, findingID, now); err != nil {
+		`, compatID("iln"), auth.OrganizationID, incidentID, findingID, linkerID, now); err != nil {
 			return "", internalServerError("saas_incident.link_finding", err)
 		}
+		linkedFindings = append(linkedFindings, findingID)
 		if err := insertSaasTimelineEvent(ctx, tx, auth.OrganizationID, incidentID, findingID, "", "DETECTION", "Finding linked", findingTitle, auth.Email, "APERIO", map[string]any{"findingId": findingID}, now.Add(2*time.Millisecond)); err != nil {
 			return "", err
 		}
@@ -810,6 +878,11 @@ func (a *App) createSaasIncident(ctx context.Context, auth compatAuth, req *aper
 	if err := tx.Commit(); err != nil {
 		return "", internalServerError("saas_incident.commit", err)
 	}
+	a.writeCompatAudit(ctx, auth, "saas_incident.create", "saas_incident", incidentID, map[string]any{
+		"severity":         severity,
+		"linkedFindings":   linkedFindings,
+		"linkedFindingCnt": len(linkedFindings),
+	})
 	return incidentID, nil
 }
 
@@ -827,29 +900,85 @@ func (a *App) updateSaasIncidentStatus(ctx context.Context, auth compatAuth, req
 		return saasIncidentRow{}, internalServerError("saas_incident_status.begin_tx", err)
 	}
 	defer tx.Rollback()
-	var title string
+	var (
+		currentStatus string
+		title         string
+	)
 	if err := tx.QueryRowContext(ctx, `
+		SELECT status::text, title
+		FROM saas_incidents
+		WHERE organization_id = $1 AND id = $2
+		FOR UPDATE
+	`, auth.OrganizationID, incidentID).Scan(&currentStatus, &title); err != nil {
+		return saasIncidentRow{}, err
+	}
+	if !isValidSaasIncidentTransition(currentStatus, status) {
+		return saasIncidentRow{}, connect.NewError(
+			connect.CodeFailedPrecondition,
+			errors.New("invalid status transition from "+currentStatus+" to "+status),
+		)
+	}
+	if currentStatus == status {
+		// No-op, but still record an audit/timeline note when supplied.
+		if note := strings.TrimSpace(req.Note); note != "" {
+			if err := insertSaasTimelineEvent(ctx, tx, auth.OrganizationID, incidentID, "", "", "NOTE", "Incident note", note, auth.Email, "APERIO", map[string]any{"status": status, "incidentTitle": title}, time.Now().UTC()); err != nil {
+				return saasIncidentRow{}, err
+			}
+			if err := tx.Commit(); err != nil {
+				return saasIncidentRow{}, internalServerError("saas_incident_status.commit", err)
+			}
+		}
+		return a.getSaasIncidentRow(ctx, auth.OrganizationID, incidentID)
+	}
+	if _, err := tx.ExecContext(ctx, `
 		UPDATE saas_incidents
 		SET status = $3::"SaasIncidentStatus",
-		    resolved_at = CASE WHEN $3 = 'RESOLVED' THEN NOW() ELSE NULL END,
+		    resolved_at = CASE
+		        WHEN $3 = 'RESOLVED' THEN COALESCE(resolved_at, NOW())
+		        ELSE resolved_at
+		    END,
 		    last_activity_at = NOW(),
 		    updated_at = NOW()
 		WHERE organization_id = $1 AND id = $2
-		RETURNING title
-	`, auth.OrganizationID, incidentID, status).Scan(&title); err != nil {
-		return saasIncidentRow{}, err
+	`, auth.OrganizationID, incidentID, status); err != nil {
+		return saasIncidentRow{}, internalServerError("saas_incident_status.update", err)
 	}
 	description := "Incident status changed to " + status + "."
 	if note := strings.TrimSpace(req.Note); note != "" {
 		description = note
 	}
-	if err := insertSaasTimelineEvent(ctx, tx, auth.OrganizationID, incidentID, "", "", "STATUS_CHANGE", "Status changed", description, auth.Email, "APERIO", map[string]any{"status": status, "incidentTitle": title}, time.Now().UTC()); err != nil {
+	if err := insertSaasTimelineEvent(ctx, tx, auth.OrganizationID, incidentID, "", "", "STATUS_CHANGE", "Status changed", description, auth.Email, "APERIO", map[string]any{"status": status, "previousStatus": currentStatus, "incidentTitle": title}, time.Now().UTC()); err != nil {
 		return saasIncidentRow{}, err
 	}
 	if err := tx.Commit(); err != nil {
 		return saasIncidentRow{}, internalServerError("saas_incident_status.commit", err)
 	}
+	a.writeCompatAudit(ctx, auth, "saas_incident.status.update", "saas_incident", incidentID, map[string]any{
+		"status":         status,
+		"previousStatus": currentStatus,
+	})
 	return a.getSaasIncidentRow(ctx, auth.OrganizationID, incidentID)
+}
+
+// isValidSaasIncidentTransition guards the state machine for SaasIncident.status.
+// Allowed: OPEN -> INVESTIGATING/CONTAINED/RESOLVED, INVESTIGATING -> CONTAINED/RESOLVED/OPEN,
+// CONTAINED -> RESOLVED/INVESTIGATING/OPEN, RESOLVED -> OPEN (re-open). No-op transitions
+// are allowed so callers can attach notes without changing state.
+func isValidSaasIncidentTransition(current, next string) bool {
+	if current == next {
+		return true
+	}
+	allowed := map[string]map[string]bool{
+		"OPEN":          {"INVESTIGATING": true, "CONTAINED": true, "RESOLVED": true},
+		"INVESTIGATING": {"OPEN": true, "CONTAINED": true, "RESOLVED": true},
+		"CONTAINED":     {"OPEN": true, "INVESTIGATING": true, "RESOLVED": true},
+		"RESOLVED":      {"OPEN": true},
+	}
+	next2, ok := allowed[current]
+	if !ok {
+		return false
+	}
+	return next2[next]
 }
 
 func (a *App) proposeSaasResponseAction(ctx context.Context, auth compatAuth, req *aperiov1.ProposeSaasResponseActionRequest) (saasResponseActionRow, error) {
@@ -890,25 +1019,114 @@ func (a *App) proposeSaasResponseAction(ctx context.Context, auth compatAuth, re
 	}
 	actionID := compatID("act")
 	providerSQL := sql.NullString{String: strings.TrimSpace(req.Provider), Valid: strings.TrimSpace(req.Provider) != ""}
+	proposerID := sql.NullString{String: strings.TrimSpace(auth.UserID), Valid: strings.TrimSpace(auth.UserID) != ""}
 	now := time.Now().UTC()
 	if _, err := tx.ExecContext(ctx, `
 		INSERT INTO saas_response_actions (
 			id, organization_id, incident_id, finding_id, action, provider, target_type,
-			target_identifier, status, approval_required, rationale, created_at, updated_at
+			target_identifier, status, approval_required, rationale,
+			proposed_by_user_id, created_at, updated_at
 		)
-		VALUES ($1,$2,$3,NULLIF($4,''),$5::"SaasResponseActionKind",$6::"SaaSProvider",$7,$8,'PROPOSED',$9,$10,$11,$11)
-	`, actionID, auth.OrganizationID, incidentID, findingID, req.Action, providerSQL, strings.TrimSpace(req.TargetType), strings.TrimSpace(req.TargetIdentifier), req.ApprovalRequired, strings.TrimSpace(req.Rationale), now); err != nil {
+		VALUES ($1,$2,$3,NULLIF($4,''),$5::"SaasResponseActionKind",$6::"SaaSProvider",$7,$8,'PROPOSED',$9,$10,$11,$12,$12)
+	`, actionID, auth.OrganizationID, incidentID, findingID, req.Action, providerSQL, strings.TrimSpace(req.TargetType), strings.TrimSpace(req.TargetIdentifier), req.ApprovalRequired, strings.TrimSpace(req.Rationale), proposerID, now); err != nil {
 		return saasResponseActionRow{}, internalServerError("saas_response.insert", err)
 	}
 	if _, err := tx.ExecContext(ctx, `UPDATE saas_incidents SET last_activity_at = $3, updated_at = $3 WHERE organization_id = $1 AND id = $2`, auth.OrganizationID, incidentID, now); err != nil {
 		return saasResponseActionRow{}, internalServerError("saas_response.touch_incident", err)
 	}
-	if err := insertSaasTimelineEvent(ctx, tx, auth.OrganizationID, incidentID, findingID, actionID, "RESPONSE_ACTION", "Response proposed", req.Action+" proposed for "+req.TargetIdentifier+".", auth.Email, "APERIO", map[string]any{"action": req.Action, "incidentTitle": incidentTitle}, now); err != nil {
+	if err := insertSaasTimelineEvent(ctx, tx, auth.OrganizationID, incidentID, findingID, actionID, "RESPONSE_ACTION", "Response proposed", req.Action+" proposed for "+req.TargetIdentifier+".", auth.Email, "APERIO", map[string]any{"action": req.Action, "incidentTitle": incidentTitle, "approvalRequired": req.ApprovalRequired}, now); err != nil {
 		return saasResponseActionRow{}, err
 	}
 	if err := tx.Commit(); err != nil {
 		return saasResponseActionRow{}, internalServerError("saas_response.commit", err)
 	}
+	a.writeCompatAudit(ctx, auth, "saas_response_action.propose", "saas_response_action", actionID, map[string]any{
+		"incidentId":       incidentID,
+		"action":           req.Action,
+		"approvalRequired": req.ApprovalRequired,
+		"target":           strings.TrimSpace(req.TargetIdentifier),
+	})
+	return a.getSaasResponseAction(ctx, auth.OrganizationID, actionID)
+}
+
+// approveSaasResponseAction enforces separation of duties: only PROPOSED
+// approval-required actions can be approved, and the approver must differ from
+// the proposer. The approval moves the action to APPROVED so a subsequent
+// Execute call can run it; without approval, Execute will reject the call.
+func (a *App) approveSaasResponseAction(ctx context.Context, auth compatAuth, req *aperiov1.ApproveSaasResponseActionRequest) (saasResponseActionRow, error) {
+	actionID := strings.TrimSpace(req.Id)
+	if actionID == "" {
+		return saasResponseActionRow{}, connect.NewError(connect.CodeInvalidArgument, errors.New("response action id is required"))
+	}
+	tx, err := a.db.BeginTx(ctx, nil)
+	if err != nil {
+		return saasResponseActionRow{}, internalServerError("saas_response_approve.begin_tx", err)
+	}
+	defer tx.Rollback()
+	var (
+		incidentID       string
+		findingID        string
+		action           string
+		targetIdentifier string
+		status           string
+		approvalRequired bool
+		proposerID       sql.NullString
+	)
+	if err := tx.QueryRowContext(ctx, `
+		SELECT incident_id, COALESCE(finding_id, ''), action::text, target_identifier,
+		       status::text, approval_required, proposed_by_user_id
+		FROM saas_response_actions
+		WHERE organization_id = $1 AND id = $2
+		FOR UPDATE
+	`, auth.OrganizationID, actionID).Scan(&incidentID, &findingID, &action, &targetIdentifier, &status, &approvalRequired, &proposerID); err != nil {
+		return saasResponseActionRow{}, err
+	}
+	if status != "PROPOSED" {
+		return saasResponseActionRow{}, connect.NewError(
+			connect.CodeFailedPrecondition,
+			errors.New("response action is not pending approval"),
+		)
+	}
+	if !approvalRequired {
+		return saasResponseActionRow{}, connect.NewError(
+			connect.CodeFailedPrecondition,
+			errors.New("response action does not require approval"),
+		)
+	}
+	if proposerID.Valid && strings.TrimSpace(auth.UserID) != "" && proposerID.String == auth.UserID {
+		return saasResponseActionRow{}, connect.NewError(
+			connect.CodePermissionDenied,
+			errors.New("approver must differ from proposer"),
+		)
+	}
+	now := time.Now().UTC()
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE saas_response_actions
+		SET status = 'APPROVED',
+		    approved_by_user_id = $3,
+		    approved_at = $4,
+		    updated_at = $4
+		WHERE organization_id = $1 AND id = $2
+	`, auth.OrganizationID, actionID, sql.NullString{String: auth.UserID, Valid: strings.TrimSpace(auth.UserID) != ""}, now); err != nil {
+		return saasResponseActionRow{}, internalServerError("saas_response_approve.update", err)
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE saas_incidents SET last_activity_at = $3, updated_at = $3 WHERE organization_id = $1 AND id = $2`, auth.OrganizationID, incidentID, now); err != nil {
+		return saasResponseActionRow{}, internalServerError("saas_response_approve.touch_incident", err)
+	}
+	description := action + " approved for " + targetIdentifier + "."
+	if note := strings.TrimSpace(req.Note); note != "" {
+		description = note
+	}
+	if err := insertSaasTimelineEvent(ctx, tx, auth.OrganizationID, incidentID, findingID, actionID, "RESPONSE_ACTION", "Response approved", description, auth.Email, "APERIO", map[string]any{"action": action, "approver": auth.Email}, now); err != nil {
+		return saasResponseActionRow{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return saasResponseActionRow{}, internalServerError("saas_response_approve.commit", err)
+	}
+	a.writeCompatAudit(ctx, auth, "saas_response_action.approve", "saas_response_action", actionID, map[string]any{
+		"incidentId": incidentID,
+		"action":     action,
+	})
 	return a.getSaasResponseAction(ctx, auth.OrganizationID, actionID)
 }
 
@@ -922,34 +1140,71 @@ func (a *App) executeSaasResponseAction(ctx context.Context, auth compatAuth, re
 		return saasResponseActionRow{}, internalServerError("saas_response_execute.begin_tx", err)
 	}
 	defer tx.Rollback()
-	var incidentID, findingID, action, targetIdentifier string
+	var (
+		incidentID       string
+		findingID        string
+		action           string
+		targetIdentifier string
+		status           string
+		approvalRequired bool
+		proposerID       sql.NullString
+		approverID       sql.NullString
+	)
 	if err := tx.QueryRowContext(ctx, `
-		SELECT incident_id, COALESCE(finding_id, ''), action::text, target_identifier
+		SELECT incident_id, COALESCE(finding_id, ''), action::text, target_identifier,
+		       status::text, approval_required, proposed_by_user_id, approved_by_user_id
 		FROM saas_response_actions
 		WHERE organization_id = $1 AND id = $2
 		FOR UPDATE
-	`, auth.OrganizationID, actionID).Scan(&incidentID, &findingID, &action, &targetIdentifier); err != nil {
+	`, auth.OrganizationID, actionID).Scan(&incidentID, &findingID, &action, &targetIdentifier, &status, &approvalRequired, &proposerID, &approverID); err != nil {
 		return saasResponseActionRow{}, err
+	}
+	switch status {
+	case "PROPOSED":
+		if approvalRequired {
+			return saasResponseActionRow{}, connect.NewError(
+				connect.CodeFailedPrecondition,
+				errors.New("response action requires approval before execution"),
+			)
+		}
+	case "APPROVED":
+		if approvalRequired && !approverID.Valid {
+			return saasResponseActionRow{}, connect.NewError(
+				connect.CodeFailedPrecondition,
+				errors.New("response action is missing approver"),
+			)
+		}
+		if approvalRequired && proposerID.Valid && strings.TrimSpace(auth.UserID) != "" && proposerID.String == auth.UserID {
+			return saasResponseActionRow{}, connect.NewError(
+				connect.CodePermissionDenied,
+				errors.New("executor must differ from proposer when approval is required"),
+			)
+		}
+	default:
+		return saasResponseActionRow{}, connect.NewError(
+			connect.CodeFailedPrecondition,
+			errors.New("response action is not in an executable state"),
+		)
 	}
 	result := map[string]any{
 		"manualOutcome":    true,
 		"providerExecuted": false,
-		"effect":           "manual response outcome recorded for native posture workflow",
+		"effect":           "manual response outcome recorded; provider actuator pending",
 		"note":             strings.TrimSpace(req.Note),
 	}
 	resultJSON, _ := json.Marshal(result)
 	now := time.Now().UTC()
+	executorID := sql.NullString{String: auth.UserID, Valid: strings.TrimSpace(auth.UserID) != ""}
 	if _, err := tx.ExecContext(ctx, `
 		UPDATE saas_response_actions
 		SET status = 'SUCCEEDED',
-		    approved_by_user_id = COALESCE(approved_by_user_id, $3),
-		    approved_at = COALESCE(approved_at, $4),
+		    executed_by_user_id = $3,
 		    executed_at = $4,
 		    result = $5::jsonb,
 		    error_message = NULL,
 		    updated_at = $4
 		WHERE organization_id = $1 AND id = $2
-	`, auth.OrganizationID, actionID, auth.UserID, now, string(resultJSON)); err != nil {
+	`, auth.OrganizationID, actionID, executorID, now, string(resultJSON)); err != nil {
 		return saasResponseActionRow{}, internalServerError("saas_response_execute.update", err)
 	}
 	if _, err := tx.ExecContext(ctx, `UPDATE saas_incidents SET last_activity_at = $3, updated_at = $3 WHERE organization_id = $1 AND id = $2`, auth.OrganizationID, incidentID, now); err != nil {
@@ -961,6 +1216,11 @@ func (a *App) executeSaasResponseAction(ctx context.Context, auth compatAuth, re
 	if err := tx.Commit(); err != nil {
 		return saasResponseActionRow{}, internalServerError("saas_response_execute.commit", err)
 	}
+	a.writeCompatAudit(ctx, auth, "saas_response_action.execute", "saas_response_action", actionID, map[string]any{
+		"incidentId": incidentID,
+		"action":     action,
+		"target":     targetIdentifier,
+	})
 	return a.getSaasResponseAction(ctx, auth.OrganizationID, actionID)
 }
 
@@ -992,10 +1252,15 @@ func insertSaasTimelineEvent(ctx context.Context, execer saasTimelineExecer, org
 }
 
 func saasCerebroContextJSON(organizationID string, incidentID string) string {
-	payload := map[string]any{
+	buf, _ := json.Marshal(defaultCerebroContextPayload(organizationID, incidentID))
+	return string(buf)
+}
+
+func defaultCerebroContextPayload(organizationID string, incidentID string) map[string]any {
+	return map[string]any{
 		"source":          "cerebro",
 		"mode":            "context-pending",
-		"sourceRuntimeId": "writer-aperio-sspm",
+		"sourceRuntimeId": "writer-aperio-saas-dr",
 		"findingContract": "cerebro.v1.Finding",
 		"mcp": map[string]any{
 			"server":      "aperio-a2a-broker",
@@ -1020,8 +1285,64 @@ func saasCerebroContextJSON(organizationID string, incidentID string) string {
 			"workflow decisions",
 		},
 	}
-	buf, _ := json.Marshal(payload)
+}
+
+// normalizeCerebroContextJSON returns a context payload that is always safe for
+// the operator console to render. Persisted values may have been written by
+// older code paths, the seed harness, or future Cerebro pollers, so any
+// missing fields are back-filled with the same shape the FE relies on. Invalid
+// JSON is replaced with a generic templated default rather than surfaced.
+// MCP-coordinates are intentionally excluded from the back-fill: any context
+// written by the platform always includes them, and we should not fabricate a
+// resource URI on read for incidents whose persisted blob predates MCP.
+func normalizeCerebroContextJSON(raw string) string {
+	defaults := genericCerebroContextDefaults()
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" || trimmed == "{}" {
+		buf, _ := json.Marshal(defaults)
+		return string(buf)
+	}
+	var parsed map[string]any
+	if err := json.Unmarshal([]byte(trimmed), &parsed); err != nil || parsed == nil {
+		buf, _ := json.Marshal(defaults)
+		return string(buf)
+	}
+	for key, fallback := range defaults {
+		if _, ok := parsed[key]; !ok {
+			parsed[key] = fallback
+		}
+	}
+	if mode, ok := parsed["mode"].(string); !ok || strings.TrimSpace(mode) == "" {
+		parsed["mode"] = defaults["mode"]
+	}
+	for _, key := range []string{"graphSignals", "entities", "graphPaths", "claimSummaries", "responseHints"} {
+		if parsed[key] == nil {
+			parsed[key] = defaults[key]
+		}
+	}
+	buf, err := json.Marshal(parsed)
+	if err != nil {
+		fallback, _ := json.Marshal(defaults)
+		return string(fallback)
+	}
 	return string(buf)
+}
+
+func genericCerebroContextDefaults() map[string]any {
+	return map[string]any{
+		"source":          "cerebro",
+		"mode":            "context-pending",
+		"sourceRuntimeId": "writer-aperio-saas-dr",
+		"findingContract": "cerebro.v1.Finding",
+		"claimCount":      0,
+		"graphSignals":    []map[string]any{},
+		"entities":        []map[string]any{},
+		"graphPaths":      []map[string]any{},
+		"claimSummaries":  []map[string]any{},
+		"responseHints": []string{
+			"Attach Cerebro claims before executing high-impact response actions.",
+		},
+	}
 }
 
 func saasCerebroIncidentResourceURI(organizationID string, incidentID string) string {

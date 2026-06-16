@@ -75,9 +75,9 @@ export function IncidentsListPage() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        eyebrow="Posture"
-        title="Posture incidents"
-        description="Investigate high-signal posture findings with Cerebro context, timelines, and response actions."
+        eyebrow="SaaS Detection & Response"
+        title="SaaS incidents"
+        description="Investigate high-signal SaaS detections with Cerebro context, timelines, and response actions."
         actions={
           <Button
             variant="outline"

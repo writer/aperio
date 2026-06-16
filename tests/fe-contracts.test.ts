@@ -113,6 +113,7 @@ test("React-facing API exports cover typed product RPCs without exposing CallApi
     CreateSaasIncident: "createSaasIncident",
     UpdateSaasIncidentStatus: "updateSaasIncidentStatus",
     ProposeSaasResponseAction: "proposeSaasResponseAction",
+    ApproveSaasResponseAction: "approveSaasResponseAction",
     ExecuteSaasResponseAction: "executeSaasResponseAction",
     ListConnectorCatalog: "fetchConnectorCatalog",
     ListIntegrations: "fetchIntegrations",

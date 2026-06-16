@@ -360,7 +360,10 @@ model User {
   sessions        UserSession[]
   createdIntegrationOauthClients IntegrationOAuthClient[] @relation("IntegrationOAuthClientCreatedBy")
   assignedSaasIncidents SaasIncident[] @relation("SaasIncidentAssignee")
+  proposedSaasResponseActions SaasResponseAction[] @relation("SaasResponseActionProposedBy")
   approvedSaasResponseActions SaasResponseAction[] @relation("SaasResponseActionApprovedBy")
+  executedSaasResponseActions SaasResponseAction[] @relation("SaasResponseActionExecutedBy")
+  linkedSaasIncidentFindings SaasIncidentFinding[] @relation("SaasIncidentFindingLinkedBy")
 
   @@unique([organizationId, email])
   @@index([organizationId])
@@ -655,14 +658,16 @@ model SaasIncident {
 }
 
 model SaasIncidentFinding {
-  id             String          @id @default(cuid())
-  organizationId String          @map("organization_id")
-  incidentId     String          @map("incident_id")
-  findingId      String          @map("finding_id")
-  createdAt      DateTime        @default(now()) @map("created_at")
-  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  incident       SaasIncident    @relation(fields: [incidentId], references: [id], onDelete: Cascade)
-  finding        SecurityFinding @relation(fields: [findingId], references: [id], onDelete: Cascade)
+  id              String          @id @default(cuid())
+  organizationId  String          @map("organization_id")
+  incidentId      String          @map("incident_id")
+  findingId       String          @map("finding_id")
+  linkedByUserId  String?         @map("linked_by_user_id")
+  createdAt       DateTime        @default(now()) @map("created_at")
+  organization    Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  incident        SaasIncident    @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  finding         SecurityFinding @relation(fields: [findingId], references: [id], onDelete: Cascade)
+  linkedBy        User?           @relation("SaasIncidentFindingLinkedBy", fields: [linkedByUserId], references: [id], onDelete: SetNull)
 
   @@unique([incidentId, findingId])
   @@index([organizationId, incidentId])
@@ -707,8 +712,10 @@ model SaasResponseAction {
   status            SaasResponseActionStatus @default(PROPOSED)
   approvalRequired  Boolean                  @default(true) @map("approval_required")
   rationale         String                   @db.Text
+  proposedByUserId  String?                  @map("proposed_by_user_id")
   approvedByUserId  String?                  @map("approved_by_user_id")
   approvedAt        DateTime?                @map("approved_at")
+  executedByUserId  String?                  @map("executed_by_user_id")
   executedAt        DateTime?                @map("executed_at")
   errorMessage      String?                  @map("error_message") @db.VarChar(1000)
   result            Json                     @default("{}")
@@ -717,7 +724,9 @@ model SaasResponseAction {
   organization      Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   incident          SaasIncident             @relation(fields: [incidentId], references: [id], onDelete: Cascade)
   finding           SecurityFinding?         @relation(fields: [findingId], references: [id], onDelete: SetNull)
+  proposedBy        User?                    @relation("SaasResponseActionProposedBy", fields: [proposedByUserId], references: [id], onDelete: SetNull)
   approvedBy        User?                    @relation("SaasResponseActionApprovedBy", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+  executedBy        User?                    @relation("SaasResponseActionExecutedBy", fields: [executedByUserId], references: [id], onDelete: SetNull)
   timelineEvents    SaasIncidentTimelineEvent[]
 
   @@index([organizationId, incidentId, status])

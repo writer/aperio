@@ -735,6 +735,12 @@ export async function proposeSaasResponseAction(payload: {
   }>;
 }
 
+export async function approveSaasResponseAction(id: string, note?: string) {
+  return aperioConnectClient.approveSaasResponseAction(id, note) as Promise<{
+    data: SaasResponseAction;
+  }>;
+}
+
 export async function executeSaasResponseAction(id: string, note?: string) {
   return aperioConnectClient.executeSaasResponseAction(id, note) as Promise<{
     data: SaasResponseAction;

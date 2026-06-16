@@ -240,8 +240,10 @@ export type ConnectSaasResponseAction = {
   status: ConnectSaasResponseActionStatus;
   approvalRequired: boolean;
   rationale: string;
+  proposedBy: ConnectSecurityPrincipal | null;
   approvedBy: ConnectSecurityPrincipal | null;
   approvedAt: string | null;
+  executedBy: ConnectSecurityPrincipal | null;
   executedAt: string | null;
   errorMessage: string | null;
   result: Record<string, unknown>;
@@ -1297,8 +1299,10 @@ function saasResponseActionFromProto(
     status: action.status as ConnectSaasResponseActionStatus,
     approvalRequired: action.approvalRequired,
     rationale: action.rationale,
+    proposedBy: securityPrincipalFromProto(action.proposedBy),
     approvedBy: securityPrincipalFromProto(action.approvedBy),
     approvedAt: action.approvedAt || null,
+    executedBy: securityPrincipalFromProto(action.executedBy),
     executedAt: action.executedAt || null,
     errorMessage: action.errorMessage || null,
     result: recordFromJson(action.resultJson),
@@ -2250,6 +2254,19 @@ export const aperioConnectClient = {
     });
     if (!response.data) {
       throw new Error("Response action proposal failed");
+    }
+    return { data: saasResponseActionFromProto(response.data) };
+  },
+  async approveSaasResponseAction(
+    id: string,
+    note?: string
+  ): Promise<{ data: ConnectSaasResponseAction }> {
+    const response = await client.approveSaasResponseAction({
+      id,
+      note: note ?? ""
+    });
+    if (!response.data) {
+      throw new Error("Response action approval failed");
     }
     return { data: saasResponseActionFromProto(response.data) };
   },

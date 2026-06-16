@@ -31,6 +31,7 @@ service AperioService {
   rpc CreateSaasIncident(CreateSaasIncidentRequest) returns (CreateSaasIncidentResponse);
   rpc UpdateSaasIncidentStatus(UpdateSaasIncidentStatusRequest) returns (UpdateSaasIncidentStatusResponse);
   rpc ProposeSaasResponseAction(ProposeSaasResponseActionRequest) returns (ProposeSaasResponseActionResponse);
+  rpc ApproveSaasResponseAction(ApproveSaasResponseActionRequest) returns (ApproveSaasResponseActionResponse);
   rpc ExecuteSaasResponseAction(ExecuteSaasResponseActionRequest) returns (ExecuteSaasResponseActionResponse);
   rpc ListConnectorCatalog(ListConnectorCatalogRequest) returns (ListConnectorCatalogResponse);
   rpc ListIntegrations(ListIntegrationsRequest) returns (ListIntegrationsResponse);
@@ -406,6 +407,15 @@ message ProposeSaasResponseActionResponse {
   SaasResponseAction data = 1;
 }
 
+message ApproveSaasResponseActionRequest {
+  string id = 1;
+  string note = 2;
+}
+
+message ApproveSaasResponseActionResponse {
+  SaasResponseAction data = 1;
+}
+
 message ExecuteSaasResponseActionRequest {
   string id = 1;
   string note = 2;
@@ -486,6 +496,8 @@ message SaasResponseAction {
   string result_json = 15;
   string created_at = 16;
   string updated_at = 17;
+  SecurityPrincipal proposed_by = 18;
+  SecurityPrincipal executed_by = 19;
 }
 
 message PageInfo {

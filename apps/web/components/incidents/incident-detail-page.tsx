@@ -11,9 +11,11 @@ import {
   RadioTower,
   Server,
   ShieldCheck,
+  ThumbsUp,
   Workflow
 } from "lucide-react";
 import {
+  approveSaasResponseAction,
   executeSaasResponseAction,
   fetchSaasIncident,
   updateSaasIncidentStatus,
@@ -79,12 +81,32 @@ export function IncidentDetailPage({ incidentId }: { incidentId: string }) {
     }
   }
 
+  async function approveAction(action: SaasResponseAction) {
+    setBusy(`approve:${action.id}`);
+    try {
+      await approveSaasResponseAction(
+        action.id,
+        "Approved from the SaaS incident workbench"
+      );
+      toast({ title: "Response action approved", tone: "success" });
+      await load();
+    } catch (err) {
+      toast({
+        title: "Unable to approve response",
+        description: err instanceof Error ? err.message : undefined,
+        tone: "error"
+      });
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function executeAction(action: SaasResponseAction) {
     setBusy(`action:${action.id}`);
     try {
       await executeSaasResponseAction(
         action.id,
-        "Recorded from the posture incident workbench"
+        "Recorded from the SaaS incident workbench"
       );
       toast({ title: "Response action recorded", tone: "success" });
       await load();
@@ -136,7 +158,7 @@ export function IncidentDetailPage({ incidentId }: { incidentId: string }) {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        eyebrow="Posture incident"
+        eyebrow="SaaS incident"
         title={incident.title}
         description={incident.summary}
         actions={
@@ -146,7 +168,7 @@ export function IncidentDetailPage({ incidentId }: { incidentId: string }) {
             <Badge variant="outline">Confidence {incident.confidenceScore}</Badge>
             <Badge variant="signal">
               <RadioTower className="h-3.5 w-3.5" />
-              Cerebro {cerebroContext.mode.replaceAll("-", " ")}
+              Cerebro {(cerebroContext?.mode ?? "context-pending").replaceAll("-", " ")}
             </Badge>
           </div>
         }
@@ -243,37 +265,81 @@ export function IncidentDetailPage({ incidentId }: { incidentId: string }) {
                   No response actions are waiting.
                 </p>
               ) : (
-                pendingActions.map((action) => (
-                  <div
-                    key={action.id}
-                    className="rounded-lg border border-border bg-muted/25 p-3"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-semibold text-foreground">
-                          {action.action.replaceAll("_", " ")}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {action.targetType}: {action.targetIdentifier}
-                        </p>
-                      </div>
-                      <Badge variant="warning">{action.status}</Badge>
-                    </div>
-                    <p className="mt-2 text-xs text-muted-foreground">
-                      {action.rationale}
-                    </p>
-                    <Button
-                      className="mt-3 w-full"
-                      size="sm"
-                      onClick={() => void executeAction(action)}
-                      loading={busy === `action:${action.id}`}
-                      loadingText="Recording…"
+                pendingActions.map((action) => {
+                  const needsApproval =
+                    action.status === "PROPOSED" && action.approvalRequired;
+                  const executable =
+                    action.status === "APPROVED" ||
+                    (action.status === "PROPOSED" && !action.approvalRequired);
+                  return (
+                    <div
+                      key={action.id}
+                      className="rounded-lg border border-border bg-muted/25 p-3"
                     >
-                      <PlayCircle className="h-4 w-4" />
-                      Record execution
-                    </Button>
-                  </div>
-                ))
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-foreground">
+                            {action.action.replaceAll("_", " ")}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {action.targetType}: {action.targetIdentifier}
+                          </p>
+                        </div>
+                        <Badge variant="warning">{action.status}</Badge>
+                      </div>
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        {action.rationale}
+                      </p>
+                      <div className="mt-3 space-y-1 text-[11px] text-muted-foreground">
+                        {action.proposedBy ? (
+                          <p>
+                            Proposed by{" "}
+                            {action.proposedBy.displayName ??
+                              action.proposedBy.email}
+                          </p>
+                        ) : null}
+                        {action.approvedBy ? (
+                          <p>
+                            Approved by{" "}
+                            {action.approvedBy.displayName ??
+                              action.approvedBy.email}
+                          </p>
+                        ) : null}
+                        {action.executedBy ? (
+                          <p>
+                            Executed by{" "}
+                            {action.executedBy.displayName ??
+                              action.executedBy.email}
+                          </p>
+                        ) : null}
+                      </div>
+                      {needsApproval ? (
+                        <Button
+                          className="mt-3 w-full"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => void approveAction(action)}
+                          loading={busy === `approve:${action.id}`}
+                          loadingText="Approving…"
+                        >
+                          <ThumbsUp className="h-4 w-4" />
+                          Approve
+                        </Button>
+                      ) : null}
+                      <Button
+                        className="mt-2 w-full"
+                        size="sm"
+                        disabled={!executable}
+                        onClick={() => void executeAction(action)}
+                        loading={busy === `action:${action.id}`}
+                        loadingText="Recording…"
+                      >
+                        <PlayCircle className="h-4 w-4" />
+                        Record execution
+                      </Button>
+                    </div>
+                  );
+                })
               )}
             </CardContent>
           </Card>
@@ -344,12 +410,16 @@ export function IncidentDetailPage({ incidentId }: { incidentId: string }) {
 type CerebroContext = SaasIncidentDetail["incident"]["cerebroContext"];
 
 function CerebroContextCard({ context }: { context: CerebroContext }) {
-  const entityByUrn = new Map(
-    context.entities.map((entity) => [entity.urn, entity])
-  );
-  const graphSignalCount = context.graphSignals.length;
-  const graphPathCount = context.graphPaths.length;
-  const claimCount = context.claimCount ?? context.claimSummaries.length;
+  const entities = context?.entities ?? [];
+  const graphSignals = context?.graphSignals ?? [];
+  const graphPaths = context?.graphPaths ?? [];
+  const claimSummaries = context?.claimSummaries ?? [];
+  const responseHints = context?.responseHints ?? [];
+  const entityByUrn = new Map(entities.map((entity) => [entity.urn, entity]));
+  const graphSignalCount = graphSignals.length;
+  const graphPathCount = graphPaths.length;
+  const claimCount = context?.claimCount ?? claimSummaries.length;
+  const mode = context?.mode ?? "context-pending";
 
   return (
     <Card>
@@ -358,12 +428,12 @@ function CerebroContextCard({ context }: { context: CerebroContext }) {
           <div>
             <CardTitle>Cerebro graph context</CardTitle>
             <CardDescription>
-              {context.sourceRuntimeId ?? "Cerebro runtime"} ·{" "}
-              {context.findingContract ?? "cerebro.v1.Finding"}
+              {context?.sourceRuntimeId ?? "Cerebro runtime"} ·{" "}
+              {context?.findingContract ?? "cerebro.v1.Finding"}
             </CardDescription>
           </div>
           <Badge variant="signal" className="shrink-0 uppercase">
-            {context.mode.replaceAll("-", " ")}
+            {mode.replaceAll("-", " ")}
           </Badge>
         </div>
       </CardHeader>
@@ -386,7 +456,7 @@ function CerebroContextCard({ context }: { context: CerebroContext }) {
           />
         </div>
 
-        {context.mcp ? (
+        {context?.mcp ? (
           <section className="space-y-2">
             <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Cerebro MCP
@@ -411,9 +481,9 @@ function CerebroContextCard({ context }: { context: CerebroContext }) {
                       {context.mcp.resourceUri}
                     </p>
                   ) : null}
-                  {context.mcp.tools.length > 0 ? (
+                  {(context.mcp.tools ?? []).length > 0 ? (
                     <div className="flex flex-wrap gap-2">
-                      {context.mcp.tools.map((tool) => (
+                      {(context.mcp.tools ?? []).map((tool) => (
                         <Badge
                           key={tool}
                           variant="signal"
@@ -430,13 +500,13 @@ function CerebroContextCard({ context }: { context: CerebroContext }) {
           </section>
         ) : null}
 
-        {context.graphSignals.length > 0 ? (
+        {graphSignals.length > 0 ? (
           <section className="space-y-2">
             <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Signals
             </h4>
             <div className="space-y-2">
-              {context.graphSignals.map((signal) => (
+              {graphSignals.map((signal) => (
                 <div
                   key={`${signal.label}:${signal.entityUrn ?? ""}`}
                   className="rounded-md border border-border bg-muted/25 p-3"
@@ -466,13 +536,13 @@ function CerebroContextCard({ context }: { context: CerebroContext }) {
           </section>
         ) : null}
 
-        {context.graphPaths.length > 0 ? (
+        {graphPaths.length > 0 ? (
           <section className="space-y-2">
             <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Entity paths
             </h4>
             <div className="space-y-2">
-              {context.graphPaths.map((path) => (
+              {graphPaths.map((path) => (
                 <div
                   key={path.id}
                   className="rounded-md border border-border bg-muted/25 p-3"
@@ -516,13 +586,13 @@ function CerebroContextCard({ context }: { context: CerebroContext }) {
           </section>
         ) : null}
 
-        {context.claimSummaries.length > 0 ? (
+        {claimSummaries.length > 0 ? (
           <section className="space-y-2">
             <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Claim provenance
             </h4>
             <div className="space-y-2">
-              {context.claimSummaries.map((claim) => {
+              {claimSummaries.map((claim) => {
                 const subject = entityByUrn.get(claim.subjectUrn);
                 const object = claim.objectUrn
                   ? entityByUrn.get(claim.objectUrn)
@@ -559,13 +629,13 @@ function CerebroContextCard({ context }: { context: CerebroContext }) {
           </section>
         ) : null}
 
-        {context.responseHints.length > 0 ? (
+        {responseHints.length > 0 ? (
           <section className="space-y-2">
             <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Response hints
             </h4>
             <ul className="space-y-2">
-              {context.responseHints.map((hint) => (
+              {responseHints.map((hint) => (
                 <li
                   key={hint}
                   className="rounded-md border border-border bg-muted/25 px-3 py-2 text-sm text-muted-foreground"

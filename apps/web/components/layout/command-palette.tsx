@@ -49,7 +49,7 @@ const STATIC_ITEMS: StaticItem[] = [
   },
   {
     id: "incidents",
-    label: "Posture incidents",
+    label: "SaaS incidents",
     href: "/incidents",
     icon: ShieldAlert,
     group: "Security"
