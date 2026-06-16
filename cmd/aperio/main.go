@@ -12,6 +12,7 @@ import (
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/writer/aperio/internal/bootstrap"
+	"github.com/writer/aperio/internal/cerebroclient"
 	"github.com/writer/aperio/internal/config"
 )
 
@@ -40,6 +41,23 @@ func main() {
 		log.Fatal(err)
 	}
 	cancelPing()
+
+	cerebroCfg := cerebroclient.ConfigFromEnv()
+	cerebroCtx, cancelCerebro := context.WithTimeout(context.Background(), cerebroCfg.Timeout)
+	runtime, cerebroEnabled, err := ensureCerebroRuntime(cerebroCtx, cerebroCfg)
+	cancelCerebro()
+	if err != nil {
+		_ = db.Close()
+		log.Fatalf("Cerebro runtime ensure failed: %v", err)
+	}
+	if cerebroEnabled {
+		log.Printf(
+			"Cerebro source runtime ensured id=%s tenant=%s source=%s",
+			runtime.ID,
+			runtime.TenantID,
+			runtime.SourceID,
+		)
+	}
 
 	app := bootstrap.NewApp(cfg, db)
 	// The service intentionally uses the standard net/http server that ConnectRPC
