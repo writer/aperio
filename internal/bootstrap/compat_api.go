@@ -61,14 +61,16 @@ func internalServerError(op string, err error) *connect.Error {
 // aligned with packages/db/prisma/schema.prisma stops oversized values from
 // reaching Postgres (where the constraint text would leak through err.Error).
 const (
-	maxOrgNameLength     = 160
-	maxOrgSlugLength     = 120
-	maxEmailLength       = 255
-	maxDisplayNameLength = 160
-	minOrgNameLength     = 1
-	minOrgSlugLength     = 2
-	minPasswordLength    = 12
-	maxPasswordLength    = 1024
+	maxOrgNameLength          = 160
+	maxOrgSlugLength          = 120
+	maxEmailLength            = 255
+	maxDisplayNameLength      = 160
+	minOrgNameLength          = 1
+	minOrgSlugLength          = 2
+	minPasswordLength         = 12
+	maxPasswordLength         = 1024
+	maxDisableReasonLength    = 500
+	maxDisableExpiresAtLength = 64
 )
 
 var (
@@ -1328,9 +1330,15 @@ func (a *App) compatUpdateIntegrationChecks(ctx context.Context, id string, body
 		if disableReason == "" {
 			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("disableReason is required when disabling checks"))
 		}
+		if utf8.RuneCountInString(disableReason) > maxDisableReasonLength {
+			return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("disableReason must be %d characters or fewer", maxDisableReasonLength))
+		}
 		disableExpiresAt = requiredString(body, "disableExpiresAt")
 		if disableExpiresAt == "" {
 			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("disableExpiresAt is required when disabling checks"))
+		}
+		if len(disableExpiresAt) > maxDisableExpiresAtLength {
+			return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("disableExpiresAt must be %d characters or fewer", maxDisableExpiresAtLength))
 		}
 		expiresAt, err := time.Parse(time.RFC3339, disableExpiresAt)
 		if err != nil {
