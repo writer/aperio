@@ -125,6 +125,50 @@ export type ConnectSaasResponseActionStatus =
   | "FAILED"
   | "CANCELLED";
 
+export type ConnectCerebroEntityRef = {
+  urn: string;
+  type: string;
+  label: string;
+  provider?: string | null;
+};
+
+export type ConnectCerebroGraphSignal = {
+  label: string;
+  predicate?: string | null;
+  confidence?: number | null;
+  entityUrn?: string | null;
+  evidence?: string | null;
+};
+
+export type ConnectCerebroGraphPath = {
+  id: string;
+  title: string;
+  risk?: string | null;
+  nodes: ConnectCerebroEntityRef[];
+};
+
+export type ConnectCerebroClaimSummary = {
+  claimType: string;
+  predicate: string;
+  subjectUrn: string;
+  objectUrn?: string | null;
+  sourceEvent?: string | null;
+};
+
+export type ConnectCerebroIncidentContext = {
+  source: string;
+  mode: string;
+  sourceRuntimeId?: string | null;
+  findingContract?: string | null;
+  claimCount?: number | null;
+  lastClaimFanoutAt?: string | null;
+  graphSignals: ConnectCerebroGraphSignal[];
+  entities: ConnectCerebroEntityRef[];
+  graphPaths: ConnectCerebroGraphPath[];
+  claimSummaries: ConnectCerebroClaimSummary[];
+  responseHints: string[];
+};
+
 export type ConnectSaasIncident = {
   id: string;
   title: string;
@@ -138,7 +182,7 @@ export type ConnectSaasIncident = {
   lastActivityAt: string;
   slaDueAt: string | null;
   resolvedAt: string | null;
-  cerebroContext: Record<string, unknown>;
+  cerebroContext: ConnectCerebroIncidentContext;
   createdAt: string;
   updatedAt: string;
   findingCount: number;
@@ -1006,6 +1050,137 @@ function recordFromJson(json: string): Record<string, unknown> {
     : {};
 }
 
+function stringFromRecord(
+  record: Record<string, unknown>,
+  key: string
+): string | null {
+  const value = record[key];
+  return typeof value === "string" && value.trim() ? value : null;
+}
+
+function numberFromRecord(
+  record: Record<string, unknown>,
+  key: string
+): number | null {
+  const value = record[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function recordsFromUnknown(value: unknown): Record<string, unknown>[] {
+  return Array.isArray(value)
+    ? value.filter(
+        (item): item is Record<string, unknown> =>
+          Boolean(item) && typeof item === "object" && !Array.isArray(item)
+      )
+    : [];
+}
+
+function stringsFromUnknown(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
+}
+
+function cerebroEntityRefFromRecord(
+  record: Record<string, unknown>
+): ConnectCerebroEntityRef | null {
+  const urn = stringFromRecord(record, "urn");
+  const type = stringFromRecord(record, "type");
+  const label = stringFromRecord(record, "label");
+  if (!urn || !type || !label) return null;
+  return {
+    urn,
+    type,
+    label,
+    provider: stringFromRecord(record, "provider")
+  };
+}
+
+function cerebroGraphSignalsFromUnknown(
+  value: unknown
+): ConnectCerebroGraphSignal[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    if (typeof item === "string" && item.trim()) {
+      return [{ label: item }];
+    }
+    if (!item || typeof item !== "object" || Array.isArray(item)) {
+      return [];
+    }
+    const record = item as Record<string, unknown>;
+    const label = stringFromRecord(record, "label");
+    if (!label) return [];
+    return [
+      {
+        label,
+        predicate: stringFromRecord(record, "predicate"),
+        confidence: numberFromRecord(record, "confidence"),
+        entityUrn: stringFromRecord(record, "entityUrn"),
+        evidence: stringFromRecord(record, "evidence")
+      }
+    ];
+  });
+}
+
+function cerebroGraphPathsFromUnknown(
+  value: unknown
+): ConnectCerebroGraphPath[] {
+  return recordsFromUnknown(value).flatMap((record) => {
+    const id = stringFromRecord(record, "id");
+    const title = stringFromRecord(record, "title");
+    if (!id || !title) return [];
+    return [
+      {
+        id,
+        title,
+        risk: stringFromRecord(record, "risk"),
+        nodes: recordsFromUnknown(record.nodes)
+          .map(cerebroEntityRefFromRecord)
+          .filter((node): node is ConnectCerebroEntityRef => Boolean(node))
+      }
+    ];
+  });
+}
+
+function cerebroClaimSummariesFromUnknown(
+  value: unknown
+): ConnectCerebroClaimSummary[] {
+  return recordsFromUnknown(value).flatMap((record) => {
+    const claimType = stringFromRecord(record, "claimType");
+    const predicate = stringFromRecord(record, "predicate");
+    const subjectUrn = stringFromRecord(record, "subjectUrn");
+    if (!claimType || !predicate || !subjectUrn) return [];
+    return [
+      {
+        claimType,
+        predicate,
+        subjectUrn,
+        objectUrn: stringFromRecord(record, "objectUrn"),
+        sourceEvent: stringFromRecord(record, "sourceEvent")
+      }
+    ];
+  });
+}
+
+function cerebroContextFromJson(json: string): ConnectCerebroIncidentContext {
+  const record = recordFromJson(json);
+  return {
+    source: stringFromRecord(record, "source") ?? "cerebro",
+    mode: stringFromRecord(record, "mode") ?? "context-only",
+    sourceRuntimeId: stringFromRecord(record, "sourceRuntimeId"),
+    findingContract: stringFromRecord(record, "findingContract"),
+    claimCount: numberFromRecord(record, "claimCount"),
+    lastClaimFanoutAt: stringFromRecord(record, "lastClaimFanoutAt"),
+    graphSignals: cerebroGraphSignalsFromUnknown(record.graphSignals),
+    entities: recordsFromUnknown(record.entities)
+      .map(cerebroEntityRefFromRecord)
+      .filter((entity): entity is ConnectCerebroEntityRef => Boolean(entity)),
+    graphPaths: cerebroGraphPathsFromUnknown(record.graphPaths),
+    claimSummaries: cerebroClaimSummariesFromUnknown(record.claimSummaries),
+    responseHints: stringsFromUnknown(record.responseHints)
+  };
+}
+
 function securityPrincipalFromProto(
   principal?: ProtoSecurityPrincipal | null
 ): ConnectSecurityPrincipal | null {
@@ -1035,7 +1210,7 @@ function saasIncidentFromProto(
     lastActivityAt: incident.lastActivityAt,
     slaDueAt: incident.slaDueAt || null,
     resolvedAt: incident.resolvedAt || null,
-    cerebroContext: recordFromJson(incident.cerebroContextJson),
+    cerebroContext: cerebroContextFromJson(incident.cerebroContextJson),
     createdAt: incident.createdAt,
     updatedAt: incident.updatedAt,
     findingCount: incident.findingCount,

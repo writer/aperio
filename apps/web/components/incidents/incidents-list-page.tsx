@@ -2,7 +2,14 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowRight, CheckCircle2, Clock3, ShieldAlert, Zap } from "lucide-react";
+import {
+  ArrowRight,
+  CheckCircle2,
+  Clock3,
+  RadioTower,
+  ShieldAlert,
+  Zap
+} from "lucide-react";
 import {
   fetchSaasIncidents,
   type SaasIncident,
@@ -174,6 +181,8 @@ export function IncidentsListPage() {
 }
 
 function IncidentRow({ incident }: { incident: SaasIncident }) {
+  const cerebroSignalCount = incident.cerebroContext.graphSignals.length;
+
   return (
     <Link
       href={`/incidents/${incident.id}`}
@@ -187,6 +196,10 @@ function IncidentRow({ incident }: { incident: SaasIncident }) {
           {incident.ownerTeam ? (
             <Badge variant="secondary">{incident.ownerTeam}</Badge>
           ) : null}
+          <Badge variant="signal">
+            <RadioTower className="h-3.5 w-3.5" />
+            {cerebroSignalCount} Cerebro signals
+          </Badge>
         </div>
         <div>
           <h3 className="truncate text-sm font-semibold text-foreground">
@@ -199,6 +212,7 @@ function IncidentRow({ incident }: { incident: SaasIncident }) {
         <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
           <span>{incident.findingCount} findings</span>
           <span>{incident.responseActionCount} response actions</span>
+          <span>{incident.cerebroContext.mode.replaceAll("-", " ")} graph context</span>
           <span>Last activity {formatDateTime(incident.lastActivityAt)}</span>
         </div>
       </div>

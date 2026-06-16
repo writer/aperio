@@ -674,6 +674,137 @@ async function main() {
     });
   }
 
+  const cerebroRuntimeId = "writer-aperio-sspm";
+  const cerebroUrn = (entityType: string, externalId: string) =>
+    `urn:cerebro:${organizationId}:runtime:${cerebroRuntimeId}:${entityType}:${encodeURIComponent(externalId)}`;
+  const boardMaterialsUrn = cerebroUrn("asset", "google-drive-board-materials");
+  const vendorAnalyticsUrn = cerebroUrn("oauth_app", "Vendor Analytics Add-on");
+  const externalSharingFindingUrn = cerebroUrn(
+    "finding",
+    "fnd_demo_external_sharing"
+  );
+  const vendorAppFindingUrn = cerebroUrn(
+    "finding",
+    "fnd_demo_unowned_vendor_app"
+  );
+  const externalCollaboratorUrn = cerebroUrn(
+    "identity",
+    "external-collaborator:investor-diligence"
+  );
+  const cerebroIncidentContext = {
+    source: "cerebro",
+    mode: "claim-fanout",
+    sourceRuntimeId: cerebroRuntimeId,
+    findingContract: "cerebro.v1.Finding",
+    claimCount: 7,
+    lastClaimFanoutAt: detectedAt.toISOString(),
+    entities: [
+      {
+        urn: boardMaterialsUrn,
+        type: "asset",
+        label: "Board materials Drive folder",
+        provider: "GOOGLE_WORKSPACE"
+      },
+      {
+        urn: vendorAnalyticsUrn,
+        type: "oauth_app",
+        label: "Vendor Analytics Add-on",
+        provider: "GOOGLE_WORKSPACE"
+      },
+      {
+        urn: externalCollaboratorUrn,
+        type: "identity",
+        label: "External collaborator"
+      },
+      {
+        urn: externalSharingFindingUrn,
+        type: "finding",
+        label: "Board materials publicly shared"
+      },
+      {
+        urn: vendorAppFindingUrn,
+        type: "finding",
+        label: "Unowned app retains Drive access"
+      }
+    ],
+    graphSignals: [
+      {
+        label: "Restricted Drive asset has a public share path",
+        predicate: "exposes",
+        confidence: 0.94,
+        entityUrn: boardMaterialsUrn,
+        evidence: "Drive ACL and data classification claims"
+      },
+      {
+        label: "OAuth app retains Drive scopes without an owner",
+        predicate: "can_access",
+        confidence: 0.86,
+        entityUrn: vendorAnalyticsUrn,
+        evidence: "OAuth grant and ownership claims"
+      },
+      {
+        label: "External collaborator path reaches restricted material",
+        predicate: "reachable_from",
+        confidence: 0.81,
+        entityUrn: externalCollaboratorUrn,
+        evidence: "Cerebro graph traversal"
+      }
+    ],
+    graphPaths: [
+      {
+        id: "path_vendor_drive_exposure",
+        title: "Vendor app to restricted Drive asset",
+        risk: "external exposure",
+        nodes: [
+          {
+            urn: vendorAnalyticsUrn,
+            type: "oauth_app",
+            label: "Vendor Analytics Add-on",
+            provider: "GOOGLE_WORKSPACE"
+          },
+          {
+            urn: boardMaterialsUrn,
+            type: "asset",
+            label: "Board materials Drive folder",
+            provider: "GOOGLE_WORKSPACE"
+          },
+          {
+            urn: externalCollaboratorUrn,
+            type: "identity",
+            label: "External collaborator"
+          }
+        ]
+      }
+    ],
+    claimSummaries: [
+      {
+        claimType: "relation",
+        predicate: "affects",
+        subjectUrn: externalSharingFindingUrn,
+        objectUrn: boardMaterialsUrn,
+        sourceEvent: "google_workspace.drive_acl"
+      },
+      {
+        claimType: "relation",
+        predicate: "can_access",
+        subjectUrn: vendorAnalyticsUrn,
+        objectUrn: boardMaterialsUrn,
+        sourceEvent: "google_workspace.oauth_grant"
+      },
+      {
+        claimType: "attribute",
+        predicate: "data_classification",
+        subjectUrn: boardMaterialsUrn,
+        sourceEvent: "google_workspace.directory"
+      }
+    ],
+    responseHints: [
+      "Revoke the vendor OAuth grant before closing public Drive exposure.",
+      "Confirm ownership and legal exception status for board materials.",
+      "Keep the incident open until Cerebro no longer reports a collaborator path."
+    ]
+  };
+
   await prisma.saasIncident.upsert({
     where: { id: saasIncidentId },
     update: {
@@ -687,16 +818,7 @@ async function main() {
       assigneeUserId: analystUserId,
       slaDueAt: new Date(Date.now() + 18 * 60 * 60 * 1000),
       resolvedAt: null,
-      cerebroContext: {
-        source: "cerebro",
-        mode: "context-only",
-        graphSignals: [
-          "restricted data asset",
-          "unowned OAuth application",
-          "external collaborator path"
-        ],
-        findingContract: "cerebro.v1.Finding"
-      }
+      cerebroContext: cerebroIncidentContext
     },
     create: {
       id: saasIncidentId,
@@ -712,16 +834,7 @@ async function main() {
       firstDetectedAt: detectedAt,
       lastActivityAt: new Date(),
       slaDueAt: new Date(Date.now() + 18 * 60 * 60 * 1000),
-      cerebroContext: {
-        source: "cerebro",
-        mode: "context-only",
-        graphSignals: [
-          "restricted data asset",
-          "unowned OAuth application",
-          "external collaborator path"
-        ],
-        findingContract: "cerebro.v1.Finding"
-      }
+      cerebroContext: cerebroIncidentContext
     }
   });
 
@@ -786,16 +899,32 @@ async function main() {
       description:
         "Aperio grouped external Drive sharing with an unowned OAuth app retaining Drive scopes.",
       actor: "aperio",
-      responseActionId: undefined
+      responseActionId: undefined,
+      evidence: {
+        source: "aperio",
+        incidentId: saasIncidentId,
+        linkedFindings: [
+          "fnd_demo_external_sharing",
+          "fnd_demo_unowned_vendor_app"
+        ]
+      }
     },
     {
       id: "tle_demo_vendor_drive_cerebro",
       kind: "CEREBRO_CONTEXT" as const,
       title: "Cerebro context attached",
       description:
-        "Cerebro context highlights restricted data, ownership gaps, and an external collaborator path.",
+        "Cerebro attached claim fanout, graph paths, and entity context for the restricted Drive exposure.",
       actor: "cerebro",
-      responseActionId: undefined
+      responseActionId: undefined,
+      evidence: {
+        source: "cerebro",
+        incidentId: saasIncidentId,
+        sourceRuntimeId: cerebroRuntimeId,
+        findingContract: "cerebro.v1.Finding",
+        claimCount: cerebroIncidentContext.claimCount,
+        graphPathIds: cerebroIncidentContext.graphPaths.map((path) => path.id)
+      }
     },
     {
       id: "tle_demo_vendor_drive_response",
@@ -804,7 +933,14 @@ async function main() {
       description:
         "Revoke the vendor analytics OAuth grant after analyst approval.",
       actor: "finance-security@aperio.local",
-      responseActionId: saasResponseActionId
+      responseActionId: saasResponseActionId,
+      evidence: {
+        source: "aperio",
+        incidentId: saasIncidentId,
+        action: "REVOKE_OAUTH_GRANT",
+        targetUrn: vendorAnalyticsUrn,
+        informedByClaims: ["can_access", "data_classification", "affects"]
+      }
     }
   ];
 
@@ -817,10 +953,7 @@ async function main() {
         description: event.description,
         actor: event.actor,
         responseActionId: event.responseActionId ?? null,
-        evidence: {
-          source: event.actor,
-          incidentId: saasIncidentId
-        }
+        evidence: event.evidence
       },
       create: {
         id: event.id,
@@ -832,10 +965,7 @@ async function main() {
         description: event.description,
         actor: event.actor,
         source: event.actor === "cerebro" ? "CEREBRO" : "APERIO",
-        evidence: {
-          source: event.actor,
-          incidentId: saasIncidentId
-        },
+        evidence: event.evidence,
         occurredAt: detectedAt
       }
     });

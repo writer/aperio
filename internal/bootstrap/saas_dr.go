@@ -769,7 +769,12 @@ func (a *App) createSaasIncident(ctx context.Context, auth compatAuth, req *aper
 	if err := insertSaasTimelineEvent(ctx, tx, auth.OrganizationID, incidentID, "", "", "DETECTION", "Incident opened", summary, auth.Email, "APERIO", map[string]any{"severity": severity}, now); err != nil {
 		return "", err
 	}
-	if err := insertSaasTimelineEvent(ctx, tx, auth.OrganizationID, incidentID, "", "", "CEREBRO_CONTEXT", "Cerebro context attached", "Aperio will enrich this incident with Cerebro posture, graph, ownership, and finding context.", "cerebro", "CEREBRO", map[string]any{"contract": "cerebro.v1.Finding"}, now.Add(time.Millisecond)); err != nil {
+	cerebroEvidence := map[string]any{
+		"contract":        "cerebro.v1.Finding",
+		"mode":            "context-pending",
+		"sourceRuntimeId": "writer-aperio-sspm",
+	}
+	if err := insertSaasTimelineEvent(ctx, tx, auth.OrganizationID, incidentID, "", "", "CEREBRO_CONTEXT", "Cerebro context attached", "Aperio will enrich this incident with Cerebro posture, graph, ownership, and finding context.", "cerebro", "CEREBRO", cerebroEvidence, now.Add(time.Millisecond)); err != nil {
 		return "", err
 	}
 	for _, rawID := range req.FindingIds {
@@ -984,8 +989,18 @@ func insertSaasTimelineEvent(ctx context.Context, execer saasTimelineExecer, org
 
 func saasCerebroContextJSON() string {
 	payload := map[string]any{
-		"source": "cerebro",
-		"mode":   "context-only",
+		"source":          "cerebro",
+		"mode":            "context-pending",
+		"sourceRuntimeId": "writer-aperio-sspm",
+		"findingContract": "cerebro.v1.Finding",
+		"claimCount":      0,
+		"graphSignals":    []map[string]any{},
+		"entities":        []map[string]any{},
+		"graphPaths":      []map[string]any{},
+		"claimSummaries":  []map[string]any{},
+		"responseHints": []string{
+			"Attach Cerebro claims before executing high-impact response actions.",
+		},
 		"uses": []string{
 			"asset criticality",
 			"identity privilege",
