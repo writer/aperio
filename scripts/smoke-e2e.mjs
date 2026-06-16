@@ -27,12 +27,12 @@ export const CANONICAL_ROUTES = Object.freeze([
   {
     path: "/",
     url: `${WEB_ORIGIN}/`,
-    expectedText: "SaaS D&R dashboard"
+    expectedText: "Posture dashboard"
   },
   {
     path: "/incidents",
     url: `${WEB_ORIGIN}/incidents`,
-    expectedText: "SaaS incidents"
+    expectedText: "Posture incidents"
   },
   {
     path: "/incidents/inc_demo_vendor_drive_response",

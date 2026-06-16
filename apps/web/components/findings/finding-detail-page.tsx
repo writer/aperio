@@ -87,7 +87,7 @@ export function FindingDetailPage({ findingId }: { findingId: string }) {
     setBusy("incident");
     try {
       const response = await createSaasIncident({
-        title: `SaaS response: ${finding.title}`,
+        title: `Posture incident: ${finding.title}`,
         summary: finding.description,
         severity: finding.severity,
         findingIds: [finding.id],

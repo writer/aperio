@@ -21,17 +21,17 @@ const isFolder = (node: NavNode): node is NavFolder =>
 
 export const NAV_TREE: NavNode[] = [
   {
-    label: "Operations",
+    label: "Dashboard",
     children: [
       { href: "/", label: "Overview" },
       { href: "/compliance", label: "Compliance" }
     ]
   },
   {
-    label: "SaaS D&R",
+    label: "Issues",
     children: [
-      { href: "/incidents", label: "Incidents" },
       { href: "/findings", label: "Findings" },
+      { href: "/incidents", label: "Incidents" },
       { href: "/shadow-it", label: "Shadow IT" },
       { href: "/security", label: "Security Graph" },
       { href: "/security/email-domain-health", label: "Email Domain Health" }

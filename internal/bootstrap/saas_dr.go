@@ -388,6 +388,7 @@ func saasIncidentSelectSQL(suffix string) string {
 			COALESCE(ac.completed_response_action_count, 0)
 		FROM saas_incidents si
 		LEFT JOIN users assignee ON assignee.id = si.assignee_user_id
+			AND assignee.organization_id = si.organization_id
 		LEFT JOIN finding_counts fc ON fc.incident_id = si.id
 		LEFT JOIN action_counts ac ON ac.incident_id = si.id
 	` + suffix
@@ -641,6 +642,7 @@ func saasResponseActionSelectSQL(suffix string) string {
 			sra.updated_at
 		FROM saas_response_actions sra
 		LEFT JOIN users approved_by ON approved_by.id = sra.approved_by_user_id
+			AND approved_by.organization_id = sra.organization_id
 	` + suffix
 }
 
@@ -723,7 +725,7 @@ func (a *App) createSaasIncident(ctx context.Context, auth compatAuth, req *aper
 	}
 	summary := strings.TrimSpace(req.Summary)
 	if summary == "" {
-		summary = "SaaS detection and response incident opened from Aperio."
+		summary = "Posture incident opened from Aperio."
 	}
 	tx, err := a.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -734,6 +736,21 @@ func (a *App) createSaasIncident(ctx context.Context, auth compatAuth, req *aper
 	var defaultSLAHours int
 	if err := tx.QueryRowContext(ctx, `SELECT default_sla_hours FROM organizations WHERE id = $1`, auth.OrganizationID).Scan(&defaultSLAHours); err != nil {
 		return "", internalServerError("saas_incident.default_sla", err)
+	}
+	assigneeUserID := strings.TrimSpace(req.AssigneeUserId)
+	if assigneeUserID != "" {
+		var assigneeExists bool
+		if err := tx.QueryRowContext(ctx, `
+			SELECT EXISTS (
+				SELECT 1 FROM users
+				WHERE organization_id = $1 AND id = $2 AND is_active = TRUE
+			)
+		`, auth.OrganizationID, assigneeUserID).Scan(&assigneeExists); err != nil {
+			return "", internalServerError("saas_incident.assignee_lookup", err)
+		}
+		if !assigneeExists {
+			return "", connect.NewError(connect.CodeInvalidArgument, errors.New("assignee not found"))
+		}
 	}
 	incidentID := compatID("inc")
 	contextJSON := saasCerebroContextJSON()
@@ -746,7 +763,7 @@ func (a *App) createSaasIncident(ctx context.Context, auth compatAuth, req *aper
 			sla_due_at, cerebro_context, created_at, updated_at
 		)
 		VALUES ($1,$2,$3,$4,$5::"Severity",'OPEN',70,$6,NULLIF($7,''),$8,$8,$9,$10::jsonb,$8,$8)
-	`, incidentID, auth.OrganizationID, title, summary, severity, strings.TrimSpace(req.OwnerTeam), strings.TrimSpace(req.AssigneeUserId), now, slaDueAt, contextJSON); err != nil {
+	`, incidentID, auth.OrganizationID, title, summary, severity, strings.TrimSpace(req.OwnerTeam), assigneeUserID, now, slaDueAt, contextJSON); err != nil {
 		return "", internalServerError("saas_incident.insert", err)
 	}
 	if err := insertSaasTimelineEvent(ctx, tx, auth.OrganizationID, incidentID, "", "", "DETECTION", "Incident opened", summary, auth.Email, "APERIO", map[string]any{"severity": severity}, now); err != nil {
@@ -849,14 +866,17 @@ func (a *App) proposeSaasResponseAction(ctx context.Context, auth compatAuth, re
 		var exists bool
 		if err := tx.QueryRowContext(ctx, `
 			SELECT EXISTS (
-				SELECT 1 FROM security_findings
-				WHERE organization_id = $1 AND id = $2
+				SELECT 1
+				FROM saas_incident_findings
+				WHERE organization_id = $1
+				  AND incident_id = $2
+				  AND finding_id = $3
 			)
-		`, auth.OrganizationID, findingID).Scan(&exists); err != nil {
+		`, auth.OrganizationID, incidentID, findingID).Scan(&exists); err != nil {
 			return saasResponseActionRow{}, internalServerError("saas_response.finding_lookup", err)
 		}
 		if !exists {
-			return saasResponseActionRow{}, connect.NewError(connect.CodeInvalidArgument, errors.New("finding not found"))
+			return saasResponseActionRow{}, connect.NewError(connect.CodeInvalidArgument, errors.New("finding is not linked to incident"))
 		}
 	}
 	actionID := compatID("act")
@@ -903,9 +923,10 @@ func (a *App) executeSaasResponseAction(ctx context.Context, auth compatAuth, re
 		return saasResponseActionRow{}, err
 	}
 	result := map[string]any{
-		"providerRequestId": pseudoRequestID("dr"),
-		"effect":            "response outcome recorded for native SaaS D&R workflow",
-		"note":              strings.TrimSpace(req.Note),
+		"manualOutcome":    true,
+		"providerExecuted": false,
+		"effect":           "manual response outcome recorded for native posture workflow",
+		"note":             strings.TrimSpace(req.Note),
 	}
 	resultJSON, _ := json.Marshal(result)
 	now := time.Now().UTC()
@@ -925,7 +946,7 @@ func (a *App) executeSaasResponseAction(ctx context.Context, auth compatAuth, re
 	if _, err := tx.ExecContext(ctx, `UPDATE saas_incidents SET last_activity_at = $3, updated_at = $3 WHERE organization_id = $1 AND id = $2`, auth.OrganizationID, incidentID, now); err != nil {
 		return saasResponseActionRow{}, internalServerError("saas_response_execute.touch_incident", err)
 	}
-	if err := insertSaasTimelineEvent(ctx, tx, auth.OrganizationID, incidentID, findingID, actionID, "RESPONSE_ACTION", "Response executed", action+" completed for "+targetIdentifier+".", auth.Email, "APERIO", result, now); err != nil {
+	if err := insertSaasTimelineEvent(ctx, tx, auth.OrganizationID, incidentID, findingID, actionID, "RESPONSE_ACTION", "Response outcome recorded", action+" outcome recorded for "+targetIdentifier+".", auth.Email, "APERIO", result, now); err != nil {
 		return saasResponseActionRow{}, err
 	}
 	if err := tx.Commit(); err != nil {

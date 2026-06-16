@@ -74,7 +74,7 @@ export function IncidentDetailPage({ incidentId }: { incidentId: string }) {
     try {
       await executeSaasResponseAction(
         action.id,
-        "Executed from the SaaS D&R incident workbench"
+        "Recorded from the posture incident workbench"
       );
       toast({ title: "Response action recorded", tone: "success" });
       await load();
@@ -125,7 +125,7 @@ export function IncidentDetailPage({ incidentId }: { incidentId: string }) {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        eyebrow="SaaS D&R incident"
+        eyebrow="Posture incident"
         title={incident.title}
         description={incident.summary}
         actions={
@@ -218,7 +218,7 @@ export function IncidentDetailPage({ incidentId }: { incidentId: string }) {
             <CardHeader>
               <CardTitle>Response workbench</CardTitle>
               <CardDescription>
-                Human-gated SaaS response actions with native approval and
+                Human-gated response actions with native approval and
                 execution tracking.
               </CardDescription>
             </CardHeader>

@@ -68,9 +68,9 @@ export function IncidentsListPage() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        eyebrow="SaaS D&R"
-        title="SaaS incidents"
-        description="Investigate risky SaaS activity with Cerebro posture context, linked findings, timelines, and response actions."
+        eyebrow="Posture"
+        title="Posture incidents"
+        description="Investigate high-signal posture findings with Cerebro context, timelines, and response actions."
         actions={
           <Button
             variant="outline"
@@ -90,7 +90,7 @@ export function IncidentsListPage() {
         error={error}
         className="space-y-5"
         onRetry={() => void load("initial")}
-        errorTitle="Unable to load SaaS incidents"
+        errorTitle="Unable to load posture incidents"
         skeleton={
           <div className="space-y-4">
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -145,7 +145,7 @@ export function IncidentsListPage() {
               <CardHeader>
                 <CardTitle>Incident queue</CardTitle>
                 <CardDescription>
-                  Grouped SaaS detections with linked findings, SLA, and response
+                  Grouped posture findings with linked context, SLA, and response
                   progress.
                 </CardDescription>
               </CardHeader>
@@ -153,7 +153,7 @@ export function IncidentsListPage() {
                 {rows.length === 0 ? (
                   <div className="p-6">
                     <EmptyState
-                      title="No SaaS incidents yet"
+                      title="No posture incidents yet"
                       description="Create incidents from high-signal detections to drive triage and response."
                     />
                   </div>
