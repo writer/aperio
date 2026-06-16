@@ -1330,7 +1330,7 @@ func (a *App) compatUpdateIntegrationChecks(ctx context.Context, id string, body
 		if disableReason == "" {
 			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("disableReason is required when disabling checks"))
 		}
-		if len(disableReason) > maxDisableReasonLength {
+		if utf8.RuneCountInString(disableReason) > maxDisableReasonLength {
 			return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("disableReason must be %d characters or fewer", maxDisableReasonLength))
 		}
 		disableExpiresAt = requiredString(body, "disableExpiresAt")
