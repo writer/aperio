@@ -335,6 +335,20 @@ func TestDBUpdateIntegrationChecksGovernanceGuards(t *testing.T) {
 	}, auth); connect.CodeOf(err) != connect.CodeInvalidArgument {
 		t.Fatalf("missing governance fields code = %v (%v), want CodeInvalidArgument", connect.CodeOf(err), err)
 	}
+	if _, err := app.compatUpdateIntegrationChecks(ctx, integrationID, map[string]any{
+		"disabledChecks":   []any{"slack.external_shared_channel_created"},
+		"disableReason":    strings.Repeat("x", maxDisableReasonLength+1),
+		"disableExpiresAt": time.Now().UTC().Add(24 * time.Hour).Format(time.RFC3339),
+	}, auth); connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Fatalf("overlong disable reason code = %v (%v), want CodeInvalidArgument", connect.CodeOf(err), err)
+	}
+	if _, err := app.compatUpdateIntegrationChecks(ctx, integrationID, map[string]any{
+		"disabledChecks":   []any{"slack.external_shared_channel_created"},
+		"disableReason":    "temporary breakglass",
+		"disableExpiresAt": strings.Repeat("x", maxDisableExpiresAtLength+1),
+	}, auth); connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Fatalf("overlong disable expiry code = %v (%v), want CodeInvalidArgument", connect.CodeOf(err), err)
+	}
 
 	if _, err := app.compatUpdateIntegrationChecks(ctx, integrationID, map[string]any{
 		"disabledChecks":   []any{"slack.mfa_disabled"},
