@@ -6,8 +6,10 @@ import { Activity, AlertTriangle, ArrowRight, Plug, ShieldAlert } from "lucide-r
 import {
   fetchDashboardMetrics,
   fetchFindings,
+  fetchSaasIncidents,
   type DashboardMetrics,
-  type Finding
+  type Finding,
+  type SaasIncidentMetrics
 } from "../../lib/api";
 import { PageHeader } from "../layout/page-header";
 import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
@@ -28,6 +30,8 @@ const FINDINGS_LIMIT = 100;
 
 export function DashboardPage() {
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
+  const [incidentMetrics, setIncidentMetrics] =
+    useState<SaasIncidentMetrics | null>(null);
   const [findings, setFindings] = useState<Finding[]>([]);
   const [loading, setLoading] = useState(true);
   const [reloading, setReloading] = useState(false);
@@ -38,12 +42,14 @@ export function DashboardPage() {
     else setReloading(true);
     setError("");
     try {
-      const [m, findingsRes] = await Promise.all([
+      const [m, findingsRes, incidentsRes] = await Promise.all([
         fetchDashboardMetrics(),
-        fetchFindings({ status: "OPEN", limit: FINDINGS_LIMIT })
+        fetchFindings({ status: "OPEN", limit: FINDINGS_LIMIT }),
+        fetchSaasIncidents({ status: "ALL", limit: 1 })
       ]);
       setMetrics(m.data);
       setFindings(findingsRes.data);
+      setIncidentMetrics(incidentsRes.metrics);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to load dashboard");
     } finally {
@@ -60,8 +66,8 @@ export function DashboardPage() {
     <div className="flex flex-col gap-6">
       <PageHeader
         eyebrow="Overview"
-        title="Posture dashboard"
-        description="Tenant-scoped posture, ingestion, and the latest open findings."
+        title="SaaS D&R dashboard"
+        description="Tenant-scoped detections, incidents, response work, and Cerebro-backed context."
         actions={
           <Button
             variant="outline"
@@ -93,7 +99,7 @@ export function DashboardPage() {
       ) : null}
 
       <section
-        aria-label="Posture metrics"
+        aria-label="SaaS D&R metrics"
         className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
       >
         {loading || !metrics ? (
@@ -107,10 +113,17 @@ export function DashboardPage() {
           <>
             <Metric
               icon={ShieldAlert}
-              label="Overall risk score"
-              value={formatNumber(metrics.totalRiskScore)}
-              helper="Weighted by severity, recency, breadth"
-              tone="signal"
+              label="Active incidents"
+              value={formatNumber(
+                (incidentMetrics?.open ?? 0) +
+                  (incidentMetrics?.investigating ?? 0)
+              )}
+              helper="Open or under investigation"
+              tone={
+                (incidentMetrics?.criticalOpen ?? 0) > 0
+                  ? "critical"
+                  : "signal"
+              }
             />
             <Metric
               icon={AlertTriangle}
@@ -143,12 +156,12 @@ export function DashboardPage() {
             <div>
               <CardTitle>Open findings</CardTitle>
               <CardDescription>
-                Filter, sort, and triage across all connected apps.
+                Promote high-signal findings into SaaS incidents for response.
               </CardDescription>
             </div>
             <Button variant="outline" size="sm" asChild>
-              <Link href="/apps">
-                View by app
+              <Link href="/incidents">
+                View incidents
                 <ArrowRight className="h-3.5 w-3.5" aria-hidden />
               </Link>
             </Button>
@@ -168,7 +181,7 @@ export function DashboardPage() {
                 showStatusFilter={false}
                 showUser={false}
                 emptyTitle="No open findings"
-                emptyDescription="When new posture findings surface, they will appear here."
+                emptyDescription="When new SaaS detections surface, they will appear here."
               />
             )}
           </CardContent>

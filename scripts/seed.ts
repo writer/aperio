@@ -11,6 +11,8 @@ const githubIntegrationId = "int_demo_github";
 const slackIntegrationId = "int_demo_slack";
 const googleIntegrationId = "int_demo_google";
 const siemDestinationId = "siem_demo_json_file";
+const saasIncidentId = "inc_demo_vendor_drive_response";
+const saasResponseActionId = "act_demo_revoke_vendor_drive";
 
 const githubAppAssetId = "asset_demo_app_github";
 const slackAppAssetId = "asset_demo_app_slack";
@@ -668,6 +670,173 @@ async function main() {
         organizationId,
         status: "OPEN",
         detectedAt
+      }
+    });
+  }
+
+  await prisma.saasIncident.upsert({
+    where: { id: saasIncidentId },
+    update: {
+      title: "Vendor app Drive access may expose board materials",
+      summary:
+        "Google Workspace and OAuth context indicate a third-party analytics add-on retains Drive access while restricted board materials are externally shared.",
+      severity: "HIGH",
+      status: "INVESTIGATING",
+      confidenceScore: 86,
+      ownerTeam: "SecOps",
+      assigneeUserId: analystUserId,
+      slaDueAt: new Date(Date.now() + 18 * 60 * 60 * 1000),
+      resolvedAt: null,
+      cerebroContext: {
+        source: "cerebro",
+        mode: "context-only",
+        graphSignals: [
+          "restricted data asset",
+          "unowned OAuth application",
+          "external collaborator path"
+        ],
+        findingContract: "cerebro.v1.Finding"
+      }
+    },
+    create: {
+      id: saasIncidentId,
+      organizationId,
+      title: "Vendor app Drive access may expose board materials",
+      summary:
+        "Google Workspace and OAuth context indicate a third-party analytics add-on retains Drive access while restricted board materials are externally shared.",
+      severity: "HIGH",
+      status: "INVESTIGATING",
+      confidenceScore: 86,
+      ownerTeam: "SecOps",
+      assigneeUserId: analystUserId,
+      firstDetectedAt: detectedAt,
+      lastActivityAt: new Date(),
+      slaDueAt: new Date(Date.now() + 18 * 60 * 60 * 1000),
+      cerebroContext: {
+        source: "cerebro",
+        mode: "context-only",
+        graphSignals: [
+          "restricted data asset",
+          "unowned OAuth application",
+          "external collaborator path"
+        ],
+        findingContract: "cerebro.v1.Finding"
+      }
+    }
+  });
+
+  for (const findingId of [
+    "fnd_demo_external_sharing",
+    "fnd_demo_unowned_vendor_app"
+  ]) {
+    await prisma.saasIncidentFinding.upsert({
+      where: {
+        incidentId_findingId: {
+          incidentId: saasIncidentId,
+          findingId
+        }
+      },
+      update: { organizationId },
+      create: {
+        id: `iln_demo_${findingId}`,
+        organizationId,
+        incidentId: saasIncidentId,
+        findingId
+      }
+    });
+  }
+
+  await prisma.saasResponseAction.upsert({
+    where: { id: saasResponseActionId },
+    update: {
+      status: "PROPOSED",
+      provider: "GOOGLE_WORKSPACE",
+      targetType: "oauth_app",
+      targetIdentifier: "Vendor Analytics Add-on",
+      rationale:
+        "Remove Drive scopes until ownership, legal approval, and data exposure review are complete.",
+      approvedByUserId: null,
+      approvedAt: null,
+      executedAt: null,
+      errorMessage: null,
+      result: {}
+    },
+    create: {
+      id: saasResponseActionId,
+      organizationId,
+      incidentId: saasIncidentId,
+      findingId: "fnd_demo_unowned_vendor_app",
+      action: "REVOKE_OAUTH_GRANT",
+      provider: "GOOGLE_WORKSPACE",
+      targetType: "oauth_app",
+      targetIdentifier: "Vendor Analytics Add-on",
+      status: "PROPOSED",
+      approvalRequired: true,
+      rationale:
+        "Remove Drive scopes until ownership, legal approval, and data exposure review are complete.",
+      result: {}
+    }
+  });
+
+  const timeline = [
+    {
+      id: "tle_demo_vendor_drive_detected",
+      kind: "DETECTION" as const,
+      title: "Incident opened",
+      description:
+        "Aperio grouped external Drive sharing with an unowned OAuth app retaining Drive scopes.",
+      actor: "aperio",
+      responseActionId: undefined
+    },
+    {
+      id: "tle_demo_vendor_drive_cerebro",
+      kind: "CEREBRO_CONTEXT" as const,
+      title: "Cerebro context attached",
+      description:
+        "Cerebro context highlights restricted data, ownership gaps, and an external collaborator path.",
+      actor: "cerebro",
+      responseActionId: undefined
+    },
+    {
+      id: "tle_demo_vendor_drive_response",
+      kind: "RESPONSE_ACTION" as const,
+      title: "Response proposed",
+      description:
+        "Revoke the vendor analytics OAuth grant after analyst approval.",
+      actor: "finance-security@aperio.local",
+      responseActionId: saasResponseActionId
+    }
+  ];
+
+  for (const event of timeline) {
+    await prisma.saasIncidentTimelineEvent.upsert({
+      where: { id: event.id },
+      update: {
+        kind: event.kind,
+        title: event.title,
+        description: event.description,
+        actor: event.actor,
+        responseActionId: event.responseActionId ?? null,
+        evidence: {
+          source: event.actor,
+          incidentId: saasIncidentId
+        }
+      },
+      create: {
+        id: event.id,
+        organizationId,
+        incidentId: saasIncidentId,
+        responseActionId: event.responseActionId ?? null,
+        kind: event.kind,
+        title: event.title,
+        description: event.description,
+        actor: event.actor,
+        source: event.actor === "cerebro" ? "CEREBRO" : "APERIO",
+        evidence: {
+          source: event.actor,
+          incidentId: saasIncidentId
+        },
+        occurredAt: detectedAt
       }
     });
   }

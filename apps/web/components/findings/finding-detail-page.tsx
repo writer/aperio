@@ -1,9 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { CheckCircle2, ShieldX } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { CheckCircle2, ShieldAlert, ShieldX } from "lucide-react";
 import {
   acceptFindingRisk,
+  createSaasIncident,
   fetchFinding,
   resolveFinding,
   type Finding
@@ -23,10 +25,11 @@ import { formatDateTime, providerLabel } from "../../lib/format";
 
 export function FindingDetailPage({ findingId }: { findingId: string }) {
   const { toast } = useToast();
+  const router = useRouter();
   const [finding, setFinding] = useState<Finding | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [busy, setBusy] = useState<"resolve" | "mute" | null>(null);
+  const [busy, setBusy] = useState<"resolve" | "mute" | "incident" | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -71,6 +74,30 @@ export function FindingDetailPage({ findingId }: { findingId: string }) {
     } catch (err) {
       toast({
         title: "Unable to accept risk",
+        description: err instanceof Error ? err.message : undefined,
+        tone: "error"
+      });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function handleCreateIncident() {
+    if (!finding) return;
+    setBusy("incident");
+    try {
+      const response = await createSaasIncident({
+        title: `SaaS response: ${finding.title}`,
+        summary: finding.description,
+        severity: finding.severity,
+        findingIds: [finding.id],
+        ownerTeam: "SecOps"
+      });
+      toast({ title: "Incident created", tone: "success" });
+      router.push(`/incidents/${response.data.incident.id}`);
+    } catch (err) {
+      toast({
+        title: "Unable to create incident",
         description: err instanceof Error ? err.message : undefined,
         tone: "error"
       });
@@ -199,6 +226,15 @@ export function FindingDetailPage({ findingId }: { findingId: string }) {
                     <CardTitle>Actions</CardTitle>
                   </CardHeader>
                   <CardContent className="flex flex-col gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => void handleCreateIncident()}
+                      loading={busy === "incident"}
+                      loadingText="Creating…"
+                    >
+                      <ShieldAlert className="h-4 w-4" />
+                      Create incident
+                    </Button>
                     <Button
                       onClick={() => void handleResolve()}
                       loading={busy === "resolve"}

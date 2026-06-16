@@ -24,12 +24,18 @@ import {
   type PasswordResetResult as ProtoPasswordResetResult,
   type RemediationResult as ProtoRemediationResult,
   type RiskException as ProtoRiskException,
+  type SaasIncident as ProtoSaasIncident,
+  type SaasIncidentDetail as ProtoSaasIncidentDetail,
+  type SaasIncidentMetrics as ProtoSaasIncidentMetrics,
+  type SaasIncidentTimelineEvent as ProtoSaasIncidentTimelineEvent,
+  type SaasResponseAction as ProtoSaasResponseAction,
   type SecurityGraph as ProtoSecurityGraph,
   type SecurityGraphEdge as ProtoSecurityGraphEdge,
   type SecurityGraphNode as ProtoSecurityGraphNode,
   type SecurityIdentity as ProtoSecurityIdentity,
   type SecurityOverview as ProtoSecurityOverview,
   type SecurityAsset as ProtoSecurityAsset,
+  type SecurityPrincipal as ProtoSecurityPrincipal,
   type SiemDestination as ProtoSiemDestination,
   type SiemDestinationDefinition as ProtoSiemDestinationDefinition,
   type ShadowItOauthApp as ProtoShadowItOauthApp,
@@ -83,6 +89,125 @@ export type ConnectFindingsFilters = {
   status?: ConnectFinding["status"] | "ALL";
   provider?: ConnectFinding["integration"]["provider"];
   integrationId?: string;
+  limit?: number;
+  cursor?: string;
+};
+
+export type ConnectSecurityPrincipal = {
+  id: string;
+  email: string;
+  displayName: string | null;
+};
+
+export type ConnectSaasIncidentStatus =
+  | "OPEN"
+  | "INVESTIGATING"
+  | "CONTAINED"
+  | "RESOLVED";
+
+export type ConnectSaasResponseActionKind =
+  | "REVOKE_OAUTH_GRANT"
+  | "SUSPEND_USER"
+  | "RESET_MFA"
+  | "REVOKE_SESSION"
+  | "REMOVE_EXTERNAL_SHARE"
+  | "DISABLE_FORWARDING"
+  | "REMOVE_ADMIN_ROLE"
+  | "QUARANTINE_APP"
+  | "OPEN_TICKET"
+  | "NOTIFY_SECOPS";
+
+export type ConnectSaasResponseActionStatus =
+  | "PROPOSED"
+  | "APPROVED"
+  | "EXECUTING"
+  | "SUCCEEDED"
+  | "FAILED"
+  | "CANCELLED";
+
+export type ConnectSaasIncident = {
+  id: string;
+  title: string;
+  summary: string;
+  severity: ConnectFinding["severity"];
+  status: ConnectSaasIncidentStatus;
+  confidenceScore: number;
+  ownerTeam: string | null;
+  assignee: ConnectSecurityPrincipal | null;
+  firstDetectedAt: string;
+  lastActivityAt: string;
+  slaDueAt: string | null;
+  resolvedAt: string | null;
+  cerebroContext: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+  findingCount: number;
+  openFindingCount: number;
+  responseActionCount: number;
+  completedResponseActionCount: number;
+};
+
+export type ConnectSaasIncidentMetrics = {
+  open: number;
+  investigating: number;
+  contained: number;
+  resolved: number;
+  criticalOpen: number;
+  responseActionsPending: number;
+};
+
+export type ConnectSaasIncidentTimelineEvent = {
+  id: string;
+  incidentId: string;
+  findingId: string | null;
+  responseActionId: string | null;
+  kind:
+    | "DETECTION"
+    | "CEREBRO_CONTEXT"
+    | "INVESTIGATION"
+    | "RESPONSE_ACTION"
+    | "STATUS_CHANGE"
+    | "NOTE";
+  title: string;
+  description: string;
+  actor: string | null;
+  source: string;
+  evidence: Record<string, unknown>;
+  occurredAt: string;
+  createdAt: string;
+};
+
+export type ConnectSaasResponseAction = {
+  id: string;
+  incidentId: string;
+  findingId: string | null;
+  action: ConnectSaasResponseActionKind;
+  provider: ConnectProvider | null;
+  targetType: string;
+  targetIdentifier: string;
+  status: ConnectSaasResponseActionStatus;
+  approvalRequired: boolean;
+  rationale: string;
+  approvedBy: ConnectSecurityPrincipal | null;
+  approvedAt: string | null;
+  executedAt: string | null;
+  errorMessage: string | null;
+  result: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ConnectSaasIncidentDetail = {
+  incident: ConnectSaasIncident;
+  findings: ConnectFinding[];
+  timeline: ConnectSaasIncidentTimelineEvent[];
+  responseActions: ConnectSaasResponseAction[];
+};
+
+export type ConnectSaasIncidentsFilters = {
+  status?: ConnectSaasIncidentStatus | "ALL";
+  severity?: ConnectFinding["severity"];
+  assigneeUserId?: string;
   limit?: number;
   cursor?: string;
 };
@@ -871,6 +996,122 @@ function findingFromProto(finding: ProtoFinding): ConnectFinding {
         "") as ConnectFinding["integration"]["provider"],
       displayName: finding.integration?.displayName ?? ""
     }
+  };
+}
+
+function recordFromJson(json: string): Record<string, unknown> {
+  const parsed = safeParse(json);
+  return parsed && typeof parsed === "object"
+    ? (parsed as Record<string, unknown>)
+    : {};
+}
+
+function securityPrincipalFromProto(
+  principal?: ProtoSecurityPrincipal | null
+): ConnectSecurityPrincipal | null {
+  if (!principal || !principal.id) {
+    return null;
+  }
+  return {
+    id: principal.id,
+    email: principal.email,
+    displayName: principal.displayName || null
+  };
+}
+
+function saasIncidentFromProto(
+  incident: ProtoSaasIncident
+): ConnectSaasIncident {
+  return {
+    id: incident.id,
+    title: incident.title,
+    summary: incident.summary,
+    severity: incident.severity as ConnectSaasIncident["severity"],
+    status: incident.status as ConnectSaasIncidentStatus,
+    confidenceScore: incident.confidenceScore,
+    ownerTeam: incident.ownerTeam || null,
+    assignee: securityPrincipalFromProto(incident.assignee),
+    firstDetectedAt: incident.firstDetectedAt,
+    lastActivityAt: incident.lastActivityAt,
+    slaDueAt: incident.slaDueAt || null,
+    resolvedAt: incident.resolvedAt || null,
+    cerebroContext: recordFromJson(incident.cerebroContextJson),
+    createdAt: incident.createdAt,
+    updatedAt: incident.updatedAt,
+    findingCount: incident.findingCount,
+    openFindingCount: incident.openFindingCount,
+    responseActionCount: incident.responseActionCount,
+    completedResponseActionCount: incident.completedResponseActionCount
+  };
+}
+
+function saasIncidentMetricsFromProto(
+  metrics?: ProtoSaasIncidentMetrics
+): ConnectSaasIncidentMetrics {
+  return {
+    open: metrics?.open ?? 0,
+    investigating: metrics?.investigating ?? 0,
+    contained: metrics?.contained ?? 0,
+    resolved: metrics?.resolved ?? 0,
+    criticalOpen: metrics?.criticalOpen ?? 0,
+    responseActionsPending: metrics?.responseActionsPending ?? 0
+  };
+}
+
+function saasIncidentTimelineEventFromProto(
+  event: ProtoSaasIncidentTimelineEvent
+): ConnectSaasIncidentTimelineEvent {
+  return {
+    id: event.id,
+    incidentId: event.incidentId,
+    findingId: event.findingId || null,
+    responseActionId: event.responseActionId || null,
+    kind: event.kind as ConnectSaasIncidentTimelineEvent["kind"],
+    title: event.title,
+    description: event.description,
+    actor: event.actor || null,
+    source: event.source,
+    evidence: recordFromJson(event.evidenceJson),
+    occurredAt: event.occurredAt,
+    createdAt: event.createdAt
+  };
+}
+
+function saasResponseActionFromProto(
+  action: ProtoSaasResponseAction
+): ConnectSaasResponseAction {
+  return {
+    id: action.id,
+    incidentId: action.incidentId,
+    findingId: action.findingId || null,
+    action: action.action as ConnectSaasResponseActionKind,
+    provider: action.provider ? (action.provider as ConnectProvider) : null,
+    targetType: action.targetType,
+    targetIdentifier: action.targetIdentifier,
+    status: action.status as ConnectSaasResponseActionStatus,
+    approvalRequired: action.approvalRequired,
+    rationale: action.rationale,
+    approvedBy: securityPrincipalFromProto(action.approvedBy),
+    approvedAt: action.approvedAt || null,
+    executedAt: action.executedAt || null,
+    errorMessage: action.errorMessage || null,
+    result: recordFromJson(action.resultJson),
+    createdAt: action.createdAt,
+    updatedAt: action.updatedAt
+  };
+}
+
+function saasIncidentDetailFromProto(
+  detail: ProtoSaasIncidentDetail
+): ConnectSaasIncidentDetail {
+  if (!detail.incident) {
+    throw new Error("Incident not found");
+  }
+  return {
+    incident: saasIncidentFromProto(detail.incident),
+    findings: detail.findings.map(findingFromProto),
+    timeline: detail.timeline.map(saasIncidentTimelineEventFromProto),
+    responseActions: detail.responseActions.map(saasResponseActionFromProto)
   };
 }
 
@@ -1717,6 +1958,107 @@ export const aperioConnectClient = {
       throw new Error("Remediation failed");
     }
     return { data: remediationResultFromProto(response.data) };
+  },
+  async listSaasIncidents(filters?: ConnectSaasIncidentsFilters): Promise<{
+    data: ConnectSaasIncident[];
+    pageInfo: { total: number; nextCursor: string | null };
+    metrics: ConnectSaasIncidentMetrics;
+  }> {
+    const response = await client.listSaasIncidents({
+      status: filters?.status === "ALL" ? "ALL" : filters?.status ?? "ALL",
+      severity: filters?.severity ?? "",
+      assigneeUserId: filters?.assigneeUserId ?? "",
+      limit: filters?.limit ?? 50,
+      cursor: filters?.cursor ?? ""
+    });
+    return {
+      data: response.data.map(saasIncidentFromProto),
+      pageInfo: {
+        total: response.pageInfo?.total ?? 0,
+        nextCursor: response.pageInfo?.nextCursor || null
+      },
+      metrics: saasIncidentMetricsFromProto(response.metrics)
+    };
+  },
+  async getSaasIncident(id: string): Promise<{ data: ConnectSaasIncidentDetail }> {
+    const response = await client.getSaasIncident({ id });
+    if (!response.data) {
+      throw new Error("Incident not found");
+    }
+    return { data: saasIncidentDetailFromProto(response.data) };
+  },
+  async createSaasIncident(payload: {
+    title: string;
+    summary?: string;
+    severity: ConnectFinding["severity"];
+    findingIds?: string[];
+    ownerTeam?: string;
+    assigneeUserId?: string;
+  }): Promise<{ data: ConnectSaasIncidentDetail }> {
+    const response = await client.createSaasIncident({
+      title: payload.title,
+      summary: payload.summary ?? "",
+      severity: payload.severity,
+      findingIds: payload.findingIds ?? [],
+      ownerTeam: payload.ownerTeam ?? "",
+      assigneeUserId: payload.assigneeUserId ?? ""
+    });
+    if (!response.data) {
+      throw new Error("Incident create failed");
+    }
+    return { data: saasIncidentDetailFromProto(response.data) };
+  },
+  async updateSaasIncidentStatus(
+    id: string,
+    payload: { status: ConnectSaasIncidentStatus; note?: string }
+  ): Promise<{ data: ConnectSaasIncident }> {
+    const response = await client.updateSaasIncidentStatus({
+      id,
+      status: payload.status,
+      note: payload.note ?? ""
+    });
+    if (!response.data) {
+      throw new Error("Incident status update failed");
+    }
+    return { data: saasIncidentFromProto(response.data) };
+  },
+  async proposeSaasResponseAction(payload: {
+    incidentId: string;
+    findingId?: string;
+    action: ConnectSaasResponseActionKind;
+    provider?: ConnectProvider;
+    targetType: string;
+    targetIdentifier: string;
+    rationale: string;
+    approvalRequired?: boolean;
+  }): Promise<{ data: ConnectSaasResponseAction }> {
+    const response = await client.proposeSaasResponseAction({
+      incidentId: payload.incidentId,
+      findingId: payload.findingId ?? "",
+      action: payload.action,
+      provider: payload.provider ?? "",
+      targetType: payload.targetType,
+      targetIdentifier: payload.targetIdentifier,
+      rationale: payload.rationale,
+      approvalRequired: payload.approvalRequired ?? true
+    });
+    if (!response.data) {
+      throw new Error("Response action proposal failed");
+    }
+    return { data: saasResponseActionFromProto(response.data) };
+  },
+  async executeSaasResponseAction(
+    id: string,
+    note?: string
+  ): Promise<{ data: ConnectSaasResponseAction }> {
+    const response = await client.executeSaasResponseAction({
+      id,
+      note: note ?? ""
+    });
+    if (!response.data) {
+      throw new Error("Response action execution failed");
+    }
+    return { data: saasResponseActionFromProto(response.data) };
   },
   async listConnectorCatalog(): Promise<{
     data: ConnectConnectorDefinition[];

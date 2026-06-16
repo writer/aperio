@@ -26,6 +26,12 @@ service AperioService {
   rpc GetFinding(GetFindingRequest) returns (GetFindingResponse);
   rpc UpdateFindingStatus(UpdateFindingStatusRequest) returns (UpdateFindingStatusResponse);
   rpc RemediateFinding(RemediateFindingRequest) returns (RemediateFindingResponse);
+  rpc ListSaasIncidents(ListSaasIncidentsRequest) returns (ListSaasIncidentsResponse);
+  rpc GetSaasIncident(GetSaasIncidentRequest) returns (GetSaasIncidentResponse);
+  rpc CreateSaasIncident(CreateSaasIncidentRequest) returns (CreateSaasIncidentResponse);
+  rpc UpdateSaasIncidentStatus(UpdateSaasIncidentStatusRequest) returns (UpdateSaasIncidentStatusResponse);
+  rpc ProposeSaasResponseAction(ProposeSaasResponseActionRequest) returns (ProposeSaasResponseActionResponse);
+  rpc ExecuteSaasResponseAction(ExecuteSaasResponseActionRequest) returns (ExecuteSaasResponseActionResponse);
   rpc ListConnectorCatalog(ListConnectorCatalogRequest) returns (ListConnectorCatalogResponse);
   rpc ListIntegrations(ListIntegrationsRequest) returns (ListIntegrationsResponse);
   rpc CreateIntegration(CreateIntegrationRequest) returns (CreateIntegrationResponse);
@@ -338,6 +344,148 @@ message FindingIntegration {
   string id = 1;
   string provider = 2;
   string display_name = 3;
+}
+
+message ListSaasIncidentsRequest {
+  string status = 1;
+  string severity = 2;
+  string assignee_user_id = 3;
+  int32 limit = 4;
+  string cursor = 5;
+}
+
+message ListSaasIncidentsResponse {
+  repeated SaasIncident data = 1;
+  PageInfo page_info = 2;
+  SaasIncidentMetrics metrics = 3;
+}
+
+message GetSaasIncidentRequest {
+  string id = 1;
+}
+
+message GetSaasIncidentResponse {
+  SaasIncidentDetail data = 1;
+}
+
+message CreateSaasIncidentRequest {
+  string title = 1;
+  string summary = 2;
+  string severity = 3;
+  repeated string finding_ids = 4;
+  string owner_team = 5;
+  string assignee_user_id = 6;
+}
+
+message CreateSaasIncidentResponse {
+  SaasIncidentDetail data = 1;
+}
+
+message UpdateSaasIncidentStatusRequest {
+  string id = 1;
+  string status = 2;
+  string note = 3;
+}
+
+message UpdateSaasIncidentStatusResponse {
+  SaasIncident data = 1;
+}
+
+message ProposeSaasResponseActionRequest {
+  string incident_id = 1;
+  string finding_id = 2;
+  string action = 3;
+  string provider = 4;
+  string target_type = 5;
+  string target_identifier = 6;
+  string rationale = 7;
+  bool approval_required = 8;
+}
+
+message ProposeSaasResponseActionResponse {
+  SaasResponseAction data = 1;
+}
+
+message ExecuteSaasResponseActionRequest {
+  string id = 1;
+  string note = 2;
+}
+
+message ExecuteSaasResponseActionResponse {
+  SaasResponseAction data = 1;
+}
+
+message SaasIncidentMetrics {
+  int32 open = 1;
+  int32 investigating = 2;
+  int32 contained = 3;
+  int32 resolved = 4;
+  int32 critical_open = 5;
+  int32 response_actions_pending = 6;
+}
+
+message SaasIncident {
+  string id = 1;
+  string title = 2;
+  string summary = 3;
+  string severity = 4;
+  string status = 5;
+  int32 confidence_score = 6;
+  string owner_team = 7;
+  SecurityPrincipal assignee = 8;
+  string first_detected_at = 9;
+  string last_activity_at = 10;
+  string sla_due_at = 11;
+  string resolved_at = 12;
+  string cerebro_context_json = 13;
+  string created_at = 14;
+  string updated_at = 15;
+  int32 finding_count = 16;
+  int32 open_finding_count = 17;
+  int32 response_action_count = 18;
+  int32 completed_response_action_count = 19;
+}
+
+message SaasIncidentDetail {
+  SaasIncident incident = 1;
+  repeated Finding findings = 2;
+  repeated SaasIncidentTimelineEvent timeline = 3;
+  repeated SaasResponseAction response_actions = 4;
+}
+
+message SaasIncidentTimelineEvent {
+  string id = 1;
+  string incident_id = 2;
+  string finding_id = 3;
+  string response_action_id = 4;
+  string kind = 5;
+  string title = 6;
+  string description = 7;
+  string actor = 8;
+  string source = 9;
+  string evidence_json = 10;
+  string occurred_at = 11;
+  string created_at = 12;
+}
+
+message SaasResponseAction {
+  string id = 1;
+  string incident_id = 2;
+  string finding_id = 3;
+  string action = 4;
+  string provider = 5;
+  string target_type = 6;
+  string target_identifier = 7;
+  string status = 8;
+  bool approval_required = 9;
+  string rationale = 10;
+  SecurityPrincipal approved_by = 11;
+  string approved_at = 12;
+  string executed_at = 13;
+  string error_message = 14;
+  string result_json = 15;
+  string created_at = 16;
+  string updated_at = 17;
 }
 
 message PageInfo {

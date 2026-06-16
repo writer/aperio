@@ -48,6 +48,13 @@ const STATIC_ITEMS: StaticItem[] = [
     group: "Navigate"
   },
   {
+    id: "incidents",
+    label: "SaaS incidents",
+    href: "/incidents",
+    icon: ShieldAlert,
+    group: "Security"
+  },
+  {
     id: "findings-list",
     label: "All findings",
     href: "/findings",

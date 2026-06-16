@@ -57,6 +57,7 @@ test("frontend-consumed AperioService RPC inventory is implemented and wrapped",
   const appSources = [
     readRepoFile("internal/bootstrap/app.go"),
     readRepoFile("internal/bootstrap/typed_compat.go"),
+    readRepoFile("internal/bootstrap/saas_dr.go"),
     readRepoFile("internal/bootstrap/oauth_clients.go")
   ].join("\n");
 
@@ -107,6 +108,12 @@ test("React-facing API exports cover typed product RPCs without exposing CallApi
     GetFinding: "fetchFinding",
     UpdateFindingStatus: "updateFindingStatus",
     RemediateFinding: "remediateFinding",
+    ListSaasIncidents: "fetchSaasIncidents",
+    GetSaasIncident: "fetchSaasIncident",
+    CreateSaasIncident: "createSaasIncident",
+    UpdateSaasIncidentStatus: "updateSaasIncidentStatus",
+    ProposeSaasResponseAction: "proposeSaasResponseAction",
+    ExecuteSaasResponseAction: "executeSaasResponseAction",
     ListConnectorCatalog: "fetchConnectorCatalog",
     ListIntegrations: "fetchIntegrations",
     CreateIntegration: "connectIntegration",

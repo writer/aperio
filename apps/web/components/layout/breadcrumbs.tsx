@@ -15,6 +15,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   apps: "Apps",
   connectors: "Connectors",
   findings: "Findings",
+  incidents: "Incidents",
   security: "Security",
   "shadow-it": "Shadow IT",
   "oauth-apps": "OAuth Apps",
