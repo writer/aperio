@@ -182,6 +182,7 @@ export function IncidentsListPage() {
 
 function IncidentRow({ incident }: { incident: SaasIncident }) {
   const cerebroSignalCount = incident.cerebroContext.graphSignals.length;
+  const cerebroMCPToolCount = incident.cerebroContext.mcp?.tools.length ?? 0;
 
   return (
     <Link
@@ -213,6 +214,9 @@ function IncidentRow({ incident }: { incident: SaasIncident }) {
           <span>{incident.findingCount} findings</span>
           <span>{incident.responseActionCount} response actions</span>
           <span>{incident.cerebroContext.mode.replaceAll("-", " ")} graph context</span>
+          {cerebroMCPToolCount > 0 ? (
+            <span>{cerebroMCPToolCount} Cerebro MCP tools</span>
+          ) : null}
           <span>Last activity {formatDateTime(incident.lastActivityAt)}</span>
         </div>
       </div>

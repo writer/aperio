@@ -9,6 +9,7 @@ import {
   Network,
   PlayCircle,
   RadioTower,
+  Server,
   ShieldCheck,
   Workflow
 } from "lucide-react";
@@ -384,6 +385,50 @@ function CerebroContextCard({ context }: { context: CerebroContext }) {
             value={String(graphPathCount)}
           />
         </div>
+
+        {context.mcp ? (
+          <section className="space-y-2">
+            <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Cerebro MCP
+            </h4>
+            <div className="rounded-md border border-border bg-muted/25 p-3">
+              <div className="flex items-start gap-2">
+                <Server
+                  className="mt-0.5 h-4 w-4 shrink-0 text-signal"
+                  aria-hidden
+                />
+                <div className="min-w-0 flex-1 space-y-2">
+                  <div className="flex flex-wrap items-center gap-2 text-xs">
+                    {context.mcp.server ? (
+                      <Badge variant="outline">{context.mcp.server}</Badge>
+                    ) : null}
+                    {context.mcp.mimeType ? (
+                      <Badge variant="secondary">{context.mcp.mimeType}</Badge>
+                    ) : null}
+                  </div>
+                  {context.mcp.resourceUri ? (
+                    <p className="break-all font-mono text-xs text-muted-foreground">
+                      {context.mcp.resourceUri}
+                    </p>
+                  ) : null}
+                  {context.mcp.tools.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {context.mcp.tools.map((tool) => (
+                        <Badge
+                          key={tool}
+                          variant="signal"
+                          className="max-w-full truncate font-mono text-[10px]"
+                        >
+                          {tool}
+                        </Badge>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+          </section>
+        ) : null}
 
         {context.graphSignals.length > 0 ? (
           <section className="space-y-2">

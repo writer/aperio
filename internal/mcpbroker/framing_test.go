@@ -66,8 +66,8 @@ func TestServerToolsListAndUTF8Framing(t *testing.T) {
 		t.Fatalf("multibyte id was not preserved: %#v", frames[0])
 	}
 	tools := frames[0]["result"].(map[string]any)["tools"].([]any)
-	if len(tools) != 6 {
-		t.Fatalf("tools/list returned %d tools, want 6", len(tools))
+	if len(tools) != 9 {
+		t.Fatalf("tools/list returned %d tools, want 9", len(tools))
 	}
 	for index, expected := range []string{
 		"aperio.register_agent",
@@ -76,6 +76,9 @@ func TestServerToolsListAndUTF8Framing(t *testing.T) {
 		"aperio.list_tasks",
 		"aperio.propose_remediation",
 		"aperio.enqueue_siem_payload",
+		"aperio.list_cerebro_incidents",
+		"aperio.get_cerebro_incident_context",
+		"aperio.propose_cerebro_response",
 	} {
 		tool := tools[index].(map[string]any)
 		if tool["name"] != expected {
@@ -182,6 +185,9 @@ func TestEveryApprovedToolHasAClientSafeSuccessEnvelope(t *testing.T) {
 		toolCall("list", "aperio.list_tasks", map[string]any{"organizationId": "org"}),
 		toolCall("proposal", "aperio.propose_remediation", map[string]any{"organizationId": "org", "action": "disable", "rationale": "Required by policy", "payload": map[string]any{"target": "user"}}),
 		toolCall("siem", "aperio.enqueue_siem_payload", map[string]any{"organizationId": "org", "record": map[string]any{"id": "finding"}}),
+		toolCall("cerebro-list", "aperio.list_cerebro_incidents", map[string]any{"organizationId": "org"}),
+		toolCall("cerebro-get", "aperio.get_cerebro_incident_context", map[string]any{"organizationId": "org", "incidentId": "inc"}),
+		toolCall("cerebro-response", "aperio.propose_cerebro_response", map[string]any{"organizationId": "org", "incidentId": "inc", "action": "REVOKE_OAUTH_GRANT", "targetType": "oauth_app", "targetIdentifier": "Vendor App", "rationale": "Required by Cerebro graph context"}),
 	}
 	stdout := runServer(t, NewServer(runner), strings.NewReader(joinFrames(t, requests...)))
 	frames := decodeOutputFrames(t, stdout)

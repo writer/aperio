@@ -155,6 +155,13 @@ export type ConnectCerebroClaimSummary = {
   sourceEvent?: string | null;
 };
 
+export type ConnectCerebroMCPContext = {
+  server?: string | null;
+  resourceUri?: string | null;
+  mimeType?: string | null;
+  tools: string[];
+};
+
 export type ConnectCerebroIncidentContext = {
   source: string;
   mode: string;
@@ -167,6 +174,7 @@ export type ConnectCerebroIncidentContext = {
   graphPaths: ConnectCerebroGraphPath[];
   claimSummaries: ConnectCerebroClaimSummary[];
   responseHints: string[];
+  mcp: ConnectCerebroMCPContext | null;
 };
 
 export type ConnectSaasIncident = {
@@ -1045,9 +1053,13 @@ function findingFromProto(finding: ProtoFinding): ConnectFinding {
 
 function recordFromJson(json: string): Record<string, unknown> {
   const parsed = safeParse(json);
-  return parsed && typeof parsed === "object"
-    ? (parsed as Record<string, unknown>)
-    : {};
+  return recordFromUnknown(parsed) ?? {};
+}
+
+function recordFromUnknown(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
 }
 
 function stringFromRecord(
@@ -1162,6 +1174,24 @@ function cerebroClaimSummariesFromUnknown(
   });
 }
 
+function cerebroMCPContextFromUnknown(
+  value: unknown
+): ConnectCerebroMCPContext | null {
+  const record = recordFromUnknown(value);
+  if (!record) return null;
+  const server = stringFromRecord(record, "server");
+  const resourceUri = stringFromRecord(record, "resourceUri");
+  const mimeType = stringFromRecord(record, "mimeType");
+  const tools = stringsFromUnknown(record.tools);
+  if (!server && !resourceUri && !mimeType && tools.length === 0) return null;
+  return {
+    server,
+    resourceUri,
+    mimeType,
+    tools
+  };
+}
+
 function cerebroContextFromJson(json: string): ConnectCerebroIncidentContext {
   const record = recordFromJson(json);
   return {
@@ -1177,7 +1207,8 @@ function cerebroContextFromJson(json: string): ConnectCerebroIncidentContext {
       .filter((entity): entity is ConnectCerebroEntityRef => Boolean(entity)),
     graphPaths: cerebroGraphPathsFromUnknown(record.graphPaths),
     claimSummaries: cerebroClaimSummariesFromUnknown(record.claimSummaries),
-    responseHints: stringsFromUnknown(record.responseHints)
+    responseHints: stringsFromUnknown(record.responseHints),
+    mcp: cerebroMCPContextFromUnknown(record.mcp)
   };
 }
 

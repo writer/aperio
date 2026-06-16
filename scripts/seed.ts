@@ -13,6 +13,14 @@ const googleIntegrationId = "int_demo_google";
 const siemDestinationId = "siem_demo_json_file";
 const saasIncidentId = "inc_demo_vendor_drive_response";
 const saasResponseActionId = "act_demo_revoke_vendor_drive";
+const cerebroMCPTools = [
+  "aperio.list_cerebro_incidents",
+  "aperio.get_cerebro_incident_context",
+  "aperio.propose_cerebro_response"
+];
+const cerebroMCPResourceUri = `cerebro://aperio/${encodeURIComponent(
+  organizationId
+)}/incidents/${encodeURIComponent(saasIncidentId)}`;
 
 const githubAppAssetId = "asset_demo_app_github";
 const slackAppAssetId = "asset_demo_app_slack";
@@ -696,6 +704,12 @@ async function main() {
     mode: "claim-fanout",
     sourceRuntimeId: cerebroRuntimeId,
     findingContract: "cerebro.v1.Finding",
+    mcp: {
+      server: "aperio-a2a-broker",
+      resourceUri: cerebroMCPResourceUri,
+      mimeType: "application/vnd.aperio.cerebro.incident+json",
+      tools: cerebroMCPTools
+    },
     claimCount: 7,
     lastClaimFanoutAt: detectedAt.toISOString(),
     entities: [
@@ -872,7 +886,11 @@ async function main() {
       approvedAt: null,
       executedAt: null,
       errorMessage: null,
-      result: {}
+      result: {
+        source: "cerebro_mcp",
+        mcpResourceUri: cerebroMCPResourceUri,
+        requiresHumanReview: true
+      }
     },
     create: {
       id: saasResponseActionId,
@@ -887,7 +905,11 @@ async function main() {
       approvalRequired: true,
       rationale:
         "Remove Drive scopes until ownership, legal approval, and data exposure review are complete.",
-      result: {}
+      result: {
+        source: "cerebro_mcp",
+        mcpResourceUri: cerebroMCPResourceUri,
+        requiresHumanReview: true
+      }
     }
   });
 
@@ -922,6 +944,9 @@ async function main() {
         incidentId: saasIncidentId,
         sourceRuntimeId: cerebroRuntimeId,
         findingContract: "cerebro.v1.Finding",
+        mcpServer: "aperio-a2a-broker",
+        mcpResourceUri: cerebroMCPResourceUri,
+        mcpTools: cerebroMCPTools,
         claimCount: cerebroIncidentContext.claimCount,
         graphPathIds: cerebroIncidentContext.graphPaths.map((path) => path.id)
       }
@@ -936,6 +961,7 @@ async function main() {
       responseActionId: saasResponseActionId,
       evidence: {
         source: "aperio",
+        mcpResourceUri: cerebroMCPResourceUri,
         incidentId: saasIncidentId,
         action: "REVOKE_OAUTH_GRANT",
         targetUrn: vendorAnalyticsUrn,

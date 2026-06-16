@@ -265,6 +265,118 @@ func TestDBBackedRemediationProposalsStayHumanGated(t *testing.T) {
 	}
 }
 
+func TestDBBackedCerebroIncidentToolsExposeGraphContextAndGateResponses(t *testing.T) {
+	db := openMCPToolTestDB(t)
+	orgID := seedMCPToolOrganization(t, db, "MCP Cerebro Org")
+	otherOrgID := seedMCPToolOrganization(t, db, "MCP Cerebro Other Org")
+	_, findingID := seedMCPFinding(t, db, orgID, "cerebro")
+	_, otherFindingID := seedMCPFinding(t, db, otherOrgID, "other-cerebro")
+	incidentID := seedMCPCerebroIncident(t, db, orgID, findingID, "primary")
+	otherIncidentID := seedMCPCerebroIncident(t, db, otherOrgID, otherFindingID, "other")
+	service := newAuthenticatedTestToolService(t, db)
+	service.SetNowForTesting(func() time.Time {
+		return time.Date(2026, 6, 7, 14, 0, 0, 0, time.UTC)
+	})
+
+	_ = callMCPToolFrame(t, service, "cerebro-agent", "aperio.register_agent", map[string]any{
+		"organizationId": orgID,
+		"key":            "cerebro-planner",
+		"name":           "Cerebro Planner",
+		"kind":           "REMEDIATION_PLANNER",
+	})
+	task := callMCPToolFrame(t, service, "cerebro-task", "aperio.create_task", map[string]any{
+		"organizationId":    orgID,
+		"taskType":          "cerebro.incident.response",
+		"title":             "Plan Cerebro response",
+		"createdByAgentKey": "cerebro-planner",
+	})
+	taskID := requireStringField(t, task, "taskId")
+
+	list := callMCPToolFrame(t, service, "cerebro-list", "aperio.list_cerebro_incidents", map[string]any{
+		"organizationId": orgID,
+		"status":         "INVESTIGATING",
+		"limit":          10,
+	})
+	resources := list["resources"].([]any)
+	if len(resources) != 1 {
+		t.Fatalf("list_cerebro_incidents resources = %#v, want one tenant-local incident", resources)
+	}
+	resource := resources[0].(map[string]any)
+	if resource["id"] != incidentID || resource["title"] == "" {
+		t.Fatalf("list_cerebro_incidents resource drifted: %#v", resource)
+	}
+	if got := resource["resource"].(map[string]any)["uri"]; got != cerebroIncidentResourceURI(orgID, incidentID) {
+		t.Fatalf("resource uri = %v, want %s", got, cerebroIncidentResourceURI(orgID, incidentID))
+	}
+	cerebro := resource["cerebro"].(map[string]any)
+	if cerebro["mode"] != "claim-fanout" || cerebro["graphSignalCount"].(float64) != 1 {
+		t.Fatalf("Cerebro summary drifted: %#v", cerebro)
+	}
+
+	detail := callMCPToolFrame(t, service, "cerebro-get", "aperio.get_cerebro_incident_context", map[string]any{
+		"organizationId": orgID,
+		"incidentId":     incidentID,
+	})
+	if detail["server"] != ServerName {
+		t.Fatalf("get_cerebro_incident_context server = %#v", detail["server"])
+	}
+	if detail["resource"].(map[string]any)["mimeType"] != cerebroIncidentMimeType {
+		t.Fatalf("detail resource drifted: %#v", detail["resource"])
+	}
+	incident := detail["incident"].(map[string]any)
+	context := incident["cerebroContext"].(map[string]any)
+	if context["sourceRuntimeId"] != "writer-aperio-sspm" || context["findingContract"] != "cerebro.v1.Finding" {
+		t.Fatalf("detail Cerebro context drifted: %#v", context)
+	}
+	if findings := detail["findings"].([]any); len(findings) != 1 || findings[0].(map[string]any)["id"] != findingID {
+		t.Fatalf("detail findings drifted: %#v", findings)
+	}
+
+	beforeActions := queryMCPInt(t, db, `SELECT COUNT(*) FROM saas_response_actions WHERE organization_id = $1`, orgID)
+	beforeTimeline := queryMCPInt(t, db, `SELECT COUNT(*) FROM saas_incident_timeline_events WHERE organization_id = $1`, orgID)
+	proposal := callMCPToolFrame(t, service, "cerebro-propose", "aperio.propose_cerebro_response", map[string]any{
+		"organizationId":     orgID,
+		"incidentId":         incidentID,
+		"findingId":          findingID,
+		"taskId":             taskID,
+		"proposedByAgentKey": "cerebro-planner",
+		"action":             "REVOKE_OAUTH_GRANT",
+		"provider":           "GOOGLE_WORKSPACE",
+		"targetType":         "oauth_app",
+		"targetIdentifier":   "Vendor Analytics Add-on",
+		"rationale":          "Cerebro graph path shows the vendor app can reach restricted board materials.",
+	})
+	actionID := requireStringField(t, proposal, "responseActionId")
+	if proposal["status"] != "PROPOSED" || proposal["resourceUri"] != cerebroIncidentResourceURI(orgID, incidentID) {
+		t.Fatalf("propose_cerebro_response result drifted: %#v", proposal)
+	}
+	if afterActions := queryMCPInt(t, db, `SELECT COUNT(*) FROM saas_response_actions WHERE organization_id = $1`, orgID); afterActions != beforeActions+1 {
+		t.Fatalf("response action count = %d, want %d", afterActions, beforeActions+1)
+	}
+	if afterTimeline := queryMCPInt(t, db, `SELECT COUNT(*) FROM saas_incident_timeline_events WHERE organization_id = $1`, orgID); afterTimeline != beforeTimeline+1 {
+		t.Fatalf("timeline count = %d, want %d", afterTimeline, beforeTimeline+1)
+	}
+	assertCerebroResponseAction(t, db, orgID, actionID, incidentID, findingID)
+
+	beforeInvalid := queryMCPInt(t, db, `SELECT COUNT(*) FROM saas_response_actions WHERE organization_id IN ($1, $2)`, orgID, otherOrgID)
+	expectMCPToolErrorFrame(t, service, "cerebro-cross-incident", "aperio.get_cerebro_incident_context", map[string]any{
+		"organizationId": orgID,
+		"incidentId":     otherIncidentID,
+	})
+	expectMCPToolErrorFrame(t, service, "cerebro-cross-finding", "aperio.propose_cerebro_response", map[string]any{
+		"organizationId":   orgID,
+		"incidentId":       incidentID,
+		"findingId":        otherFindingID,
+		"action":           "REVOKE_OAUTH_GRANT",
+		"targetType":       "oauth_app",
+		"targetIdentifier": "Other app",
+		"rationale":        "Must fail for a finding from another tenant.",
+	})
+	if afterInvalid := queryMCPInt(t, db, `SELECT COUNT(*) FROM saas_response_actions WHERE organization_id IN ($1, $2)`, orgID, otherOrgID); afterInvalid != beforeInvalid {
+		t.Fatalf("invalid Cerebro MCP calls changed response action count from %d to %d", beforeInvalid, afterInvalid)
+	}
+}
+
 func TestMCPSharedSecretAndTenantBoundariesRejectBeforeSideEffectsAndDoNotPersistSecrets(t *testing.T) {
 	db := openMCPToolTestDB(t)
 	orgID := seedMCPToolOrganization(t, db, "MCP Secret Org")
@@ -735,12 +847,138 @@ func seedMCPFinding(t *testing.T, db *sql.DB, orgID string, suffix string) (stri
 	return integrationID, findingID
 }
 
+func seedMCPCerebroIncident(t *testing.T, db *sql.DB, orgID string, findingID string, suffix string) string {
+	t.Helper()
+	incidentID := prefixedID("inc")
+	contextJSON, err := json.Marshal(map[string]any{
+		"source":          "cerebro",
+		"mode":            "claim-fanout",
+		"sourceRuntimeId": "writer-aperio-sspm",
+		"findingContract": "cerebro.v1.Finding",
+		"claimCount":      3,
+		"entities": []map[string]any{
+			{
+				"urn":   cerebroIncidentResourceURI(orgID, findingID),
+				"type":  "finding",
+				"label": "Seeded MCP finding",
+			},
+		},
+		"graphSignals": []map[string]any{
+			{
+				"label":      "Seeded Cerebro graph signal",
+				"predicate":  "affects",
+				"confidence": 0.91,
+				"entityUrn":  cerebroIncidentResourceURI(orgID, findingID),
+			},
+		},
+		"graphPaths": []map[string]any{
+			{
+				"id":    "path_" + suffix,
+				"title": "Seeded graph path",
+				"nodes": []map[string]any{
+					{
+						"urn":   cerebroIncidentResourceURI(orgID, findingID),
+						"type":  "finding",
+						"label": "Seeded MCP finding",
+					},
+				},
+			},
+		},
+		"claimSummaries": []map[string]any{
+			{
+				"claimType":  "relation",
+				"predicate":  "affects",
+				"subjectUrn": cerebroIncidentResourceURI(orgID, findingID),
+			},
+		},
+		"responseHints": []string{"Keep response human-gated."},
+	})
+	if err != nil {
+		t.Fatalf("marshal Cerebro context: %v", err)
+	}
+	if _, err := db.ExecContext(context.Background(), `
+		INSERT INTO saas_incidents (
+			id, organization_id, title, summary, severity, status, confidence_score,
+			owner_team, first_detected_at, last_activity_at, sla_due_at, cerebro_context,
+			created_at, updated_at
+		)
+		VALUES (
+			$1, $2, $3, 'Seeded for Cerebro MCP tests',
+			'HIGH'::"Severity", 'INVESTIGATING'::"SaasIncidentStatus", 88,
+			'SecOps', NOW() - INTERVAL '1 hour', NOW(), NOW() + INTERVAL '4 hours',
+			$4::jsonb, NOW(), NOW()
+		)
+	`, incidentID, orgID, "Seeded Cerebro MCP incident "+suffix, string(contextJSON)); err != nil {
+		t.Fatalf("seed Cerebro incident: %v", err)
+	}
+	if _, err := db.ExecContext(context.Background(), `
+		INSERT INTO saas_incident_findings (id, organization_id, incident_id, finding_id, created_at)
+		VALUES ($1, $2, $3, $4, NOW())
+	`, prefixedID("iln"), orgID, incidentID, findingID); err != nil {
+		t.Fatalf("seed Cerebro incident finding: %v", err)
+	}
+	if _, err := db.ExecContext(context.Background(), `
+		INSERT INTO saas_incident_timeline_events (
+			id, organization_id, incident_id, finding_id, kind, title, description,
+			actor, source, evidence, occurred_at, created_at
+		)
+		VALUES (
+			$1, $2, $3, $4, 'CEREBRO_CONTEXT'::"SaasIncidentTimelineKind",
+			'Cerebro context attached', 'Seeded Cerebro graph context.',
+			'cerebro', 'CEREBRO', '{"source":"cerebro"}'::jsonb, NOW(), NOW()
+		)
+	`, prefixedID("tle"), orgID, incidentID, findingID); err != nil {
+		t.Fatalf("seed Cerebro incident timeline: %v", err)
+	}
+	return incidentID
+}
+
 func newAuthenticatedTestToolService(t *testing.T, db *sql.DB) *ToolService {
 	t.Helper()
 	if strings.TrimSpace(os.Getenv("APERIO_MCP_SHARED_SECRET")) == "" {
 		t.Setenv("APERIO_MCP_SHARED_SECRET", "test-mcp-secret-"+randomID())
 	}
 	return NewToolService(db)
+}
+
+func assertCerebroResponseAction(t *testing.T, db *sql.DB, orgID string, actionID string, incidentID string, findingID string) {
+	t.Helper()
+	var status, action, provider, targetType, targetIdentifier string
+	var approvalRequired bool
+	var result []byte
+	if err := db.QueryRowContext(context.Background(), `
+		SELECT status::text, action::text, COALESCE(provider::text, ''), target_type,
+		       target_identifier, approval_required, result
+		FROM saas_response_actions
+		WHERE organization_id = $1 AND id = $2 AND incident_id = $3 AND finding_id = $4
+	`, orgID, actionID, incidentID, findingID).Scan(&status, &action, &provider, &targetType, &targetIdentifier, &approvalRequired, &result); err != nil {
+		t.Fatalf("load Cerebro response action: %v", err)
+	}
+	if status != "PROPOSED" || action != "REVOKE_OAUTH_GRANT" || provider != "GOOGLE_WORKSPACE" ||
+		targetType != "oauth_app" || targetIdentifier != "Vendor Analytics Add-on" || !approvalRequired {
+		t.Fatalf("Cerebro response action drifted: status=%s action=%s provider=%s target=%s:%s approval=%v", status, action, provider, targetType, targetIdentifier, approvalRequired)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(result, &payload); err != nil {
+		t.Fatalf("decode response action result: %v", err)
+	}
+	if payload["source"] != "cerebro_mcp" || payload["mcpResourceUri"] != cerebroIncidentResourceURI(orgID, incidentID) {
+		t.Fatalf("response action result provenance drifted: %#v", payload)
+	}
+	var timelineCount int
+	if err := db.QueryRowContext(context.Background(), `
+		SELECT COUNT(*)::int
+		FROM saas_incident_timeline_events
+		WHERE organization_id = $1
+		  AND incident_id = $2
+		  AND response_action_id = $3
+		  AND source = 'CEREBRO_MCP'
+	`, orgID, incidentID, actionID).Scan(&timelineCount); err != nil {
+		t.Fatalf("count Cerebro MCP timeline: %v", err)
+	}
+	if timelineCount != 1 {
+		t.Fatalf("Cerebro MCP timeline events = %d, want 1", timelineCount)
+	}
 }
 
 func callMCPToolFrame(t *testing.T, service *ToolService, id string, name string, args map[string]any) map[string]any {

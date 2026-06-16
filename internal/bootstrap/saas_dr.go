@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"net/url"
 	"strings"
 	"time"
 
@@ -753,7 +754,7 @@ func (a *App) createSaasIncident(ctx context.Context, auth compatAuth, req *aper
 		}
 	}
 	incidentID := compatID("inc")
-	contextJSON := saasCerebroContextJSON()
+	contextJSON := saasCerebroContextJSON(auth.OrganizationID, incidentID)
 	now := time.Now().UTC()
 	slaDueAt := now.Add(time.Duration(defaultSLAHours) * time.Hour)
 	if _, err := tx.ExecContext(ctx, `
@@ -773,6 +774,9 @@ func (a *App) createSaasIncident(ctx context.Context, auth compatAuth, req *aper
 		"contract":        "cerebro.v1.Finding",
 		"mode":            "context-pending",
 		"sourceRuntimeId": "writer-aperio-sspm",
+		"mcpServer":       "aperio-a2a-broker",
+		"mcpResourceUri":  saasCerebroIncidentResourceURI(auth.OrganizationID, incidentID),
+		"mcpTools":        saasCerebroMCPTools(),
 	}
 	if err := insertSaasTimelineEvent(ctx, tx, auth.OrganizationID, incidentID, "", "", "CEREBRO_CONTEXT", "Cerebro context attached", "Aperio will enrich this incident with Cerebro posture, graph, ownership, and finding context.", "cerebro", "CEREBRO", cerebroEvidence, now.Add(time.Millisecond)); err != nil {
 		return "", err
@@ -987,17 +991,23 @@ func insertSaasTimelineEvent(ctx context.Context, execer saasTimelineExecer, org
 	return nil
 }
 
-func saasCerebroContextJSON() string {
+func saasCerebroContextJSON(organizationID string, incidentID string) string {
 	payload := map[string]any{
 		"source":          "cerebro",
 		"mode":            "context-pending",
 		"sourceRuntimeId": "writer-aperio-sspm",
 		"findingContract": "cerebro.v1.Finding",
-		"claimCount":      0,
-		"graphSignals":    []map[string]any{},
-		"entities":        []map[string]any{},
-		"graphPaths":      []map[string]any{},
-		"claimSummaries":  []map[string]any{},
+		"mcp": map[string]any{
+			"server":      "aperio-a2a-broker",
+			"resourceUri": saasCerebroIncidentResourceURI(organizationID, incidentID),
+			"mimeType":    "application/vnd.aperio.cerebro.incident+json",
+			"tools":       saasCerebroMCPTools(),
+		},
+		"claimCount":     0,
+		"graphSignals":   []map[string]any{},
+		"entities":       []map[string]any{},
+		"graphPaths":     []map[string]any{},
+		"claimSummaries": []map[string]any{},
 		"responseHints": []string{
 			"Attach Cerebro claims before executing high-impact response actions.",
 		},
@@ -1012,4 +1022,16 @@ func saasCerebroContextJSON() string {
 	}
 	buf, _ := json.Marshal(payload)
 	return string(buf)
+}
+
+func saasCerebroIncidentResourceURI(organizationID string, incidentID string) string {
+	return "cerebro://aperio/" + url.PathEscape(organizationID) + "/incidents/" + url.PathEscape(incidentID)
+}
+
+func saasCerebroMCPTools() []string {
+	return []string{
+		"aperio.list_cerebro_incidents",
+		"aperio.get_cerebro_incident_context",
+		"aperio.propose_cerebro_response",
+	}
 }
