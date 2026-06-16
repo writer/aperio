@@ -2,16 +2,20 @@ import * as React from "react";
 import { ArrowUpRight, Cpu, Radar, ShieldCheck } from "lucide-react";
 import { BrandLockup, BrandMark } from "../layout/brand-mark";
 
-const INSIGHTS: { label: string; value: string; tone: "signal" | "critical" | "neutral" }[] = [
-  { label: "Posture drift detected", value: "12 min ago", tone: "critical" },
-  { label: "Identities under watch", value: "1,284", tone: "signal" },
-  { label: "Events ingested today", value: "9.4M", tone: "neutral" }
+const INSIGHTS: {
+  label: string;
+  value: string;
+  tone: "signal" | "critical" | "neutral";
+}[] = [
+  { label: "Tenant binding", value: "Required", tone: "critical" },
+  { label: "Principal scope", value: "Role-derived", tone: "signal" },
+  { label: "Credential transport", value: "HttpOnly", tone: "neutral" }
 ];
 
 const PILLARS = [
-  { icon: Radar, label: "Continuous discovery" },
-  { icon: ShieldCheck, label: "Policy-graded findings" },
-  { icon: Cpu, label: "Runtime evidence" }
+  { icon: Radar, label: "Tenant-bound sessions" },
+  { icon: ShieldCheck, label: "Principal attribution" },
+  { icon: Cpu, label: "Scoped Cerebro actions" }
 ];
 
 export function AuthLayout({
@@ -40,7 +44,7 @@ export function AuthLayout({
           <div className="surface-grain relative overflow-hidden rounded-xl border border-border/80 bg-card/95 p-7 shadow-[0_30px_80px_-40px_rgba(0,0,0,0.55)] backdrop-blur-sm">
             <div className="mb-6">
               <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-signal">
-                Workspace access
+                Tenant-scoped access
               </p>
               <h1 className="mt-1.5 text-2xl font-semibold tracking-tight text-foreground">
                 {title}
@@ -81,16 +85,18 @@ function BrandPanel() {
 
       <div className="relative max-w-md space-y-7">
         <span className="inline-flex items-center gap-2 rounded-full border border-signal/40 bg-signal/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.2em] text-signal">
-          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-signal" />
-          Posture intelligence
+          <span
+            className="h-1.5 w-1.5 animate-pulse rounded-full bg-signal"
+          />
+          Cerebro-aligned auth
         </span>
         <h2 className="text-balance text-3xl font-semibold leading-[1.15] tracking-tight text-foreground sm:text-4xl">
-          The control room for your{" "}
+          A tenant-bound console for your{" "}
           <span className="text-signal">SaaS attack surface.</span>
         </h2>
         <p className="max-w-sm text-sm leading-relaxed text-muted-foreground">
-          One tenant-scoped view across every connected app, identity, and
-          OAuth grant — graded, owned, remediable.
+          Every session carries the tenant, principal, and scoped action set
+          Aperio uses when it reaches Cerebro.
         </p>
 
         <ul className="grid grid-cols-1 gap-2.5">
@@ -109,7 +115,7 @@ function BrandPanel() {
       <div className="relative">
         <div className="mb-3 flex items-center justify-between">
           <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
-            Live tenant snapshot
+            Session contract
           </p>
           <ArrowUpRight
             className="h-3.5 w-3.5 text-muted-foreground"
@@ -141,7 +147,8 @@ function BrandPanel() {
           ))}
         </dl>
         <p className="mt-4 max-w-sm text-xs text-muted-foreground">
-          Sample workspace data. Your tenant view begins as soon as you sign in.
+          Sign-in keeps human workspace access separate from Cerebro service
+          credentials and MCP capability tokens.
         </p>
       </div>
 

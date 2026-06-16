@@ -2,6 +2,15 @@ import { aperioConnectClient } from "@aperio/connect/client";
 
 export type TenantRole = "OWNER" | "ADMIN" | "SECURITY_ANALYST" | "VIEWER";
 
+export type AuthContext = {
+  principal: string;
+  tenantId: string;
+  tenantSlug: string;
+  credentialKind: "human_workspace_session";
+  tokenTransport: "http_only_cookie";
+  cerebroScopes: string[];
+};
+
 export type AuthSession = {
   user: {
     id: string;
@@ -15,6 +24,7 @@ export type AuthSession = {
     name: string;
     slug: string;
   };
+  authContext: AuthContext;
 };
 
 export type DashboardMetrics = {
