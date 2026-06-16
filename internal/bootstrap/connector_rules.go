@@ -23,11 +23,12 @@ func (a *App) compatListConnectorRules(ctx context.Context, integrationID string
 	}
 	var provider string
 	var disabledJSON string
+	var metadataJSON string
 	if err := a.db.QueryRowContext(ctx, `
-		SELECT provider::text, COALESCE(array_to_json(disabled_checks)::text, '[]')
+		SELECT provider::text, COALESCE(array_to_json(disabled_checks)::text, '[]'), disabled_check_metadata::text
 		FROM integration_connections
 		WHERE id = $1 AND organization_id = $2
-	`, integrationID, auth.OrganizationID).Scan(&provider, &disabledJSON); err != nil {
+	`, integrationID, auth.OrganizationID).Scan(&provider, &disabledJSON, &metadataJSON); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, connect.NewError(connect.CodeNotFound, errors.New("integration not found"))
 		}
@@ -35,6 +36,7 @@ func (a *App) compatListConnectorRules(ctx context.Context, integrationID string
 	}
 	disabled := []string{}
 	_ = json.Unmarshal([]byte(disabledJSON), &disabled)
+	disabled, _, _ = applyDisabledCheckExpiry(disabled, decodeDisabledCheckMetadata(metadataJSON), time.Now().UTC())
 	disabledSet := map[string]struct{}{}
 	for _, d := range disabled {
 		disabledSet[d] = struct{}{}

@@ -1048,11 +1048,13 @@ func (a *App) TestSiemDestination(
 func (a *App) integrationChecksProto(ctx context.Context, id string, auth compatAuth) (*aperiov1.IntegrationCheckState, error) {
 	var provider string
 	var disabledJSON string
-	if err := a.db.QueryRowContext(ctx, `SELECT provider::text, array_to_json(disabled_checks)::text FROM integration_connections WHERE id = $1 AND organization_id = $2`, id, auth.OrganizationID).Scan(&provider, &disabledJSON); err != nil {
+	var metadataJSON string
+	if err := a.db.QueryRowContext(ctx, `SELECT provider::text, array_to_json(disabled_checks)::text, disabled_check_metadata::text FROM integration_connections WHERE id = $1 AND organization_id = $2`, id, auth.OrganizationID).Scan(&provider, &disabledJSON, &metadataJSON); err != nil {
 		return nil, connect.NewError(connect.CodeNotFound, errors.New("integration not found"))
 	}
 	disabled := []string{}
 	_ = json.Unmarshal([]byte(disabledJSON), &disabled)
+	disabled, _, _ = applyDisabledCheckExpiry(disabled, decodeDisabledCheckMetadata(metadataJSON), time.Now().UTC())
 	return integrationCheckStateProto(id, provider, disabled), nil
 }
 
@@ -1914,6 +1916,7 @@ func (a *App) listIntegrations(ctx context.Context, organizationID string) ([]in
 			mode::text,
 			array_to_json(scopes)::text,
 			array_to_json(disabled_checks)::text,
+			disabled_check_metadata::text,
 			google_mailbox_scan_client_email IS NOT NULL AND encrypted_google_mailbox_scan_private_key IS NOT NULL,
 			COALESCE(google_mailbox_scan_client_email, ''),
 			last_sync_at,
@@ -1929,7 +1932,7 @@ func (a *App) listIntegrations(ctx context.Context, organizationID string) ([]in
 	var integrations []integrationRow
 	for rows.Next() {
 		var row integrationRow
-		var scopesJSON, disabledChecksJSON string
+		var scopesJSON, disabledChecksJSON, disabledChecksMetadataJSON string
 		if err := rows.Scan(
 			&row.ID,
 			&row.Provider,
@@ -1939,6 +1942,7 @@ func (a *App) listIntegrations(ctx context.Context, organizationID string) ([]in
 			&row.Mode,
 			&scopesJSON,
 			&disabledChecksJSON,
+			&disabledChecksMetadataJSON,
 			&row.GoogleMailboxScanEnabled,
 			&row.GoogleMailboxScanClientEmail,
 			&row.LastSyncAt,
@@ -1948,6 +1952,7 @@ func (a *App) listIntegrations(ctx context.Context, organizationID string) ([]in
 		}
 		_ = json.Unmarshal([]byte(scopesJSON), &row.Scopes)
 		_ = json.Unmarshal([]byte(disabledChecksJSON), &row.DisabledChecks)
+		row.DisabledChecks, _, _ = applyDisabledCheckExpiry(row.DisabledChecks, decodeDisabledCheckMetadata(disabledChecksMetadataJSON), time.Now().UTC())
 		integrations = append(integrations, row)
 	}
 	return integrations, rows.Err()

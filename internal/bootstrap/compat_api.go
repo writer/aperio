@@ -1270,12 +1270,14 @@ func (a *App) compatDeleteIntegration(ctx context.Context, id string, auth compa
 func (a *App) compatIntegrationChecks(ctx context.Context, id string, auth compatAuth) (any, error) {
 	var provider string
 	var disabledJSON string
-	if err := a.db.QueryRowContext(ctx, `SELECT provider::text, array_to_json(disabled_checks)::text FROM integration_connections WHERE id = $1 AND organization_id = $2`, id, auth.OrganizationID).Scan(&provider, &disabledJSON); err != nil {
+	var metadataJSON string
+	if err := a.db.QueryRowContext(ctx, `SELECT provider::text, array_to_json(disabled_checks)::text, disabled_check_metadata::text FROM integration_connections WHERE id = $1 AND organization_id = $2`, id, auth.OrganizationID).Scan(&provider, &disabledJSON, &metadataJSON); err != nil {
 		return nil, connect.NewError(connect.CodeNotFound, errors.New("integration not found"))
 	}
 	disabled := []string{}
 	_ = json.Unmarshal([]byte(disabledJSON), &disabled)
-	return map[string]any{"data": map[string]any{"integrationId": id, "disabledChecks": disabled, "checks": compatFindingCheckStatuses(provider, disabled)}}, nil
+	effectiveDisabled, _, _ := applyDisabledCheckExpiry(disabled, decodeDisabledCheckMetadata(metadataJSON), time.Now().UTC())
+	return map[string]any{"data": map[string]any{"integrationId": id, "disabledChecks": effectiveDisabled, "checks": compatFindingCheckStatuses(provider, effectiveDisabled)}}, nil
 }
 
 func (a *App) compatUpdateIntegrationChecks(ctx context.Context, id string, body map[string]any, auth compatAuth) (any, error) {
@@ -1284,14 +1286,17 @@ func (a *App) compatUpdateIntegrationChecks(ctx context.Context, id string, body
 	}
 	var provider string
 	var previousJSON string
-	if err := a.db.QueryRowContext(ctx, `SELECT provider::text, array_to_json(disabled_checks)::text FROM integration_connections WHERE id = $1 AND organization_id = $2`, id, auth.OrganizationID).Scan(&provider, &previousJSON); err != nil {
+	var previousMetadataJSON string
+	if err := a.db.QueryRowContext(ctx, `SELECT provider::text, array_to_json(disabled_checks)::text, disabled_check_metadata::text FROM integration_connections WHERE id = $1 AND organization_id = $2`, id, auth.OrganizationID).Scan(&provider, &previousJSON, &previousMetadataJSON); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, connect.NewError(connect.CodeNotFound, errors.New("integration not found"))
 		}
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
-	previous := []string{}
-	_ = json.Unmarshal([]byte(previousJSON), &previous)
+	previousDisabledRaw := []string{}
+	_ = json.Unmarshal([]byte(previousJSON), &previousDisabledRaw)
+	now := time.Now().UTC()
+	previous, previousMetadata, expiredByTime := applyDisabledCheckExpiry(previousDisabledRaw, decodeDisabledCheckMetadata(previousMetadataJSON), now)
 	disabled := validCompatDisabledChecks(provider, stringSlice(body["disabledChecks"]))
 	previousSet := map[string]struct{}{}
 	for _, key := range previous {
@@ -1313,6 +1318,12 @@ func (a *App) compatUpdateIntegrationChecks(ctx context.Context, id string, body
 	}
 	var disableReason string
 	var disableExpiresAt string
+	nextMetadata := make(map[string]disabledCheckMetadataEntry, len(previousMetadata)+len(disabled))
+	for _, key := range disabled {
+		if entry, ok := previousMetadata[key]; ok {
+			nextMetadata[key] = entry
+		}
+	}
 	if len(newlyDisabled) > 0 {
 		protected := compatCriticalBaselineCheckSet(provider)
 		blocked := make([]string, 0, len(newlyDisabled))
@@ -1336,17 +1347,26 @@ func (a *App) compatUpdateIntegrationChecks(ctx context.Context, id string, body
 		if err != nil {
 			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("disableExpiresAt must be RFC3339"))
 		}
-		if !expiresAt.After(time.Now().UTC()) {
+		if !expiresAt.After(now) {
 			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("disableExpiresAt must be in the future"))
 		}
 		disableExpiresAt = expiresAt.UTC().Format(time.RFC3339)
+		for _, key := range newlyDisabled {
+			nextMetadata[key] = disabledCheckMetadataEntry{
+				Reason:    disableReason,
+				ExpiresAt: disableExpiresAt,
+			}
+		}
 	}
-	if _, err := a.db.ExecContext(ctx, `UPDATE integration_connections SET disabled_checks = $1, updated_at = NOW() WHERE id = $2 AND organization_id = $3`, disabled, id, auth.OrganizationID); err != nil {
+	if _, err := a.db.ExecContext(ctx, `UPDATE integration_connections SET disabled_checks = $1, disabled_check_metadata = $2::jsonb, updated_at = NOW() WHERE id = $3 AND organization_id = $4`, disabled, encodeDisabledCheckMetadata(nextMetadata), id, auth.OrganizationID); err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 	metadata := map[string]any{
 		"previousDisabled": previous,
 		"nextDisabled":     disabled,
+	}
+	if len(expiredByTime) > 0 {
+		metadata["expiredByTime"] = expiredByTime
 	}
 	if len(newlyDisabled) > 0 {
 		metadata["newlyDisabled"] = newlyDisabled
