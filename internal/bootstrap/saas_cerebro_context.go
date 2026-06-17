@@ -37,16 +37,10 @@ func (a *App) enrichSaasCerebroContext(ctx context.Context, organizationID strin
 	payload["sourceRuntimeId"] = a.cerebroRuntimeID
 	payload["findingContract"] = "cerebro.v1.Finding"
 
-	claims := a.saasCerebroIncidentClaims(ctx, findings)
+	claims, queriedClaims := a.saasCerebroIncidentClaims(ctx, findings)
 	if len(claims) == 0 {
-		payload["mode"] = "context-pending"
-		payload["claimCount"] = 0
-		payload["claimSummaries"] = []map[string]any{}
-		payload["graphSignals"] = []map[string]any{}
-		payload["entities"] = []map[string]any{}
-		payload["graphPaths"] = []map[string]any{}
-		payload["responseHints"] = []string{
-			"Attach Cerebro claims before executing high-impact response actions.",
+		if queriedClaims {
+			resetSaasCerebroDerivedContext(payload)
 		}
 		return encodeCerebroContextMap(payload, base)
 	}
@@ -110,8 +104,9 @@ func (a *App) enrichAndPersistSaasCerebroContext(ctx context.Context, organizati
 	return enriched, nil
 }
 
-func (a *App) saasCerebroIncidentClaims(ctx context.Context, findings []findingRow) []cerebroclient.Claim {
+func (a *App) saasCerebroIncidentClaims(ctx context.Context, findings []findingRow) ([]cerebroclient.Claim, bool) {
 	claims := []cerebroclient.Claim{}
+	queriedClaims := false
 	seenEvents := map[string]struct{}{}
 	for _, finding := range findings {
 		sourceEventID := strings.TrimSpace(stringFromAny(finding.Evidence["sourceEventId"]))
@@ -131,12 +126,25 @@ func (a *App) saasCerebroIncidentClaims(ctx context.Context, findings []findingR
 		if err != nil || response == nil {
 			continue
 		}
+		queriedClaims = true
 		claims = append(claims, response.Claims...)
 		if len(claims) >= maxSaasCerebroClaims || len(seenEvents) >= maxSaasCerebroClaimQueries {
 			break
 		}
 	}
-	return claims
+	return claims, queriedClaims
+}
+
+func resetSaasCerebroDerivedContext(payload map[string]any) {
+	payload["mode"] = "context-pending"
+	payload["claimCount"] = 0
+	payload["claimSummaries"] = []map[string]any{}
+	payload["graphSignals"] = []map[string]any{}
+	payload["entities"] = []map[string]any{}
+	payload["graphPaths"] = []map[string]any{}
+	payload["responseHints"] = []string{
+		"Attach Cerebro claims before executing high-impact response actions.",
+	}
 }
 
 func cerebroContextMap(raw string) map[string]any {
