@@ -74,6 +74,105 @@ func TestReadyzReportsDependencyHealth(t *testing.T) {
 	}
 }
 
+func TestOAuthProtectedResourceMetadataMirrorsCerebroMCP(t *testing.T) {
+	app := NewApp(config.Config{WebOrigin: "https://app.example.com"}, nil).
+		WithCerebroOAuthIssuerURL("https://cerebro.example.com/api").
+		WithCerebroMCPServerURL("https://cerebro.example.com/api/v1/mcp")
+
+	for _, path := range []string{
+		oauthProtectedResourceMetadataPath,
+		oauthProtectedResourceMetadataMCPPath,
+	} {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		rec := httptest.NewRecorder()
+
+		app.Handler().ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("%s status = %d", path, rec.Code)
+		}
+		var payload map[string]any
+		if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("%s decode metadata: %v", path, err)
+		}
+		if payload["resource"] != "https://cerebro.example.com/api/v1/mcp" {
+			t.Fatalf("%s resource = %#v", path, payload["resource"])
+		}
+		assertStringList(t, payload["authorization_servers"], []string{"https://cerebro.example.com"})
+		assertStringList(t, payload["bearer_methods_supported"], []string{"header"})
+		assertStringList(t, payload["scopes_supported"], []string{compatCerebroReadScope})
+	}
+}
+
+func TestOAuthAuthorizationServerMetadataMirrorsCerebro(t *testing.T) {
+	app := NewApp(config.Config{WebOrigin: "https://app.example.com"}, nil).
+		WithCerebroOAuthIssuerURL("https://proxy.example.com/cerebro/api/v1")
+	req := httptest.NewRequest(http.MethodGet, oauthAuthorizationServerMetadataPath, nil)
+	rec := httptest.NewRecorder()
+
+	app.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("authorization metadata status = %d", rec.Code)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode authorization metadata: %v", err)
+	}
+	issuer := "https://proxy.example.com/cerebro"
+	if payload["issuer"] != issuer {
+		t.Fatalf("issuer = %#v", payload["issuer"])
+	}
+	if payload["authorization_endpoint"] != issuer+oauthAuthorizePath {
+		t.Fatalf("authorization endpoint = %#v", payload["authorization_endpoint"])
+	}
+	if payload["token_endpoint"] != issuer+oauthTokenPath {
+		t.Fatalf("token endpoint = %#v", payload["token_endpoint"])
+	}
+	if payload["revocation_endpoint"] != issuer+oauthRevokePath {
+		t.Fatalf("revocation endpoint = %#v", payload["revocation_endpoint"])
+	}
+	if payload["resource_indicators_supported"] != true {
+		t.Fatalf("resource_indicators_supported = %#v", payload["resource_indicators_supported"])
+	}
+	assertStringList(t, payload["response_types_supported"], []string{"code"})
+	assertStringList(t, payload["grant_types_supported"], compatCerebroMCPGrantTypes())
+	assertStringList(t, payload["code_challenge_methods_supported"], []string{"S256"})
+	assertStringList(t, payload["token_endpoint_auth_methods_supported"], []string{"none", "client_secret_basic", "client_secret_post"})
+	assertStringList(t, payload["scopes_supported"], []string{compatCerebroReadScope})
+}
+
+func TestOAuthMetadataRejectsNonGet(t *testing.T) {
+	app := NewApp(config.Config{WebOrigin: "https://app.example.com"}, nil)
+	req := httptest.NewRequest(http.MethodPost, oauthAuthorizationServerMetadataPath, strings.NewReader("{}"))
+	rec := httptest.NewRecorder()
+
+	app.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("metadata POST status = %d", rec.Code)
+	}
+	if got := rec.Header().Get("Allow"); got != http.MethodGet {
+		t.Fatalf("Allow = %q", got)
+	}
+}
+
+func assertStringList(t *testing.T, value any, want []string) {
+	t.Helper()
+	raw, ok := value.([]any)
+	if !ok {
+		t.Fatalf("value = %#v, want JSON string list", value)
+	}
+	if len(raw) != len(want) {
+		t.Fatalf("value length = %d, want %d: %#v", len(raw), len(want), value)
+	}
+	for i, entry := range raw {
+		if entry != want[i] {
+			t.Fatalf("value[%d] = %#v, want %q in %#v", i, entry, want[i], value)
+		}
+	}
+}
+
 func TestAggregateRiskScoreMatchesClampedPostureShape(t *testing.T) {
 	score := aggregateRiskScore([]riskFinding{
 		{

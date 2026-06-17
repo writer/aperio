@@ -44,6 +44,7 @@ type App struct {
 	cerebroContextClient  saasCerebroContextClient
 	cerebroRuntimeID      string
 	cerebroMCPServerURL   string
+	cerebroOAuthIssuerURL string
 }
 
 // dashboardMetrics mirrors the existing web dashboard response shape. Keeping
@@ -227,6 +228,9 @@ func (a *App) Handler() http.Handler {
 func (a *App) routes() {
 	a.mux.HandleFunc("/healthz", a.handleHealthz)
 	a.mux.HandleFunc("/readyz", a.handleReadyz)
+	a.mux.HandleFunc(oauthProtectedResourceMetadataPath, a.handleOAuthProtectedResourceMetadata)
+	a.mux.HandleFunc(oauthProtectedResourceMetadataMCPPath, a.handleOAuthProtectedResourceMetadata)
+	a.mux.HandleFunc(oauthAuthorizationServerMetadataPath, a.handleOAuthAuthorizationServerMetadata)
 	a.mux.HandleFunc("/api/v1/integrations/google-workspace/oauth/callback", a.handleGoogleOAuthCallback)
 	a.mux.HandleFunc("/api/v1/admin/reports/", a.handleExecutiveReportArtifact)
 	a.mux.HandleFunc("/api/v1/compliance/reports/render", a.handleComplianceReport)
