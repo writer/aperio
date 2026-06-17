@@ -528,7 +528,9 @@ func (a *App) getSaasIncidentDetail(ctx context.Context, organizationID, inciden
 	if err != nil {
 		return nil, err
 	}
-	incident.CerebroContextJSON = a.enrichSaasCerebroContext(ctx, organizationID, incidentID, incident.CerebroContextJSON, findings)
+	enrichCtx, cancel := context.WithTimeout(ctx, 6*time.Second)
+	defer cancel()
+	incident.CerebroContextJSON = a.enrichSaasCerebroContext(enrichCtx, organizationID, incidentID, incident.CerebroContextJSON, findings)
 	detail := &aperiov1.SaasIncidentDetail{
 		Incident:        incident.toProto(),
 		Findings:        make([]*aperiov1.Finding, 0, len(findings)),
