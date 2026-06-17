@@ -37,6 +37,9 @@ func TestServerLifecycleAndErrorFrames(t *testing.T) {
 	if _, ok := initialize["capabilities"].(map[string]any)["tools"]; !ok {
 		t.Fatalf("initialize capabilities missing tools: %#v", initialize)
 	}
+	if _, ok := initialize["capabilities"].(map[string]any)["resources"]; !ok {
+		t.Fatalf("initialize capabilities missing resources: %#v", initialize)
+	}
 
 	if result := frames[1]["result"].(map[string]any); len(result) != 0 || frames[1]["id"] != "ping-1" {
 		t.Fatalf("ping response drifted: %#v", frames[1])
@@ -89,6 +92,53 @@ func TestServerToolsListAndUTF8Framing(t *testing.T) {
 		if tool["description"] == "" || tool["inputSchema"] == nil {
 			t.Fatalf("tool[%d] missing description or schema: %#v", index, tool)
 		}
+	}
+}
+
+func TestServerResourcesListTemplatesAndRead(t *testing.T) {
+	runner := &resourceFakeRunner{}
+	stdout := runServer(t, NewServer(runner), strings.NewReader(joinFrames(t,
+		map[string]any{"jsonrpc": "2.0", "id": "resources", "method": "resources/list"},
+		map[string]any{"jsonrpc": "2.0", "id": "templates", "method": "resources/templates/list"},
+		resourceRead("read", "cerebro://aperio/org_1/incidents/inc_1", "secret-token"),
+		map[string]any{"jsonrpc": "2.0", "id": "invalid", "method": "resources/read", "params": map[string]any{}},
+	)))
+	frames := decodeOutputFrames(t, stdout)
+	if len(frames) != 4 {
+		t.Fatalf("frame count = %d, want 4: %#v", len(frames), frames)
+	}
+
+	resources := frames[0]["result"].(map[string]any)["resources"].([]any)
+	if len(resources) != 0 {
+		t.Fatalf("resources/list returned static resources: %#v", resources)
+	}
+
+	templates := frames[1]["result"].(map[string]any)["resourceTemplates"].([]any)
+	if len(templates) != 2 {
+		t.Fatalf("resourceTemplates count = %d, want 2", len(templates))
+	}
+	firstTemplate := templates[0].(map[string]any)
+	if firstTemplate["uriTemplate"] != "cerebro://aperio/{organizationId}/incidents/{incidentId}" ||
+		firstTemplate["mimeType"] != cerebroIncidentMimeType {
+		t.Fatalf("incident resource template drifted: %#v", firstTemplate)
+	}
+
+	read := frames[2]["result"].(map[string]any)
+	contents := read["contents"].([]any)
+	if len(contents) != 1 {
+		t.Fatalf("resources/read contents = %#v, want one content item", contents)
+	}
+	content := contents[0].(map[string]any)
+	if content["uri"] != "cerebro://aperio/org_1/incidents/inc_1" || content["mimeType"] != cerebroIncidentMimeType {
+		t.Fatalf("resources/read content drifted: %#v", content)
+	}
+	if runner.params.URI != "cerebro://aperio/org_1/incidents/inc_1" || runner.params.AuthToken != "secret-token" {
+		t.Fatalf("resource read params drifted: %#v", runner.params)
+	}
+
+	invalidErr := frames[3]["error"].(map[string]any)
+	if invalidErr["code"].(float64) != -32602 {
+		t.Fatalf("invalid resources/read error = %#v", invalidErr)
 	}
 }
 
@@ -251,6 +301,19 @@ func toolCall(id string, name string, args map[string]any) map[string]any {
 	}
 }
 
+func resourceRead(id string, uri string, authToken ...string) map[string]any {
+	params := map[string]any{"uri": uri}
+	if len(authToken) > 0 {
+		params["authToken"] = authToken[0]
+	}
+	return map[string]any{
+		"jsonrpc": "2.0",
+		"id":      id,
+		"method":  "resources/read",
+		"params":  params,
+	}
+}
+
 func decodeOutputFrames(t *testing.T, raw []byte) []map[string]any {
 	t.Helper()
 	remaining := raw
@@ -288,6 +351,20 @@ type fakeRunner struct{}
 
 func (fakeRunner) CallTool(context.Context, string, any) (any, error) {
 	return map[string]any{"ok": true}, nil
+}
+
+type resourceFakeRunner struct {
+	fakeRunner
+	params ResourceReadParams
+}
+
+func (r *resourceFakeRunner) ReadResource(_ context.Context, params ResourceReadParams) (ResourceContent, error) {
+	r.params = params
+	return ResourceContent{
+		URI:      params.URI,
+		MimeType: cerebroIncidentMimeType,
+		Text:     `{"ok":true}`,
+	}, nil
 }
 
 type validatingFakeRunner struct {

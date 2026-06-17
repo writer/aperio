@@ -10,6 +10,7 @@ import (
 	"os"
 	"regexp"
 	"strconv"
+	"strings"
 
 	"github.com/writer/aperio/internal/runtimeutil"
 )
@@ -20,6 +21,21 @@ var contentLengthPattern = regexp.MustCompile(`(?im)(?:^|\r\n)content-length:\s*
 
 type ToolRunner interface {
 	CallTool(ctx context.Context, name string, args any) (any, error)
+}
+
+type ResourceReader interface {
+	ReadResource(ctx context.Context, params ResourceReadParams) (ResourceContent, error)
+}
+
+type ResourceReadParams struct {
+	URI       string
+	AuthToken string
+}
+
+type ResourceContent struct {
+	URI      string `json:"uri"`
+	MimeType string `json:"mimeType"`
+	Text     string `json:"text,omitempty"`
 }
 
 type Server struct {
@@ -87,7 +103,8 @@ func (s *Server) handleRequest(ctx context.Context, request rpcRequest, out io.W
 		return writeResult(out, request, map[string]any{
 			"protocolVersion": ProtocolVersion,
 			"capabilities": map[string]any{
-				"tools": map[string]any{},
+				"tools":     map[string]any{},
+				"resources": map[string]any{"subscribe": false, "listChanged": false},
 			},
 			"serverInfo": map[string]any{
 				"name":    ServerName,
@@ -102,6 +119,12 @@ func (s *Server) handleRequest(ctx context.Context, request rpcRequest, out io.W
 		return writeResult(out, request, map[string]any{"tools": ApprovedTools()})
 	case "tools/call":
 		return s.handleToolCall(ctx, request, out)
+	case "resources/list":
+		return writeResult(out, request, map[string]any{"resources": ApprovedResources()})
+	case "resources/templates/list":
+		return writeResult(out, request, map[string]any{"resourceTemplates": ApprovedResourceTemplates()})
+	case "resources/read":
+		return s.handleResourceRead(ctx, request, out)
 	default:
 		return writeError(out, request, -32601, fmt.Sprintf("Method not found: %s", request.Method))
 	}
@@ -130,6 +153,30 @@ func (s *Server) handleToolCall(ctx context.Context, request rpcRequest, out io.
 		"content": []map[string]string{
 			{"type": "text", "text": string(text)},
 		},
+	})
+}
+
+func (s *Server) handleResourceRead(ctx context.Context, request rpcRequest, out io.Writer) error {
+	if !request.HasID {
+		return nil
+	}
+	params, err := parseResourceReadParams(request.Params)
+	if err != nil {
+		return writeError(out, request, -32602, s.safeError(err))
+	}
+	if s.Runner == nil {
+		return writeError(out, request, -32603, "MCP resource reader is not configured")
+	}
+	reader, ok := s.Runner.(ResourceReader)
+	if !ok {
+		return writeError(out, request, -32603, "MCP resource reader is not configured")
+	}
+	content, err := reader.ReadResource(ctx, params)
+	if err != nil {
+		return writeError(out, request, -32602, s.safeError(err))
+	}
+	return writeResult(out, request, map[string]any{
+		"contents": []ResourceContent{content},
 	})
 }
 
@@ -175,6 +222,33 @@ func parseToolCallParams(params any) (toolCallParams, error) {
 		args = map[string]any{}
 	}
 	return toolCallParams{Name: name, Arguments: args}, nil
+}
+
+func parseResourceReadParams(params any) (ResourceReadParams, error) {
+	object, ok := params.(map[string]any)
+	if !ok {
+		return ResourceReadParams{}, errors.New("resources/read params must be an object")
+	}
+	rawURI, ok := object["uri"]
+	if !ok {
+		return ResourceReadParams{}, errors.New("resources/read uri is required")
+	}
+	uri, ok := rawURI.(string)
+	if !ok || strings.TrimSpace(uri) == "" {
+		return ResourceReadParams{}, errors.New("resources/read uri must be a string")
+	}
+	var authToken string
+	if rawToken, ok := object["authToken"]; ok {
+		token, ok := rawToken.(string)
+		if !ok {
+			return ResourceReadParams{}, errors.New("resources/read authToken must be a string")
+		}
+		authToken = strings.TrimSpace(token)
+	}
+	return ResourceReadParams{
+		URI:       strings.TrimSpace(uri),
+		AuthToken: authToken,
+	}, nil
 }
 
 type stdioSession struct {

@@ -753,6 +753,97 @@ func (s *ToolService) ensureIncidentFinding(ctx context.Context, organizationID 
 	return nil
 }
 
+func (s *ToolService) ReadResource(ctx context.Context, params ResourceReadParams) (ResourceContent, error) {
+	organizationID, collection, resourceID, err := parseCerebroResourceURI(params.URI)
+	if err != nil {
+		return ResourceContent{}, err
+	}
+	if err := s.assertScope(map[string]any{
+		"organizationId": organizationID,
+		"authToken":      params.AuthToken,
+	}); err != nil {
+		return ResourceContent{}, err
+	}
+	if s.db == nil {
+		return ResourceContent{}, fmt.Errorf("database is not configured for MCP resource reads")
+	}
+
+	var payload any
+	var mimeType string
+	switch collection {
+	case "incidents":
+		payload, err = s.getCerebroIncidentContext(ctx, map[string]any{
+			"organizationId": organizationID,
+			"incidentId":     resourceID,
+		})
+		mimeType = cerebroIncidentMimeType
+	case "findings":
+		payload, err = s.getCerebroFindingContext(ctx, map[string]any{
+			"organizationId": organizationID,
+			"findingId":      resourceID,
+		})
+		mimeType = cerebroFindingMimeType
+	default:
+		return ResourceContent{}, fmt.Errorf("Unsupported Cerebro MCP resource collection: %s", collection)
+	}
+	if err != nil {
+		return ResourceContent{}, err
+	}
+	text, err := json.Marshal(payload)
+	if err != nil {
+		return ResourceContent{}, fmt.Errorf("Cerebro MCP resource could not be encoded")
+	}
+	return ResourceContent{
+		URI:      normalizedCerebroResourceURI(organizationID, collection, resourceID),
+		MimeType: mimeType,
+		Text:     string(text),
+	}, nil
+}
+
+func parseCerebroResourceURI(rawURI string) (string, string, string, error) {
+	parsed, err := url.Parse(strings.TrimSpace(rawURI))
+	if err != nil {
+		return "", "", "", fmt.Errorf("Invalid Cerebro MCP resource URI")
+	}
+	if parsed.Scheme != "cerebro" || parsed.Host != "aperio" {
+		return "", "", "", fmt.Errorf("Unsupported Cerebro MCP resource URI")
+	}
+	parts := strings.Split(strings.Trim(parsed.EscapedPath(), "/"), "/")
+	if len(parts) != 3 {
+		return "", "", "", fmt.Errorf("Cerebro MCP resource URI must include organization, collection, and id")
+	}
+	organizationID, err := url.PathUnescape(parts[0])
+	if err != nil {
+		return "", "", "", fmt.Errorf("Invalid Cerebro MCP organization id")
+	}
+	collection, err := url.PathUnescape(parts[1])
+	if err != nil {
+		return "", "", "", fmt.Errorf("Invalid Cerebro MCP resource collection")
+	}
+	resourceID, err := url.PathUnescape(parts[2])
+	if err != nil {
+		return "", "", "", fmt.Errorf("Invalid Cerebro MCP resource id")
+	}
+	organizationID = strings.TrimSpace(organizationID)
+	collection = strings.TrimSpace(collection)
+	resourceID = strings.TrimSpace(resourceID)
+	if organizationID == "" || collection == "" || resourceID == "" {
+		return "", "", "", fmt.Errorf("Cerebro MCP resource URI must include organization, collection, and id")
+	}
+	return organizationID, collection, resourceID, nil
+}
+
+func normalizedCerebroResourceURI(organizationID string, collection string, resourceID string) string {
+	switch collection {
+	case "incidents":
+		return cerebroIncidentResourceURI(organizationID, resourceID)
+	case "findings":
+		return cerebroFindingResourceURI(organizationID, resourceID)
+	default:
+		return "cerebro://aperio/" + url.PathEscape(organizationID) + "/" + url.PathEscape(collection) + "/" + url.PathEscape(resourceID)
+	}
+}
+
 func (s *ToolService) currentTime() time.Time {
 	if s.now != nil {
 		return s.now().UTC()
