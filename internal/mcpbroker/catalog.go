@@ -12,10 +12,55 @@ type Tool struct {
 	InputSchema map[string]any `json:"inputSchema"`
 }
 
+type Resource struct {
+	URI         string `json:"uri"`
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+	MimeType    string `json:"mimeType,omitempty"`
+}
+
+type ResourceTemplate struct {
+	URITemplate string `json:"uriTemplate"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	MimeType    string `json:"mimeType,omitempty"`
+}
+
 func ApprovedTools() []Tool {
 	tools := make([]Tool, len(approvedTools))
 	copy(tools, approvedTools)
 	return tools
+}
+
+func ApprovedResources() []Resource {
+	return []Resource{}
+}
+
+func ApprovedResourceTemplates() []ResourceTemplate {
+	templates := make([]ResourceTemplate, len(approvedResourceTemplates))
+	copy(templates, approvedResourceTemplates)
+	return templates
+}
+
+var approvedResourceTemplates = []ResourceTemplate{
+	{
+		URITemplate: "cerebro://aperio/{organizationId}/incidents/{incidentId}",
+		Name:        "Aperio Cerebro incident",
+		Description: "Tenant-scoped Cerebro graph context for a SaaS incident in Aperio.",
+		MimeType:    cerebroIncidentMimeType,
+	},
+	{
+		URITemplate: "cerebro://aperio/{organizationId}/findings/{findingId}",
+		Name:        "Aperio Cerebro finding",
+		Description: "Tenant-scoped Cerebro finding context with evidence, incident links, and response actions.",
+		MimeType:    cerebroFindingMimeType,
+	},
+	{
+		URITemplate: "cerebro://aperio/{organizationId}/security/overview",
+		Name:        "Aperio Cerebro security overview",
+		Description: "Tenant-scoped Cerebro security posture overview with linked incident and finding resources.",
+		MimeType:    cerebroSecurityOverviewMimeType,
+	},
 }
 
 var approvedTools = []Tool{

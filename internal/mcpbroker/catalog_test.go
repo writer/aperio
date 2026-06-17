@@ -87,6 +87,38 @@ func TestApprovedToolsCatalog(t *testing.T) {
 	}
 }
 
+func TestApprovedResourceTemplatesCatalog(t *testing.T) {
+	resources := ApprovedResources()
+	if len(resources) != 0 {
+		t.Fatalf("static resource count = %d, want 0 tenant-neutral resources", len(resources))
+	}
+
+	templates := ApprovedResourceTemplates()
+	if len(templates) != 3 {
+		t.Fatalf("resource template count = %d, want 3", len(templates))
+	}
+	want := []struct {
+		uriTemplate string
+		mimeType    string
+	}{
+		{"cerebro://aperio/{organizationId}/incidents/{incidentId}", cerebroIncidentMimeType},
+		{"cerebro://aperio/{organizationId}/findings/{findingId}", cerebroFindingMimeType},
+		{"cerebro://aperio/{organizationId}/security/overview", cerebroSecurityOverviewMimeType},
+	}
+	for index, expected := range want {
+		template := templates[index]
+		if template.URITemplate != expected.uriTemplate {
+			t.Fatalf("template[%d].URITemplate = %q, want %q", index, template.URITemplate, expected.uriTemplate)
+		}
+		if template.MimeType != expected.mimeType {
+			t.Fatalf("template[%d].MimeType = %q, want %q", index, template.MimeType, expected.mimeType)
+		}
+		if template.Name == "" || template.Description == "" {
+			t.Fatalf("template[%d] missing name or description: %#v", index, template)
+		}
+	}
+}
+
 func TestValidateToolArgumentsDefaultsAndTrimming(t *testing.T) {
 	now := time.Date(2026, 6, 7, 12, 13, 14, 15, time.UTC)
 	register, err := ValidateToolArguments("aperio.register_agent", map[string]any{
