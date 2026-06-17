@@ -12,6 +12,8 @@ import {
   type CerebroMCPContext as ProtoCerebroMCPContext,
   type CerebroMCPResourceTemplate as ProtoCerebroMCPResourceTemplate,
   type ConnectorDefinition as ProtoConnectorDefinition,
+  type DetectionPack as ProtoDetectionPack,
+  type DetectionPackRule as ProtoDetectionPackRule,
   type EmailDomainDkimSelector as ProtoEmailDomainDkimSelector,
   type EmailDomainHealth as ProtoEmailDomainHealth,
   type EmailDomainHealthDetail as ProtoEmailDomainHealthDetail,
@@ -386,6 +388,26 @@ export type ConnectIntegrationOAuthClient = {
   configured: boolean;
   source: "tenant" | "env" | "";
   updatedAt: string | null;
+};
+
+export type ConnectDetectionPackRule = {
+  id: string;
+  title: string;
+  description: string;
+  severity: string;
+  eventTypes: string[];
+  mitreTechniques: string[];
+  intent: string;
+  tags: string[];
+};
+
+export type ConnectDetectionPack = {
+  id: string;
+  provider: string;
+  name: string;
+  description: string;
+  version: string;
+  rules: ConnectDetectionPackRule[];
 };
 
 export type ConnectConnectorDefinition = {
@@ -1672,6 +1694,34 @@ function integrationFromProto(
   };
 }
 
+function detectionPackRuleFromProto(
+  rule: ProtoDetectionPackRule
+): ConnectDetectionPackRule {
+  return {
+    id: rule.id,
+    title: rule.title,
+    description: rule.description,
+    severity: rule.severity,
+    eventTypes: [...rule.eventTypes],
+    mitreTechniques: [...rule.mitreTechniques],
+    intent: rule.intent,
+    tags: [...rule.tags]
+  };
+}
+
+function detectionPackFromProto(
+  pack: ProtoDetectionPack
+): ConnectDetectionPack {
+  return {
+    id: pack.id,
+    provider: pack.provider,
+    name: pack.name,
+    description: pack.description,
+    version: pack.version,
+    rules: pack.rules.map(detectionPackRuleFromProto)
+  };
+}
+
 function connectorDefinitionFromProto(
   definition: ProtoConnectorDefinition
 ): ConnectConnectorDefinition {
@@ -2621,6 +2671,14 @@ export const aperioConnectClient = {
   }> {
     const response = await client.listConnectorCatalog({});
     return { data: response.data.map(connectorDefinitionFromProto) };
+  },
+  async listDetectionPacks(
+    filters?: { provider?: string }
+  ): Promise<{ data: ConnectDetectionPack[] }> {
+    const response = await client.listDetectionPacks({
+      provider: filters?.provider ?? ""
+    });
+    return { data: response.data.map(detectionPackFromProto) };
   },
   async listIntegrations(): Promise<{ data: ConnectIntegrationConnection[] }> {
     const response = await client.listIntegrations({});
