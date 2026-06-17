@@ -2945,6 +2945,7 @@ func compatCerebroScopesForRole(role string) []string {
 			compatCerebroReadScope,
 			compatCerebroFindingCandidateScope,
 			compatCerebroFindingLifecycleScope,
+			compatCerebroGRCInventoryScope,
 			compatCerebroRuntimeResponseScope,
 		}
 	default:
