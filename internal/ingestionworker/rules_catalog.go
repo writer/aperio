@@ -147,7 +147,7 @@ var RuleCatalog = []RuleCatalogEntry{
 		PackID:          "aperio.google_workspace.drive.v1",
 		MitreTechniques: []string{"T1550.001", "T1528"},
 		Intent:          "Adversary tricks a user into authorizing an OAuth app that grants long-lived access to mail and drive data.",
-		Tags:            []string{TagOAuthRiskyGrant},
+		Tags:            []string{TagOAuthRiskyGrant, TagDataAccess},
 	},
 	{
 		ID:              "google_workspace.admin_mfa_not_enforced",
