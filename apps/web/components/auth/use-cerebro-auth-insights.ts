@@ -7,11 +7,21 @@ import {
   type CerebroAuthInsight
 } from "../../lib/cerebro-auth";
 
-export function useCerebroAuthInsights() {
+type UseCerebroAuthInsightsOptions = {
+  loadDiscovery?: boolean;
+};
+
+export function useCerebroAuthInsights({
+  loadDiscovery = true
+}: UseCerebroAuthInsightsOptions = {}) {
   const [sessionInsights, setSessionInsights] =
     useState<readonly CerebroAuthInsight[]>(CEREBRO_AUTH_INSIGHTS);
 
   useEffect(() => {
+    if (!loadDiscovery) {
+      setSessionInsights(CEREBRO_AUTH_INSIGHTS);
+      return;
+    }
     let active = true;
     void loadCerebroAuthInsights().then((insights) => {
       if (active) {
@@ -21,7 +31,7 @@ export function useCerebroAuthInsights() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [loadDiscovery]);
 
   return sessionInsights;
 }
