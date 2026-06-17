@@ -843,7 +843,9 @@ func (a *App) compatSignup(ctx context.Context, body map[string]any, headers htt
 		return nil, internalServerError("signup.commit", err)
 	}
 	headers.Add("Set-Cookie", compatSessionCookie(session))
-	return map[string]any{"data": map[string]any{"token": session, "user": map[string]any{"id": userID, "email": email, "displayName": displayName, "mfaEnabled": false, "role": "OWNER"}, "organization": map[string]any{"id": orgID, "name": orgName, "slug": orgSlug}}}, nil
+	user := compatSessionUser{ID: userID, Email: email, DisplayName: displayName, MFAEnabled: false, Role: "OWNER"}
+	org := compatSessionOrg{ID: orgID, Name: orgName, Slug: orgSlug}
+	return map[string]any{"data": compatSessionPayload(session, user, org)}, nil
 }
 
 func (a *App) compatLogin(ctx context.Context, body map[string]any, headers http.Header) (any, error) {
