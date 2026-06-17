@@ -151,6 +151,19 @@ test("frontend auth surfaces share Cerebro auth vocabulary", () => {
   );
   const authLayout = readRepoFile("apps/web/components/auth/auth-layout.tsx");
   const loginPage = readRepoFile("apps/web/components/auth/login-page.tsx");
+  const signupPage = readRepoFile("apps/web/components/auth/signup-page.tsx");
+  const forgotPasswordPage = readRepoFile(
+    "apps/web/components/auth/forgot-password-page.tsx"
+  );
+  const resetPasswordPage = readRepoFile(
+    "apps/web/components/auth/reset-password-page.tsx"
+  );
+  const acceptInvitePage = readRepoFile(
+    "apps/web/components/auth/accept-invite-page.tsx"
+  );
+  const authInsightHook = readRepoFile(
+    "apps/web/components/auth/use-cerebro-auth-insights.ts"
+  );
   const nextConfig = readRepoFile("apps/web/next.config.mjs");
   const workspaceSwitcher = readRepoFile(
     "apps/web/components/layout/workspace-switcher.tsx"
@@ -210,7 +223,18 @@ test("frontend auth surfaces share Cerebro auth vocabulary", () => {
   assert.match(authLayout, /sessionInsights/);
   assert.match(authLayout, /CEREBRO_MCP_RESOURCE/);
   assert.match(loginPage, /CEREBRO_HUMAN_AUTH_MODE/);
-  assert.match(loginPage, /loadCerebroAuthInsights/);
+  assert.match(authInsightHook, /loadCerebroAuthInsights/);
+  for (const source of [
+    loginPage,
+    signupPage,
+    forgotPasswordPage,
+    resetPasswordPage,
+    acceptInvitePage
+  ]) {
+    assert.match(source, /useCerebroAuthInsights/);
+    assert.match(source, /showSessionMessaging/);
+    assert.match(source, /sessionInsights=\{sessionInsights\}/);
+  }
   assert.match(nextConfig, /\/\.well-known\/oauth-protected-resource/);
   assert.match(
     nextConfig,

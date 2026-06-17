@@ -5,6 +5,7 @@ import { useId, useState } from "react";
 import { requestPasswordReset } from "../../lib/api";
 import { CEREBRO_HUMAN_AUTH_MODE } from "../../lib/cerebro-auth";
 import { AuthLayout } from "./auth-layout";
+import { useCerebroAuthInsights } from "./use-cerebro-auth-insights";
 import { Button } from "../ui/button";
 import { Field, FormBanner, Input } from "../ui/form";
 
@@ -14,6 +15,7 @@ export function ForgotPasswordPage() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [success, setSuccess] = useState(false);
+  const sessionInsights = useCerebroAuthInsights();
 
   const slugId = useId();
   const emailId = useId();
@@ -46,6 +48,8 @@ export function ForgotPasswordPage() {
     <AuthLayout
       title="Reset your password"
       description={`We'll email a one-time reset link for the tenant-bound ${CEREBRO_HUMAN_AUTH_MODE} principal.`}
+      showSessionMessaging
+      sessionInsights={sessionInsights}
       footer={
         <Link
           href="/login"
