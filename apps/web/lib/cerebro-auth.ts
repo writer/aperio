@@ -2,10 +2,13 @@ export const CEREBRO_API_RESOURCE = "cerebro-api";
 export const CEREBRO_MCP_RESOURCE = "cerebro-mcp";
 export const CEREBRO_HUMAN_AUTH_MODE = "human_workspace_session";
 export const CEREBRO_SESSION_TRANSPORT = "http_only_cookie";
-export const CEREBRO_MCP_RESOURCE_METADATA_PATH =
-  "/.well-known/oauth-protected-resource/api/v1/mcp";
+export const CEREBRO_MCP_RESOURCE_METADATA_PATH = discoveryMetadataPath(
+  process.env.NEXT_PUBLIC_CEREBRO_MCP_RESOURCE_METADATA_PATH
+);
 export const CEREBRO_OAUTH_AUTHORIZATION_SERVER_METADATA_PATH =
-  "/.well-known/oauth-authorization-server";
+  discoveryMetadataPath(
+    process.env.NEXT_PUBLIC_CEREBRO_OAUTH_AUTHORIZATION_SERVER_METADATA_PATH
+  );
 export const CEREBRO_MCP_GRANT_TYPES = [
   "authorization_code",
   "refresh_token",
@@ -28,6 +31,11 @@ type CerebroProtectedResourceMetadata = {
 type CerebroAuthorizationServerMetadata = {
   issuer?: unknown;
   grant_types_supported?: unknown;
+};
+
+type CerebroAuthDiscoveryPaths = {
+  resourceMetadataPath?: string;
+  authorizationServerMetadataPath?: string;
 };
 
 export function formatCerebroTransport(transport: string) {
@@ -60,16 +68,22 @@ export function formatCerebroScope(scope: string) {
   return scope.replace(/^cerebro\./, "").replaceAll(".", " / ");
 }
 
-export async function loadCerebroAuthInsights(): Promise<
-  readonly CerebroAuthInsight[]
-> {
+export async function loadCerebroAuthInsights({
+  resourceMetadataPath = CEREBRO_MCP_RESOURCE_METADATA_PATH,
+  authorizationServerMetadataPath = CEREBRO_OAUTH_AUTHORIZATION_SERVER_METADATA_PATH
+}: CerebroAuthDiscoveryPaths = {}): Promise<readonly CerebroAuthInsight[]> {
+  if (!resourceMetadataPath && !authorizationServerMetadataPath) {
+    return CEREBRO_AUTH_INSIGHTS;
+  }
   const [resourceMetadata, authorizationMetadata] = await Promise.all([
-    readDiscoveryJSON<CerebroProtectedResourceMetadata>(
-      CEREBRO_MCP_RESOURCE_METADATA_PATH
-    ),
-    readDiscoveryJSON<CerebroAuthorizationServerMetadata>(
-      CEREBRO_OAUTH_AUTHORIZATION_SERVER_METADATA_PATH
-    )
+    resourceMetadataPath
+      ? readDiscoveryJSON<CerebroProtectedResourceMetadata>(resourceMetadataPath)
+      : null,
+    authorizationServerMetadataPath
+      ? readDiscoveryJSON<CerebroAuthorizationServerMetadata>(
+          authorizationServerMetadataPath
+        )
+      : null
   ]);
 
   if (!resourceMetadata && !authorizationMetadata) {
@@ -131,6 +145,14 @@ async function readDiscoveryJSON<T>(path: string): Promise<T | null> {
   } catch {
     return null;
   }
+}
+
+function discoveryMetadataPath(value: string | undefined) {
+  const path = value?.trim() ?? "";
+  if (!path.startsWith("/.well-known/")) {
+    return "";
+  }
+  return path;
 }
 
 function stringValue(value: unknown, fallback: string) {
