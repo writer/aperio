@@ -400,7 +400,53 @@ func TestCompatClientIdentityHonorsForwardedHeadersFromTrustedProxy(t *testing.T
 }
 
 func TestTypedAuthSessionDropsCompatibilityToken(t *testing.T) {
-	session := authSessionFromMap(map[string]any{
+	displayName := "User Example"
+	payload := compatSessionPayload(
+		"session-token-that-must-stay-cookie-only",
+		compatSessionUser{
+			ID:          "usr_1",
+			Email:       "user@example.com",
+			DisplayName: &displayName,
+			MFAEnabled:  true,
+			Role:        "OWNER",
+		},
+		compatSessionOrg{
+			ID:   "org_1",
+			Name: "Example Org",
+			Slug: "example",
+		},
+	)
+	session := authSessionFromMap(payload)
+
+	if session.Token != "" {
+		t.Fatalf("typed auth session exposed token %q", session.Token)
+	}
+	if session.User == nil || !session.User.MfaEnabled {
+		t.Fatal("expected user session fields to remain populated")
+	}
+	if session.AuthContext == nil {
+		t.Fatal("expected typed auth session to include server auth context")
+	}
+	if session.AuthContext.Principal != "user@example.com" || session.AuthContext.AuthMode != "human_workspace_session" {
+		t.Fatalf("unexpected auth context identity: %#v", session.AuthContext)
+	}
+	if session.AuthContext.TokenTransport != "http_only_cookie" || session.AuthContext.CerebroResource != "cerebro-api" {
+		t.Fatalf("unexpected auth context transport/resource: %#v", session.AuthContext)
+	}
+	if !stringSliceContains(session.AuthContext.AllowedTenants, "org_1") {
+		t.Fatalf("expected allowed tenant org_1, got %#v", session.AuthContext.AllowedTenants)
+	}
+	for _, scope := range []string{
+		"cerebro.cosmo.security.read",
+		"cerebro.connector_credentials.write",
+		"cerebro.runtime_response.write",
+	} {
+		if !stringSliceContains(session.AuthContext.CerebroScopes, scope) {
+			t.Fatalf("expected scope %s, got %#v", scope, session.AuthContext.CerebroScopes)
+		}
+	}
+
+	legacySession := authSessionFromMap(map[string]any{
 		"token": "session-token-that-must-stay-cookie-only",
 		"user": map[string]any{
 			"id":          "usr_1",
@@ -416,12 +462,35 @@ func TestTypedAuthSessionDropsCompatibilityToken(t *testing.T) {
 		},
 	})
 
-	if session.Token != "" {
-		t.Fatalf("typed auth session exposed token %q", session.Token)
+	if legacySession.Token != "" {
+		t.Fatalf("legacy typed auth session exposed token %q", legacySession.Token)
 	}
-	if session.User == nil || !session.User.MfaEnabled {
-		t.Fatal("expected user session fields to remain populated")
+}
+
+func TestSecurityAnalystAuthContextKeepsGRCInventoryScope(t *testing.T) {
+	context := compatAuthContextForSession(
+		compatSessionUser{
+			Email: "analyst@example.com",
+			Role:  "SECURITY_ANALYST",
+		},
+		compatSessionOrg{
+			ID:   "org_1",
+			Slug: "example",
+		},
+	)
+
+	if !stringSliceContains(context.CerebroScopes, compatCerebroGRCInventoryScope) {
+		t.Fatalf("expected security analyst GRC scope, got %#v", context.CerebroScopes)
 	}
+}
+
+func stringSliceContains(values []string, target string) bool {
+	for _, value := range values {
+		if value == target {
+			return true
+		}
+	}
+	return false
 }
 
 func TestCompatPasswordHashEmitsAndVerifiesS2(t *testing.T) {

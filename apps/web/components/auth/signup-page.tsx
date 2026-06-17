@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useId, useState } from "react";
 import { useRouter } from "next/navigation";
 import { signup } from "../../lib/api";
+import { CEREBRO_API_RESOURCE } from "../../lib/cerebro-auth";
 import { useAuth } from "./auth-shell";
 import { AuthLayout } from "./auth-layout";
 import { Button } from "../ui/button";
@@ -65,7 +66,7 @@ export function SignupPage() {
   return (
     <AuthLayout
       title="Create a workspace"
-      description="Provision a tenant, workspace owner, and role model in one step."
+      description={`Provision a tenant, owner principal, and role model for ${CEREBRO_API_RESOURCE} sessions.`}
       footer={
         <>
           Already have one?{" "}

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useId, useState } from "react";
 import { requestPasswordReset } from "../../lib/api";
+import { CEREBRO_HUMAN_AUTH_MODE } from "../../lib/cerebro-auth";
 import { AuthLayout } from "./auth-layout";
 import { Button } from "../ui/button";
 import { Field, FormBanner, Input } from "../ui/form";
@@ -44,7 +45,7 @@ export function ForgotPasswordPage() {
   return (
     <AuthLayout
       title="Reset your password"
-      description="We'll email a one-time reset link to the address on file."
+      description={`We'll email a one-time reset link for the tenant-bound ${CEREBRO_HUMAN_AUTH_MODE} principal.`}
       footer={
         <Link
           href="/login"

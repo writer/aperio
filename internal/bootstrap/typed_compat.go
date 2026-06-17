@@ -462,6 +462,7 @@ func authSessionFromMap(data map[string]any) *aperiov1.AuthSession {
 	return &aperiov1.AuthSession{
 		User:         authUserFromAny(data["user"]),
 		Organization: authOrganizationFromAny(data["organization"]),
+		AuthContext:  authContextFromAny(data["authContext"]),
 	}
 }
 
@@ -504,6 +505,44 @@ func authOrganizationFromAny(value any) *aperiov1.AuthOrganization {
 		Id:   stringFromAny(data["id"]),
 		Name: stringFromAny(data["name"]),
 		Slug: stringFromAny(data["slug"]),
+	}
+}
+
+func authContextFromAny(value any) *aperiov1.AuthContext {
+	switch typed := value.(type) {
+	case compatSessionAuthContext:
+		return &aperiov1.AuthContext{
+			Principal:       typed.Principal,
+			TenantId:        typed.TenantID,
+			TenantSlug:      typed.TenantSlug,
+			CredentialKind:  typed.CredentialKind,
+			AuthMode:        typed.AuthMode,
+			TokenTransport:  typed.TokenTransport,
+			CerebroResource: typed.CerebroResource,
+			AllowedTenants:  typed.AllowedTenants,
+			CerebroScopes:   typed.CerebroScopes,
+			Groups:          typed.Groups,
+		}
+	case *compatSessionAuthContext:
+		if typed != nil {
+			return authContextFromAny(*typed)
+		}
+	}
+	data := asMap(value)
+	if len(data) == 0 {
+		return nil
+	}
+	return &aperiov1.AuthContext{
+		Principal:       stringFromAny(data["principal"]),
+		TenantId:        stringFromAny(data["tenantId"]),
+		TenantSlug:      stringFromAny(data["tenantSlug"]),
+		CredentialKind:  stringFromAny(data["credentialKind"]),
+		AuthMode:        stringFromAny(data["authMode"]),
+		TokenTransport:  stringFromAny(data["tokenTransport"]),
+		CerebroResource: stringFromAny(data["cerebroResource"]),
+		AllowedTenants:  stringSliceFromAny(data["allowedTenants"]),
+		CerebroScopes:   stringSliceFromAny(data["cerebroScopes"]),
+		Groups:          stringSliceFromAny(data["groups"]),
 	}
 }
 
@@ -872,6 +911,23 @@ func anyList(value any) []any {
 		return out
 	}
 	return []any{}
+}
+
+func stringSliceFromAny(value any) []string {
+	switch typed := value.(type) {
+	case []string:
+		out := make([]string, len(typed))
+		copy(out, typed)
+		return out
+	}
+	items := anyList(value)
+	out := make([]string, 0, len(items))
+	for _, item := range items {
+		if value := stringFromAny(item); value != "" {
+			out = append(out, value)
+		}
+	}
+	return out
 }
 
 func anyKey(data map[string]any, keys ...string) any {

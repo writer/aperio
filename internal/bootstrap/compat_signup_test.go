@@ -59,6 +59,16 @@ func TestCompatSignupSucceeds(t *testing.T) {
 	if data["token"] == "" || data["organization"] == nil || data["user"] == nil {
 		t.Fatalf("expected populated signup payload, got %#v", data)
 	}
+	authContext, ok := data["authContext"].(compatSessionAuthContext)
+	if !ok {
+		t.Fatalf("expected signup auth context, got %#v", data["authContext"])
+	}
+	if authContext.Principal != email || authContext.AuthMode != "human_workspace_session" || authContext.TokenTransport != "http_only_cookie" {
+		t.Fatalf("unexpected signup auth context = %#v", authContext)
+	}
+	if !stringSliceContains(authContext.AllowedTenants, authContext.TenantID) || !stringSliceContains(authContext.CerebroScopes, compatCerebroReadScope) {
+		t.Fatalf("incomplete signup auth context = %#v", authContext)
+	}
 }
 
 func TestCompatSignupReturnsAlreadyExistsForDuplicateSlug(t *testing.T) {

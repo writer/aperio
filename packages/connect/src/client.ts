@@ -3,6 +3,7 @@ import { createConnectTransport } from "@connectrpc/connect-web";
 import {
   AperioService,
   type AuditLogEntry as ProtoAuditLogEntry,
+  type AuthContext as ProtoAuthContext,
   type AuthSession as ProtoAuthSession,
   type ConnectorDefinition as ProtoConnectorDefinition,
   type EmailDomainDkimSelector as ProtoEmailDomainDkimSelector,
@@ -274,9 +275,13 @@ export type ConnectAuthContext = {
   principal: string;
   tenantId: string;
   tenantSlug: string;
-  credentialKind: "human_workspace_session";
-  tokenTransport: "http_only_cookie";
+  credentialKind: "human_workspace_session" | string;
+  authMode: "human_workspace_session" | string;
+  tokenTransport: "http_only_cookie" | string;
+  cerebroResource: string;
+  allowedTenants: string[];
   cerebroScopes: string[];
+  groups: string[];
 };
 
 export type ConnectAuthSession = {
@@ -993,6 +998,8 @@ const CEREBRO_SCOPES_BY_ROLE: Record<ConnectTenantRole, string[]> = {
     "cerebro.finding_candidates.promote",
     "cerebro.findings.write",
     "cerebro.grc.inventory.write",
+    "cerebro.connector_credentials.read",
+    "cerebro.connector_credentials.write",
     "cerebro.runtime_response.write"
   ],
   ADMIN: [
@@ -1000,6 +1007,8 @@ const CEREBRO_SCOPES_BY_ROLE: Record<ConnectTenantRole, string[]> = {
     "cerebro.finding_candidates.promote",
     "cerebro.findings.write",
     "cerebro.grc.inventory.write",
+    "cerebro.connector_credentials.read",
+    "cerebro.connector_credentials.write",
     "cerebro.runtime_response.write"
   ],
   SECURITY_ANALYST: [
@@ -1024,6 +1033,51 @@ function normalizeTenantRole(role: string | undefined): ConnectTenantRole {
   return "VIEWER";
 }
 
+function fallbackAuthContext(
+  user: ConnectAuthSession["user"],
+  organization: ConnectAuthSession["organization"]
+): ConnectAuthContext {
+  return {
+    principal: user.email,
+    tenantId: organization.id,
+    tenantSlug: organization.slug,
+    credentialKind: "human_workspace_session",
+    authMode: "human_workspace_session",
+    tokenTransport: "http_only_cookie",
+    cerebroResource: "cerebro-api",
+    allowedTenants: organization.id ? [organization.id] : [],
+    cerebroScopes: [...CEREBRO_SCOPES_BY_ROLE[user.role]],
+    groups: ["security"]
+  };
+}
+
+function authContextFromProto(
+  authContext: ProtoAuthContext | undefined,
+  user: ConnectAuthSession["user"],
+  organization: ConnectAuthSession["organization"]
+): ConnectAuthContext {
+  const fallback = fallbackAuthContext(user, organization);
+  if (!authContext) {
+    return fallback;
+  }
+  return {
+    principal: authContext.principal || fallback.principal,
+    tenantId: authContext.tenantId || fallback.tenantId,
+    tenantSlug: authContext.tenantSlug || fallback.tenantSlug,
+    credentialKind: authContext.credentialKind || fallback.credentialKind,
+    authMode: authContext.authMode || fallback.authMode,
+    tokenTransport: authContext.tokenTransport || fallback.tokenTransport,
+    cerebroResource: authContext.cerebroResource || fallback.cerebroResource,
+    allowedTenants: authContext.allowedTenants.length
+      ? [...authContext.allowedTenants]
+      : fallback.allowedTenants,
+    cerebroScopes: authContext.cerebroScopes.length
+      ? [...authContext.cerebroScopes]
+      : fallback.cerebroScopes,
+    groups: authContext.groups.length ? [...authContext.groups] : fallback.groups
+  };
+}
+
 function authSessionFromProto(session: ProtoAuthSession): ConnectAuthSession {
   const role = normalizeTenantRole(session.user?.role);
   const user = {
@@ -1042,14 +1096,7 @@ function authSessionFromProto(session: ProtoAuthSession): ConnectAuthSession {
   return {
     user,
     organization,
-    authContext: {
-      principal: user.email,
-      tenantId: organization.id,
-      tenantSlug: organization.slug,
-      credentialKind: "human_workspace_session",
-      tokenTransport: "http_only_cookie",
-      cerebroScopes: [...CEREBRO_SCOPES_BY_ROLE[role]]
-    }
+    authContext: authContextFromProto(session.authContext, user, organization)
   };
 }
 

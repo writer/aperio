@@ -122,6 +122,48 @@ test("frontend auth session types do not expose bearer tokens", () => {
     functionBlock(connectClient, "authSessionFromProto"),
     /session\.token/
   );
+  assert.match(
+    functionBlock(connectClient, "authSessionFromProto"),
+    /session\.authContext/,
+    "frontend auth sessions should consume server-provided Cerebro auth context"
+  );
+  assert.match(exportedTypeBlock(webApi, "AuthContext"), /\bauthMode\s*:/);
+  assert.match(exportedTypeBlock(webApi, "AuthContext"), /\ballowedTenants\s*:/);
+  assert.match(exportedTypeBlock(webApi, "AuthContext"), /\bgroups\s*:/);
+});
+
+test("frontend auth surfaces share Cerebro auth vocabulary", () => {
+  const authModel = readRepoFile("apps/web/lib/cerebro-auth.ts");
+  const accountMenu = readRepoFile(
+    "apps/web/components/layout/account-menu.tsx"
+  );
+  const authLayout = readRepoFile("apps/web/components/auth/auth-layout.tsx");
+  const loginPage = readRepoFile("apps/web/components/auth/login-page.tsx");
+  const workspaceSwitcher = readRepoFile(
+    "apps/web/components/layout/workspace-switcher.tsx"
+  );
+
+  assert.match(authModel, /CEREBRO_API_RESOURCE\s*=\s*"cerebro-api"/);
+  assert.match(authModel, /CEREBRO_MCP_RESOURCE\s*=\s*"cerebro-mcp"/);
+  assert.match(
+    authModel,
+    /CEREBRO_HUMAN_AUTH_MODE\s*=\s*"human_workspace_session"/
+  );
+  assert.match(
+    authModel,
+    /CEREBRO_SESSION_TRANSPORT\s*=\s*"http_only_cookie"/
+  );
+  assert.match(accountMenu, /formatCerebroScope/);
+  assert.match(accountMenu, /formatCerebroTransport/);
+  assert.match(accountMenu, /CEREBRO_API_RESOURCE/);
+  assert.match(
+    authModel,
+    /formatCerebroTransport\(CEREBRO_SESSION_TRANSPORT\)/
+  );
+  assert.match(authLayout, /CEREBRO_AUTH_INSIGHTS/);
+  assert.match(authLayout, /CEREBRO_MCP_RESOURCE/);
+  assert.match(loginPage, /CEREBRO_HUMAN_AUTH_MODE/);
+  assert.match(workspaceSwitcher, /CEREBRO_API_RESOURCE/);
 });
 
 test("frontend requests rely on cookies instead of Authorization bearer headers", () => {
