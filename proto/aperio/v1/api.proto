@@ -353,12 +353,65 @@ message Finding {
   string resolved_at = 11;
   FindingIntegration integration = 12;
   repeated string tags = 13;
+  FindingCerebroContext cerebro_context = 14;
 }
 
 message FindingIntegration {
   string id = 1;
   string provider = 2;
   string display_name = 3;
+}
+
+message FindingCerebroContext {
+  string source = 1;
+  string mode = 2;
+  string source_runtime_id = 3;
+  string finding_contract = 4;
+  string source_event_id = 5;
+  int32 claim_count = 6;
+  repeated CerebroClaimSummary claim_summaries = 7;
+  repeated CerebroGraphSignal graph_signals = 8;
+  repeated CerebroEntityRef entities = 9;
+  repeated CerebroGraphPath graph_paths = 10;
+  CerebroMCPContext mcp = 11;
+  repeated string response_hints = 12;
+}
+
+message CerebroClaimSummary {
+  string claim_type = 1;
+  string predicate = 2;
+  string subject_urn = 3;
+  string object_urn = 4;
+  string source_event = 5;
+}
+
+message CerebroGraphSignal {
+  string label = 1;
+  string predicate = 2;
+  int32 confidence = 3;
+  string entity_urn = 4;
+  string evidence = 5;
+}
+
+message CerebroEntityRef {
+  string urn = 1;
+  string type = 2;
+  string label = 3;
+  string provider = 4;
+}
+
+message CerebroGraphPath {
+  string id = 1;
+  string title = 2;
+  string risk = 3;
+  repeated CerebroEntityRef nodes = 4;
+}
+
+message CerebroMCPContext {
+  string server = 1;
+  string resource_uri = 2;
+  string mime_type = 3;
+  repeated string tools = 4;
 }
 
 message ListSaasIncidentsRequest {
