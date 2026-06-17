@@ -2091,7 +2091,14 @@ function securityCerebroMCPContextFromProto(
     resourceUri: mcp.resourceUri,
     resource: mcp.resource,
     tools: [...mcp.tools],
-    resourceTemplates: []
+    resourceTemplates: mcp.resourceTemplates
+      .map((template) => ({
+        uriTemplate: template.uriTemplate,
+        name: template.name || null,
+        description: template.description || null,
+        mimeType: template.mimeType || null
+      }))
+      .filter((template) => template.uriTemplate)
   };
 }
 
