@@ -2547,7 +2547,9 @@ func (a *App) compatSecurityOverview(ctx context.Context, auth compatAuth) (any,
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
-	return map[string]any{"data": computeSecurityOverview(identities, assets, exceptions, findings, googleIntegrations)}, nil
+	overview := computeSecurityOverview(identities, assets, exceptions, findings, googleIntegrations)
+	overview = a.enrichSecurityOverviewCerebroContext(ctx, auth.OrganizationID, overview, findings)
+	return map[string]any{"data": overview}, nil
 }
 
 func (a *App) compatCreateSecurityAsset(ctx context.Context, body map[string]any, auth compatAuth) (any, error) {
