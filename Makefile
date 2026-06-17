@@ -238,7 +238,8 @@ db-validate: ## Validate the Prisma schema
 
 .PHONY: generate
 generate: ## Regenerate Go + TypeScript protobuf clients (needs network)
-	@go run github.com/bufbuild/buf/cmd/buf@$(BUF_VERSION) generate
+	@go run github.com/bufbuild/buf/cmd/buf@$(BUF_VERSION) generate --template buf.gen.go.yaml --exclude-path proto/cerebro
+	@go run github.com/bufbuild/buf/cmd/buf@$(BUF_VERSION) generate --template buf.gen.ts.yaml
 
 .PHONY: generate-check
 generate-check: generate ## Verify the generated clients are up to date

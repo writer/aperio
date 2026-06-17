@@ -7,7 +7,7 @@
 package aperiocontractsv1
 
 import (
-	v1 "github.com/writer/aperio/gen/cerebro/v1"
+	v1 "github.com/writer/cerebro/sdk/go/cerebroapi/genproto/cerebro/v1"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"

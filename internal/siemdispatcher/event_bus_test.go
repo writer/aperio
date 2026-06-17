@@ -9,8 +9,8 @@ import (
 
 	"github.com/nats-io/nats.go"
 	aperiocontractsv1 "github.com/writer/aperio/gen/aperio/contracts/v1"
-	cerebrov1 "github.com/writer/aperio/gen/cerebro/v1"
 	"github.com/writer/aperio/internal/cerebroclient"
+	cerebrov1 "github.com/writer/cerebro/sdk/go/cerebroapi/genproto/cerebro/v1"
 	"google.golang.org/protobuf/proto"
 )
 

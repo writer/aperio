@@ -7,3 +7,7 @@ lint:
 breaking:
   use:
     - FILE
+  except:
+    # cerebro/v1 go_package is intentionally repointed to the shared Cerebro Go
+    # SDK module; the wire contract is unchanged.
+    - FILE_SAME_GO_PACKAGE

@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package cerebro.v1;
 
-option go_package = "github.com/writer/aperio/gen/cerebro/v1;cerebrov1";
+option go_package = "github.com/writer/cerebro/sdk/go/cerebroapi/genproto/cerebro/v1;cerebrov1";
 
 import "google/protobuf/timestamp.proto";
 

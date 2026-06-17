@@ -9,9 +9,9 @@ import (
 	"strconv"
 	"strings"
 
-	cerebrov1 "github.com/writer/aperio/gen/cerebro/v1"
 	"github.com/writer/aperio/internal/cerebroclient"
 	sdkclaims "github.com/writer/cerebro/sdk/go/cerebroapi/claims"
+	cerebrov1 "github.com/writer/cerebro/sdk/go/cerebroapi/genproto/cerebro/v1"
 )
 
 type Payload struct {
@@ -112,35 +112,12 @@ func Ref(organizationID, runtimeID, entityType, externalID, label string) cerebr
 	}
 }
 
+// EncodeExternalID preserves Aperio's historical URN segment encoding, where a
+// space maps to '-'. It delegates to the SDK's legacy encoder; switching to the
+// canonical percent encoder would orphan Cerebro URNs already persisted by
+// Aperio.
 func EncodeExternalID(value string) string {
-	const upperHex = "0123456789ABCDEF"
-	var builder strings.Builder
-	for index := 0; index < len(value); index++ {
-		character := value[index]
-		if (character >= 'A' && character <= 'Z') ||
-			(character >= 'a' && character <= 'z') ||
-			(character >= '0' && character <= '9') ||
-			character == '-' ||
-			character == '_' ||
-			character == '.' ||
-			character == '!' ||
-			character == '~' ||
-			character == '*' ||
-			character == '\'' ||
-			character == '(' ||
-			character == ')' {
-			builder.WriteByte(character)
-			continue
-		}
-		if character == ' ' {
-			builder.WriteByte('-')
-			continue
-		}
-		builder.WriteByte('%')
-		builder.WriteByte(upperHex[character>>4])
-		builder.WriteByte(upperHex[character&0x0f])
-	}
-	return builder.String()
+	return sdkclaims.EncodeExternalIDLegacy(value)
 }
 
 func claimSource(payload Payload, attributes map[string]string) sdkclaims.Source {

@@ -31,7 +31,7 @@
     "test:api": "tsx --test tests/*.test.ts",
     "test:go": "go test ./...",
     "proto:lint": "go run github.com/bufbuild/buf/cmd/buf@v1.59.0 lint",
-    "proto:generate": "go run github.com/bufbuild/buf/cmd/buf@v1.59.0 generate",
+    "proto:generate": "go run github.com/bufbuild/buf/cmd/buf@v1.59.0 generate --template buf.gen.go.yaml --exclude-path proto/cerebro && go run github.com/bufbuild/buf/cmd/buf@v1.59.0 generate --template buf.gen.ts.yaml",
     "proto:check": "npm run proto:lint && npm run proto:generate && git add --intent-to-add -- gen packages/connect/src/gen && git diff --exit-code -- gen packages/connect/src/gen",
     "verify:go": "npm run proto:check && npm run test:go",
     "verify": "npm run db:generate && npm run typecheck && npm run guardrails:migration && npm run test:api && npm run db:validate && npm run proto:check && npm run test:go && unset DOCKER_HOST && make test-go-db && make lint && npm run build:web && make smoke-workers-go && npm run smoke:e2e && npm run audit:prod && npm run leak:check",
