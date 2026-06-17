@@ -50,6 +50,10 @@ func (a *App) handleOAuthAuthorizationServerMetadata(w http.ResponseWriter, r *h
 		writeError(w, http.StatusNotFound, "Cerebro OAuth discovery is not configured")
 		return
 	}
+	if !oauthAuthorizationServerMetadataPathMatchesIssuer(r.URL.Path, issuer) {
+		writeError(w, http.StatusNotFound, "Cerebro OAuth metadata path does not match the configured issuer")
+		return
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"issuer":                                issuer,
 		"authorization_endpoint":                issuer + oauthAuthorizePath,
@@ -132,4 +136,19 @@ func normalizeAbsoluteURL(raw string) string {
 		return ""
 	}
 	return parsed.String()
+}
+
+func oauthAuthorizationServerMetadataPathMatchesIssuer(requestPath string, issuer string) bool {
+	if requestPath == oauthAuthorizationServerMetadataPath {
+		return true
+	}
+	parsed, err := url.Parse(issuer)
+	if err != nil {
+		return false
+	}
+	issuerPath := strings.TrimRight(parsed.Path, "/")
+	if issuerPath == "" {
+		return false
+	}
+	return requestPath == oauthAuthorizationServerMetadataPath+issuerPath
 }
