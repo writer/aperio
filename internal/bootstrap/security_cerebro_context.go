@@ -114,7 +114,7 @@ func (a *App) securityOverviewCerebroClaims(ctx context.Context, findings []over
 			continue
 		}
 		seenEvents[sourceEventID] = struct{}{}
-		response, err := a.cerebroContextClient.ListClaims(ctx, cerebroclient.ListClaimsRequest{
+		response, err := a.cerebroContextClient.ListProtoClaims(ctx, cerebroclient.ListClaimsRequest{
 			RuntimeID:     a.cerebroRuntimeID,
 			Status:        "asserted",
 			SourceEventID: sourceEventID,
@@ -126,7 +126,7 @@ func (a *App) securityOverviewCerebroClaims(ctx context.Context, findings []over
 			}
 			return claims, err
 		}
-		claims = append(claims, response.Claims...)
+		claims = append(claims, cerebroclient.ClaimsFromProto(response.Claims)...)
 		if len(claims) >= maxSecurityCerebroClaims || len(seenEvents) >= maxSecurityCerebroClaimQueries {
 			break
 		}

@@ -344,6 +344,57 @@ func TestListClaimsSendsFiltersAndParsesClaims(t *testing.T) {
 	}
 }
 
+func TestListProtoClaimsReturnsCanonicalCerebroClaims(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.EscapedPath() != "/api/source-runtimes/runtime-a/claims" {
+			t.Fatalf("path = %s", r.URL.EscapedPath())
+		}
+		_ = json.NewEncoder(w).Encode(ListClaimsResponse{
+			Claims: []Claim{{
+				ID:            "claim-1",
+				SubjectURN:    "urn:cerebro:tenant-a:runtime:runtime-a:finding:f-1",
+				SubjectRef:    EntityRef{URN: "urn:cerebro:tenant-a:runtime:runtime-a:finding:f-1", EntityType: "finding", Label: "Drive exposure"},
+				Predicate:     "severity",
+				ObjectValue:   "HIGH",
+				ClaimType:     "attribute",
+				Status:        "asserted",
+				SourceEventID: "evt-1",
+				ObservedAt:    "2026-06-16T12:00:00Z",
+				Attributes:    map[string]string{"source": "cerebro"},
+			}},
+		})
+	}))
+	defer server.Close()
+
+	client, err := New(Config{
+		BaseURL:  server.URL + "/api",
+		APIKey:   "secret-key",
+		TenantID: "tenant-a",
+	}, WithHTTPClient(server.Client()))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	response, err := client.ListProtoClaims(context.Background(), ListClaimsRequest{
+		RuntimeID:     "runtime-a",
+		Status:        "asserted",
+		SourceEventID: "evt-1",
+		Limit:         10,
+	})
+	if err != nil {
+		t.Fatalf("ListProtoClaims() error = %v", err)
+	}
+	if len(response.Claims) != 1 {
+		t.Fatalf("claims = %d, want 1", len(response.Claims))
+	}
+	claim := response.Claims[0]
+	if got := string(claim.ProtoReflect().Descriptor().FullName()); got != "cerebro.v1.Claim" {
+		t.Fatalf("proto descriptor = %s", got)
+	}
+	if claim.GetSubjectRef().GetEntityType() != "finding" || claim.GetObjectValue() != "HIGH" || claim.GetAttributes()["source"] != "cerebro" || claim.GetObservedAt() == nil {
+		t.Fatalf("proto claim = %#v", claim)
+	}
+}
+
 func TestGetEntityNeighborhoodSendsGraphQueryAndParsesResponse(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {

@@ -20,7 +20,7 @@ type fakeSaasCerebroContextClient struct {
 	listDeadline  bool
 }
 
-func (c *fakeSaasCerebroContextClient) ListClaims(ctx context.Context, request cerebroclient.ListClaimsRequest) (*cerebroclient.ListClaimsResponse, error) {
+func (c *fakeSaasCerebroContextClient) ListProtoClaims(ctx context.Context, request cerebroclient.ListClaimsRequest) (*cerebroclient.ListProtoClaimsResponse, error) {
 	c.listRequests = append(c.listRequests, request)
 	_, hasDeadline := ctx.Deadline()
 	if hasDeadline {
@@ -30,7 +30,9 @@ func (c *fakeSaasCerebroContextClient) ListClaims(ctx context.Context, request c
 	if c.listErr != nil {
 		return nil, c.listErr
 	}
-	return &cerebroclient.ListClaimsResponse{Claims: c.claims[request.SourceEventID]}, nil
+	return &cerebroclient.ListProtoClaimsResponse{
+		Claims: cerebroclient.ClaimsToProto(c.claims[request.SourceEventID]),
+	}, nil
 }
 
 func (c *fakeSaasCerebroContextClient) GetEntityNeighborhood(_ context.Context, rootURN string, _ uint32) (*cerebroclient.EntityNeighborhood, error) {
