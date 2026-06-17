@@ -958,6 +958,24 @@ export type DomainWideDelegation = {
   configuredAt: string;
 };
 
+export type SecurityCerebroContext = {
+  source: string;
+  mode: string;
+  sourceRuntimeId: string;
+  findingContract: string;
+  claimCount: number;
+  graphSignalCount: number;
+  entityCount: number;
+  graphPathCount: number;
+  mcp: {
+    server: string;
+    resourceUri: string;
+    resource: string;
+    tools: string[];
+  } | null;
+  responseHints: string[];
+};
+
 export type SecurityOverview = {
   summary: {
     privilegedIdentities: number;
@@ -979,6 +997,7 @@ export type SecurityOverview = {
   ownershipGaps: SecurityAsset[];
   exceptions: RiskException[];
   domainWideDelegations?: DomainWideDelegation[];
+  cerebroContext?: SecurityCerebroContext | null;
 };
 
 export type EmailDomainHealth = {

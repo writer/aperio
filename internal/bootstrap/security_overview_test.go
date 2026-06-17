@@ -1,9 +1,14 @@
 package bootstrap
 
 import (
+	"context"
 	"database/sql"
+	"errors"
+	"fmt"
 	"testing"
 	"time"
+
+	"github.com/writer/aperio/internal/cerebroclient"
 )
 
 func TestComputeSecurityOverview(t *testing.T) {
@@ -228,5 +233,160 @@ func TestSecurityOverviewFromMapPreservesExplicitMFAFalse(t *testing.T) {
 	}
 	if proto.Identities[0].MfaEnabledState == nil || *proto.Identities[0].MfaEnabledState {
 		t.Fatalf("proto explicit disabled MFA = %v, want false", proto.Identities[0].MfaEnabledState)
+	}
+}
+
+func TestSecurityOverviewCerebroContextReportsLocalProjectionWhenNotConfigured(t *testing.T) {
+	overview := (&App{}).enrichSecurityOverviewCerebroContext(context.Background(), "org-a", map[string]any{}, nil)
+	contextPayload := overview["cerebroContext"].(map[string]any)
+	if contextPayload["source"] != "local-projection" || contextPayload["mode"] != "not-configured" {
+		t.Fatalf("unexpected local Cerebro context: %#v", contextPayload)
+	}
+	if contextPayload["findingContract"] != "cerebro.v1.Finding" {
+		t.Fatalf("finding contract = %#v", contextPayload["findingContract"])
+	}
+	if contextPayload["claimCount"] != 0 || contextPayload["graphSignalCount"] != 0 || contextPayload["entityCount"] != 0 || contextPayload["graphPathCount"] != 0 {
+		t.Fatalf("expected zero Cerebro counts in local context: %#v", contextPayload)
+	}
+	proto := securityOverviewFromMap(overview)
+	if proto.CerebroContext == nil || proto.CerebroContext.Mode != "not-configured" || proto.CerebroContext.ClaimCount != 0 || proto.CerebroContext.GraphSignalCount != 0 || proto.CerebroContext.EntityCount != 0 || proto.CerebroContext.GraphPathCount != 0 {
+		t.Fatalf("proto Cerebro context = %#v", proto.CerebroContext)
+	}
+}
+
+func TestSecurityOverviewCerebroContextHydratesClaimsAndGraph(t *testing.T) {
+	rootURN := "urn:cerebro:tenant-a:runtime:runtime-a:finding:finding-1"
+	assetURN := "urn:cerebro:tenant-a:runtime:runtime-a:asset:drive"
+	client := &fakeSaasCerebroContextClient{
+		claims: map[string][]cerebroclient.Claim{
+			"evt-1": {
+				{
+					SubjectURN: rootURN,
+					SubjectRef: cerebroclient.EntityRef{URN: rootURN, EntityType: "finding", Label: "Drive exposure"},
+					Predicate:  "exposes",
+					ObjectURN:  assetURN,
+					ObjectRef:  &cerebroclient.EntityRef{URN: assetURN, EntityType: "asset", Label: "Board Drive"},
+					ClaimType:  "finding",
+					Status:     "asserted",
+				},
+			},
+		},
+		neighborhoods: map[string]*cerebroclient.EntityNeighborhood{
+			rootURN: {
+				Root:      &cerebroclient.GraphEntity{URN: rootURN, EntityType: "finding", Label: "Drive exposure"},
+				Neighbors: []cerebroclient.GraphEntity{{URN: assetURN, EntityType: "asset", Label: "Board Drive"}},
+				Relations: []cerebroclient.GraphRelation{{FromURN: rootURN, Relation: "exposes", ToURN: assetURN}},
+			},
+		},
+	}
+	app := (&App{}).
+		WithCerebroContextClient("runtime-a", client).
+		WithCerebroMCPServerURL("https://cerebro.example.com/api/v1/mcp")
+
+	overview := app.enrichSecurityOverviewCerebroContext(context.Background(), "org-a", map[string]any{}, []overviewFinding{
+		{ID: "finding-1", SourceEventID: "evt-1"},
+	})
+	contextPayload := overview["cerebroContext"].(map[string]any)
+	if contextPayload["mode"] != "graph-linked" || contextPayload["sourceRuntimeId"] != "runtime-a" {
+		t.Fatalf("unexpected linked Cerebro context: %#v", contextPayload)
+	}
+	if contextPayload["claimCount"] != 1 || contextPayload["entityCount"] != 2 || contextPayload["graphPathCount"] != 1 {
+		t.Fatalf("unexpected Cerebro counts: %#v", contextPayload)
+	}
+	mcp := contextPayload["mcp"].(map[string]any)
+	if mcp["server"] != "https://cerebro.example.com/api/v1/mcp" || mcp["resourceUri"] != "cerebro://aperio/org-a/security/overview" {
+		t.Fatalf("unexpected Cerebro MCP context: %#v", mcp)
+	}
+	if len(client.listRequests) != 1 || client.listRequests[0].SourceEventID != "evt-1" {
+		t.Fatalf("list requests = %#v", client.listRequests)
+	}
+	proto := securityOverviewFromMap(overview)
+	if proto.CerebroContext == nil || proto.CerebroContext.ClaimCount != 1 || proto.CerebroContext.Mcp == nil {
+		t.Fatalf("proto Cerebro context = %#v", proto.CerebroContext)
+	}
+}
+
+func TestSecurityOverviewCerebroContextBoundsLookupAndReportsPendingOnReadFailure(t *testing.T) {
+	client := &fakeSaasCerebroContextClient{listErr: errors.New("cerebro unavailable")}
+	app := (&App{}).WithCerebroContextClient("runtime-a", client)
+
+	overview := app.enrichSecurityOverviewCerebroContext(context.Background(), "org-a", map[string]any{}, []overviewFinding{
+		{ID: "finding-1", SourceEventID: "evt-1"},
+	})
+
+	if !client.listDeadline {
+		t.Fatal("expected security overview Cerebro lookup to use a deadline-bound context")
+	}
+	contextPayload := overview["cerebroContext"].(map[string]any)
+	if contextPayload["mode"] != "context-pending" || contextPayload["sourceRuntimeId"] != "runtime-a" || contextPayload["claimCount"] != 0 {
+		t.Fatalf("unexpected pending Cerebro context: %#v", contextPayload)
+	}
+	if contextPayload["graphSignalCount"] != 0 || contextPayload["entityCount"] != 0 || contextPayload["graphPathCount"] != 0 {
+		t.Fatalf("pending Cerebro context should keep zero derived counts: %#v", contextPayload)
+	}
+	proto := securityOverviewFromMap(overview)
+	if proto.CerebroContext == nil || proto.CerebroContext.Mode != "context-pending" || proto.CerebroContext.ClaimCount != 0 {
+		t.Fatalf("proto pending Cerebro context = %#v", proto.CerebroContext)
+	}
+}
+
+func TestSecurityOverviewCerebroContextReportsFullCountsBeyondDisplayCaps(t *testing.T) {
+	rootURN := "urn:cerebro:tenant-a:runtime:runtime-a:finding:finding-many"
+	claims := make([]cerebroclient.Claim, 0, 14)
+	neighbors := make([]cerebroclient.GraphEntity, 0, 14)
+	relations := make([]cerebroclient.GraphRelation, 0, 7)
+	for index := 0; index < 14; index++ {
+		assetURN := fmt.Sprintf("urn:cerebro:tenant-a:runtime:runtime-a:asset:drive-%02d", index)
+		claims = append(claims, cerebroclient.Claim{
+			SubjectURN:    rootURN,
+			SubjectRef:    cerebroclient.EntityRef{URN: rootURN, EntityType: "finding", Label: "Drive exposure"},
+			Predicate:     fmt.Sprintf("signal-%02d", index),
+			ObjectURN:     assetURN,
+			ObjectRef:     &cerebroclient.EntityRef{URN: assetURN, EntityType: "asset", Label: fmt.Sprintf("Drive %02d", index)},
+			ClaimType:     "relation",
+			Status:        "asserted",
+			SourceEventID: "evt-many",
+		})
+		neighbors = append(neighbors, cerebroclient.GraphEntity{URN: assetURN, EntityType: "asset", Label: fmt.Sprintf("Drive %02d", index)})
+		if index < 7 {
+			relations = append(relations, cerebroclient.GraphRelation{FromURN: rootURN, Relation: "exposes", ToURN: assetURN})
+		}
+	}
+	client := &fakeSaasCerebroContextClient{
+		claims: map[string][]cerebroclient.Claim{"evt-many": claims},
+		neighborhoods: map[string]*cerebroclient.EntityNeighborhood{
+			rootURN: {
+				Root:      &cerebroclient.GraphEntity{URN: rootURN, EntityType: "finding", Label: "Drive exposure"},
+				Neighbors: neighbors,
+				Relations: relations,
+			},
+		},
+	}
+	app := (&App{}).WithCerebroContextClient("runtime-a", client)
+
+	overview := app.enrichSecurityOverviewCerebroContext(context.Background(), "org-a", map[string]any{}, []overviewFinding{
+		{ID: "finding-many", SourceEventID: "evt-many"},
+	})
+	contextPayload := overview["cerebroContext"].(map[string]any)
+	if contextPayload["graphSignalCount"] != 14 || contextPayload["entityCount"] != 15 || contextPayload["graphPathCount"] != 7 {
+		t.Fatalf("expected full Cerebro counts beyond display caps, got %#v", contextPayload)
+	}
+}
+
+func TestSecurityOverviewCerebroMCPContextUsesBrokerIncidentListFallback(t *testing.T) {
+	client := &fakeSaasCerebroContextClient{}
+	app := (&App{}).WithCerebroContextClient("runtime-a", client)
+
+	overview := app.enrichSecurityOverviewCerebroContext(context.Background(), "org-a", map[string]any{}, []overviewFinding{
+		{ID: "finding-1", SourceEventID: "evt-1"},
+	})
+	contextPayload := overview["cerebroContext"].(map[string]any)
+	mcp := contextPayload["mcp"].(map[string]any)
+	if mcp["server"] != "aperio-a2a-broker" || mcp["resourceUri"] != "cerebro://aperio/org-a/incidents" {
+		t.Fatalf("unexpected fallback MCP context = %#v", mcp)
+	}
+	tools := mcp["tools"].([]string)
+	if len(tools) != 1 || tools[0] != "aperio.list_cerebro_incidents" {
+		t.Fatalf("fallback MCP tools = %#v", tools)
 	}
 }

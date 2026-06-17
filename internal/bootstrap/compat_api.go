@@ -568,7 +568,7 @@ func (a *App) compatRateLimit(
 	path string,
 	body map[string]any,
 ) error {
-	if method != http.MethodPost {
+	if method != http.MethodPost && !(method == http.MethodGet && path == securityOverviewRateLimitPath) {
 		return nil
 	}
 	max, window, ok := compatRateLimitPolicy(path)
@@ -672,6 +672,8 @@ func compatRateLimitPolicy(path string) (int, time.Duration, bool) {
 	case "/api/v1/auth/forgot-password", "/api/v1/auth/reset-password", "/api/v1/auth/invitations/accept":
 		return 10, 15 * time.Minute, true
 	case emailDomainHealthListRateLimitPath, emailDomainHealthGetRateLimitPath:
+		return 20, 10 * time.Minute, true
+	case securityOverviewRateLimitPath:
 		return 20, 10 * time.Minute, true
 	default:
 		if strings.HasPrefix(path, "/api/v1/integrations/") && strings.HasSuffix(path, "/force-sync") {
@@ -2527,7 +2529,9 @@ func (a *App) compatSecurityOverview(ctx context.Context, auth compatAuth) (any,
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
-	return map[string]any{"data": computeSecurityOverview(identities, assets, exceptions, findings, googleIntegrations)}, nil
+	overview := computeSecurityOverview(identities, assets, exceptions, findings, googleIntegrations)
+	overview = a.enrichSecurityOverviewCerebroContext(ctx, auth.OrganizationID, overview, findings)
+	return map[string]any{"data": overview}, nil
 }
 
 func (a *App) compatCreateSecurityAsset(ctx context.Context, body map[string]any, auth compatAuth) (any, error) {
