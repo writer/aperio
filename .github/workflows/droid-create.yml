@@ -128,7 +128,8 @@ jobs:
     if: |
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'pull_request_review_comment' &&
-        github.event.pull_request.head.repo.full_name == github.repository && (
+        github.event.pull_request.head.repo.full_name == github.repository &&
+        contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) && (
         contains(github.event.comment.body || '', '@droid implement') ||
         contains(github.event.comment.body || '', '@droid create') ||
         contains(github.event.comment.body || '', '@droid fix this PR') ||
@@ -138,7 +139,8 @@ jobs:
         contains(github.event.comment.body || '', '@droid scaffold source')
       )) ||
       (github.event_name == 'pull_request_review' &&
-        github.event.pull_request.head.repo.full_name == github.repository && (
+        github.event.pull_request.head.repo.full_name == github.repository &&
+        contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.review.author_association) && (
         contains(github.event.review.body || '', '@droid implement') ||
         contains(github.event.review.body || '', '@droid create') ||
         contains(github.event.review.body || '', '@droid fix this PR') ||
@@ -148,7 +150,8 @@ jobs:
         contains(github.event.review.body || '', '@droid scaffold source')
       )) ||
       (github.event_name == 'issue_comment' &&
-        github.event.issue.pull_request != null && (
+        github.event.issue.pull_request != null &&
+        contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) && (
         contains(github.event.comment.body || '', '@droid implement') ||
         contains(github.event.comment.body || '', '@droid create') ||
         contains(github.event.comment.body || '', '@droid fix this PR') ||
@@ -163,7 +166,8 @@ jobs:
           github.event.label.name == 'droid-test' ||
           github.event.label.name == 'droid-source'
         )) ||
-        ((github.event.action == 'opened' ||
+        (contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.issue.author_association) &&
+          (github.event.action == 'opened' ||
           (github.event.action == 'edited' && (
             contains(toJSON(github.event.changes), '"title"') ||
             contains(toJSON(github.event.changes), '"body"')
@@ -186,6 +190,9 @@ jobs:
           github.event.label.name == 'droid-test' ||
           github.event.label.name == 'droid-source'
         ))
+    concurrency:
+      group: ${{ github.workflow }}-${{ needs.resolve-concurrency.outputs.key }}
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -377,6 +384,8 @@ jobs:
               entity_url = issue.get("html_url") or ""
               if issue.get("pull_request"):
                   source_pr = api_get(issue["pull_request"]["url"])
+                  pr = source_pr
+                  is_pr = True
                   entity_title = source_pr.get("title") or entity_title
                   entity_body = source_pr.get("body") or entity_body
                   entity_url = source_pr.get("html_url") or entity_url
@@ -543,7 +552,7 @@ jobs:
         shell: bash
         env:
           CHECKOUT_REPOSITORY: ${{ needs.droid-context.outputs.checkout_repository }}
-          CHECKOUT_REF: ${{ github.event_name == 'issue_comment' && needs.droid-context.outputs.default_branch || needs.droid-context.outputs.checkout_ref }}
+          CHECKOUT_REF: ${{ needs.droid-context.outputs.checkout_ref }}
         run: |
           set -euo pipefail
           case "${CHECKOUT_REPOSITORY}" in
@@ -792,7 +801,7 @@ jobs:
         shell: bash
         env:
           CHECKOUT_REPOSITORY: ${{ needs.droid-context.outputs.checkout_repository }}
-          CHECKOUT_REF: ${{ github.event_name == 'issue_comment' && needs.droid-context.outputs.default_branch || needs.droid-context.outputs.checkout_ref }}
+          CHECKOUT_REF: ${{ needs.droid-context.outputs.checkout_ref }}
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
