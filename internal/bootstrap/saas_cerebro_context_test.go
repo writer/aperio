@@ -185,7 +185,9 @@ func TestEnrichSaasCerebroContextUpdatesMCPBeforeClaimHydration(t *testing.T) {
 		t.Fatalf("mcp context = %#v", mcp)
 	}
 	tools := contextRecords(mcp["tools"])
-	if len(tools) != 4 || tools[0] != "cerebro.findings.search" {
+	if !contextRecordsContain(tools, "cerebro.findings.get") ||
+		!contextRecordsContain(tools, "cerebro.graph.neighborhood") ||
+		!contextRecordsContain(tools, "cerebro.findings.action.propose") {
 		t.Fatalf("mcp tools = %#v", tools)
 	}
 }
