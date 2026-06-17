@@ -14,7 +14,7 @@ export const categories = [
   {
     id: "critical_auth_security",
     label: "Critical auth/security",
-    model: "claude-opus-4-8",
+    model: "claude-sonnet-4-6",
     patterns: [
       /^packages\/security\//,
       /^packages\/shared\/src\/(?:auth|security|siem-security)\.ts$/,
@@ -25,7 +25,7 @@ export const categories = [
   {
     id: "tenant_data_integrity",
     label: "Tenant/data integrity",
-    model: "claude-opus-4-8",
+    model: "claude-sonnet-4-6",
     patterns: [
       /^packages\/db\//,
       /^apps\/api\/src\/routes\/(?:admin|findings|ingestion|security|shadow-it)\.ts$/,
@@ -35,7 +35,7 @@ export const categories = [
   {
     id: "agents_remediation_mcp_siem",
     label: "Agents/remediation/MCP/SIEM",
-    model: "claude-opus-4-8",
+    model: "claude-sonnet-4-6",
     patterns: [
       /^apps\/api\/src\/routes\/(?:agents|remediations|siem)\.ts$/,
       /^apps\/api\/src\/remediation\//,
@@ -51,7 +51,7 @@ export const categories = [
   {
     id: "connectors_integrations_ingestion",
     label: "Connectors/integrations/ingestion",
-    model: "claude-opus-4-8",
+    model: "claude-sonnet-4-6",
     patterns: [
       /^apps\/api\/src\/routes\/integrations\.ts$/,
       /^packages\/shared\/src\/connectors\.ts$/,
@@ -62,7 +62,7 @@ export const categories = [
   {
     id: "supply_chain_workflow",
     label: "Supply chain/workflow",
-    model: "claude-opus-4-8",
+    model: "claude-sonnet-4-6",
     patterns: [
       /^\.github\/workflows\//,
       /^scripts\//,
@@ -134,8 +134,8 @@ export function buildPreflightReport({ base = "", head = "HEAD", changedFiles = 
   const matchedCategories = matchedCategoriesForChangedFiles(changedFiles);
   const docsOnly = changedFiles.length > 0 && changedFiles.every(isDocsOnlyFile);
   const runDroidReview = changedFiles.length > 0 && !docsOnly;
-  const highRisk = matchedCategories.some((category) => category.model === "claude-opus-4-8");
-  const reviewModel = highRisk ? "claude-opus-4-8" : "gpt-5.4";
+  const highRisk = matchedCategories.some((category) => category.model === "claude-sonnet-4-6");
+  const reviewModel = highRisk ? "claude-sonnet-4-6" : "gpt-5.4";
   const reviewReason = (() => {
     if (changedFiles.length === 0) {
       return "no changed files";
