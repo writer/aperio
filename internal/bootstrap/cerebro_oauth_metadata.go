@@ -31,6 +31,10 @@ func (a *App) handleOAuthProtectedResourceMetadata(w http.ResponseWriter, r *htt
 		writeError(w, http.StatusNotFound, "Cerebro OAuth discovery is not configured")
 		return
 	}
+	if !oauthProtectedResourceMetadataPathMatchesResource(r.URL.Path, resource) {
+		writeError(w, http.StatusNotFound, "Cerebro OAuth metadata path does not match the configured resource")
+		return
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"resource":                 resource,
 		"authorization_servers":    []string{issuer},
@@ -151,4 +155,19 @@ func oauthAuthorizationServerMetadataPathMatchesIssuer(requestPath string, issue
 		return false
 	}
 	return requestPath == oauthAuthorizationServerMetadataPath+issuerPath
+}
+
+func oauthProtectedResourceMetadataPathMatchesResource(requestPath string, resource string) bool {
+	if requestPath == oauthProtectedResourceMetadataPath || requestPath == oauthProtectedResourceMetadataMCPPath {
+		return true
+	}
+	parsed, err := url.Parse(resource)
+	if err != nil {
+		return false
+	}
+	resourcePath := strings.TrimRight(parsed.Path, "/")
+	if resourcePath == "" {
+		return false
+	}
+	return requestPath == oauthProtectedResourceMetadataPath+resourcePath
 }
