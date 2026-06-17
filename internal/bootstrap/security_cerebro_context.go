@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	cerebrov1 "github.com/writer/aperio/gen/cerebro/v1"
 	"github.com/writer/aperio/internal/cerebroclient"
+	cerebrov1 "github.com/writer/cerebro/sdk/go/cerebroapi/genproto/cerebro/v1"
 )
 
 const (

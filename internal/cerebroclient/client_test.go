@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	cerebrov1 "github.com/writer/aperio/gen/cerebro/v1"
+	cerebrov1 "github.com/writer/cerebro/sdk/go/cerebroapi/genproto/cerebro/v1"
 )
 
 func TestConfigFromEnvDefaultsAndTrims(t *testing.T) {
