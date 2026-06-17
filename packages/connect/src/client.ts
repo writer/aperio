@@ -5,6 +5,11 @@ import {
   type AuditLogEntry as ProtoAuditLogEntry,
   type AuthContext as ProtoAuthContext,
   type AuthSession as ProtoAuthSession,
+  type CerebroClaimSummary as ProtoCerebroClaimSummary,
+  type CerebroEntityRef as ProtoCerebroEntityRef,
+  type CerebroGraphPath as ProtoCerebroGraphPath,
+  type CerebroGraphSignal as ProtoCerebroGraphSignal,
+  type CerebroMCPContext as ProtoCerebroMCPContext,
   type ConnectorDefinition as ProtoConnectorDefinition,
   type EmailDomainDkimSelector as ProtoEmailDomainDkimSelector,
   type EmailDomainHealth as ProtoEmailDomainHealth,
@@ -12,6 +17,7 @@ import {
   type EmailDomainHealthHistoryPoint as ProtoEmailDomainHealthHistoryPoint,
   type EmailDomainHealthIssue as ProtoEmailDomainHealthIssue,
   type Finding as ProtoFinding,
+  type FindingCerebroContext as ProtoFindingCerebroContext,
   type GoogleMailboxScanConfig as ProtoGoogleMailboxScanConfig,
   type GoogleWorkspaceBigQueryConfig as ProtoGoogleWorkspaceBigQueryConfig,
   type GoogleWorkspaceBigQueryValidation as ProtoGoogleWorkspaceBigQueryValidation,
@@ -85,6 +91,7 @@ export type ConnectFinding = {
       | "SALESFORCE";
     displayName: string;
   };
+  cerebroContext: ConnectFindingCerebroContext | null;
 };
 
 export type ConnectFindingsFilters = {
@@ -178,6 +185,13 @@ export type ConnectCerebroIncidentContext = {
   claimSummaries: ConnectCerebroClaimSummary[];
   responseHints: string[];
   mcp: ConnectCerebroMCPContext | null;
+};
+
+export type ConnectFindingCerebroContext = Omit<
+  ConnectCerebroIncidentContext,
+  "lastClaimFanoutAt"
+> & {
+  sourceEventId?: string | null;
 };
 
 export type ConnectSaasIncident = {
@@ -1154,6 +1168,84 @@ function mfaEnrollmentFromProto(
   };
 }
 
+function cerebroEntityRefFromProto(
+  entity: ProtoCerebroEntityRef
+): ConnectCerebroEntityRef {
+  return {
+    urn: entity.urn,
+    type: entity.type || "entity",
+    label: entity.label || entity.urn,
+    provider: entity.provider || null
+  };
+}
+
+function cerebroGraphSignalFromProto(
+  signal: ProtoCerebroGraphSignal
+): ConnectCerebroGraphSignal {
+  return {
+    label: signal.label,
+    predicate: signal.predicate || null,
+    confidence: signal.confidence || null,
+    entityUrn: signal.entityUrn || null,
+    evidence: signal.evidence || null
+  };
+}
+
+function cerebroGraphPathFromProto(
+  path: ProtoCerebroGraphPath
+): ConnectCerebroGraphPath {
+  return {
+    id: path.id,
+    title: path.title,
+    risk: path.risk || null,
+    nodes: path.nodes.map(cerebroEntityRefFromProto)
+  };
+}
+
+function cerebroClaimSummaryFromProto(
+  summary: ProtoCerebroClaimSummary
+): ConnectCerebroClaimSummary {
+  return {
+    claimType: summary.claimType,
+    predicate: summary.predicate,
+    subjectUrn: summary.subjectUrn,
+    objectUrn: summary.objectUrn || null,
+    sourceEvent: summary.sourceEvent || null
+  };
+}
+
+function cerebroMCPContextFromProto(
+  mcp?: ProtoCerebroMCPContext | null
+): ConnectCerebroMCPContext | null {
+  if (!mcp) return null;
+  return {
+    server: mcp.server || null,
+    resourceUri: mcp.resourceUri || null,
+    mimeType: mcp.mimeType || null,
+    tools: [...mcp.tools]
+  };
+}
+
+function findingCerebroContextFromProto(
+  context?: ProtoFindingCerebroContext | null
+): ConnectFindingCerebroContext | null {
+  if (!context) return null;
+  return {
+    source: context.source || "local-projection",
+    mode: context.mode || "not-configured",
+    sourceRuntimeId: context.sourceRuntimeId || null,
+    findingContract: context.findingContract || null,
+    sourceEventId: context.sourceEventId || null,
+    claimCount: context.claimCount,
+    graphSignals: context.graphSignals.map(cerebroGraphSignalFromProto),
+    entities: context.entities.map(cerebroEntityRefFromProto),
+    graphPaths: context.graphPaths.map(cerebroGraphPathFromProto),
+    claimSummaries: context.claimSummaries.map(cerebroClaimSummaryFromProto),
+    responseHints: [...context.responseHints],
+    mcp: cerebroMCPContextFromProto(context.mcp)
+  };
+}
+
 function findingFromProto(finding: ProtoFinding): ConnectFinding {
   // Generated proto3 strings default to "", while the web API contract uses
   // null for absent optional fields. Normalize at the edge so components do not
@@ -1176,7 +1268,8 @@ function findingFromProto(finding: ProtoFinding): ConnectFinding {
       provider: (finding.integration?.provider ??
         "") as ConnectFinding["integration"]["provider"],
       displayName: finding.integration?.displayName ?? ""
-    }
+    },
+    cerebroContext: findingCerebroContextFromProto(finding.cerebroContext)
   };
 }
 
