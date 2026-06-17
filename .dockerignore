@@ -1,0 +1,13 @@
+.git
+.github
+.factory
+node_modules
+.next
+apps/web/.next
+bin
+coverage
+infra
+*.log
+.env
+.env.*
+!.env.example

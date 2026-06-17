@@ -1,0 +1,111 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: Image tag to publish
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+  actions: write
+
+env:
+  IMAGE: ghcr.io/writer/aperio
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.meta.outputs.tag }}
+      image_digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+      - uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1 # v3.5.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        shell: bash
+        env:
+          INPUT_TAG: ${{ github.event.inputs.image_tag || '' }}
+        run: |
+          set -euo pipefail
+          if [ -n "${INPUT_TAG}" ]; then tag="${INPUT_TAG}"; else tag="${GITHUB_REF_NAME}"; fi
+          if ! [[ "${tag}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?$|^sha-[0-9A-Fa-f]{7,40}$ ]]; then
+            echo "Invalid image tag ${tag}" >&2
+            exit 1
+          fi
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+      - uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        id: build
+        with:
+          context: .
+          push: true
+          tags: ${{ env.IMAGE }}:${{ steps.meta.outputs.tag }}
+          platforms: linux/amd64
+          provenance: true
+          sbom: true
+      - uses: sigstore/cosign-installer@d7543c93d881b35a8faa02e8e3605f69b7a1ce62 # v3.10.0
+      - name: Sign image
+        env:
+          COSIGN_EXPERIMENTAL: 'true'
+          IMAGE_TAG: ${{ steps.meta.outputs.tag }}
+          IMAGE_DIGEST: ${{ steps.build.outputs.digest }}
+        run: cosign sign --yes "${IMAGE}@${IMAGE_DIGEST}"
+  notify-infra-release:
+    runs-on: ubuntu-latest
+    needs: [image]
+    if: startsWith(needs.image.outputs.image_tag, 'v')
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target_environment: sec-dev
+          - target_environment: go-prod
+    steps:
+      - name: Dispatch release deployment request
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.APERIO_INFRA_PROMOTION_TOKEN }}
+          INFRA_REPOSITORY: ${{ secrets.APERIO_INFRA_REPOSITORY }}
+          IMAGE_TAG: ${{ needs.image.outputs.image_tag }}
+          IMAGE_DIGEST: ${{ needs.image.outputs.image_digest }}
+          TARGET_ENVIRONMENT: ${{ matrix.target_environment }}
+          SOURCE_REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GH_TOKEN}" ]; then
+            echo "::warning::APERIO_INFRA_PROMOTION_TOKEN is not configured; skipping ${TARGET_ENVIRONMENT} deploy dispatch for ${IMAGE_TAG}"
+            exit 0
+          fi
+          if ! [[ "${INFRA_REPOSITORY}" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]; then
+            echo "ERROR: APERIO_INFRA_REPOSITORY must be configured as owner/repo" >&2
+            exit 1
+          fi
+          handler="$(mktemp)"
+          gh api "repos/${INFRA_REPOSITORY}/contents/.github/workflows/propose-image-tag.yml?ref=main" --jq .content \
+            | base64 -d > "${handler}"
+          if ! grep -Eq '^[[:space:]]*repository_dispatch:' "${handler}" || ! grep -Eq 'aperio-release-published' "${handler}"; then
+            echo "ERROR: configured deploy repository does not have the aperio-release-published handler installed" >&2
+            exit 1
+          fi
+
+          gh api -X POST "repos/${INFRA_REPOSITORY}/dispatches" \
+            -f event_type=aperio-release-published \
+            -F "client_payload[image_tag]=${IMAGE_TAG}" \
+            -F "client_payload[image_digest]=${IMAGE_DIGEST}" \
+            -F "client_payload[target_environment]=${TARGET_ENVIRONMENT}" \
+            -F "client_payload[source_repository]=${SOURCE_REPOSITORY}" \
+            -F "client_payload[source_ref]=refs/tags/${IMAGE_TAG}"
