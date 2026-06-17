@@ -320,6 +320,9 @@ func TestCompatRateLimitUsesSeparateIPAndSubjectBuckets(t *testing.T) {
 	if _, _, ok := compatRateLimitPolicy(emailDomainHealthRefreshRatePath); !ok {
 		t.Fatal("email domain refresh path must stay rate limited")
 	}
+	if _, _, ok := compatRateLimitPolicy(securityOverviewRateLimitPath); !ok {
+		t.Fatal("security overview path must stay rate limited")
+	}
 	for _, path := range []string{
 		"/api/v1/integrations/int_123/source-sync",
 		"/api/v1/integrations/int_123/source-backfill",
