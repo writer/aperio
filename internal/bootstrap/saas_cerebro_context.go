@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	cerebrov1 "github.com/writer/aperio/gen/cerebro/v1"
 	"github.com/writer/aperio/internal/cerebroclient"
 )
 
@@ -58,8 +59,8 @@ func (a *App) enrichSaasCerebroContext(ctx context.Context, organizationID strin
 	findingRoots := []string{}
 	for _, claim := range claims {
 		entities.addClaim(claim)
-		if isCerebroFindingURN(claim.SubjectURN) && !containsString(findingRoots, claim.SubjectURN) {
-			findingRoots = append(findingRoots, claim.SubjectURN)
+		if subjectURN := claim.GetSubjectUrn(); isCerebroFindingURN(subjectURN) && !containsString(findingRoots, subjectURN) {
+			findingRoots = append(findingRoots, subjectURN)
 		}
 	}
 	graphPaths := []map[string]any{}
@@ -97,8 +98,8 @@ func (a *App) refreshSaasCerebroMCPContext(organizationID string, incidentID str
 	return encodeCerebroContextMap(payload, base)
 }
 
-func (a *App) saasCerebroIncidentClaims(ctx context.Context, findings []findingRow) []cerebroclient.Claim {
-	claims := []cerebroclient.Claim{}
+func (a *App) saasCerebroIncidentClaims(ctx context.Context, findings []findingRow) []*cerebrov1.Claim {
+	claims := []*cerebrov1.Claim{}
 	seenEvents := map[string]struct{}{}
 	for _, finding := range findings {
 		sourceEventID := strings.TrimSpace(stringFromAny(finding.Evidence["sourceEventId"]))
@@ -118,7 +119,7 @@ func (a *App) saasCerebroIncidentClaims(ctx context.Context, findings []findingR
 		if err != nil || response == nil {
 			continue
 		}
-		claims = append(claims, cerebroclient.ClaimsFromProto(response.Claims)...)
+		claims = append(claims, response.Claims...)
 		if len(claims) >= maxSaasCerebroClaims || len(seenEvents) >= maxSaasCerebroClaimQueries {
 			break
 		}
@@ -142,24 +143,26 @@ func encodeCerebroContextMap(payload map[string]any, fallback string) string {
 	return string(encoded)
 }
 
-func cerebroClaimSummaries(claims []cerebroclient.Claim) []map[string]any {
+func cerebroClaimSummaries(claims []*cerebrov1.Claim) []map[string]any {
 	summaries := make([]map[string]any, 0, minInt(len(claims), 8))
 	seen := map[string]struct{}{}
 	for _, claim := range claims {
-		if strings.TrimSpace(claim.SubjectURN) == "" || strings.TrimSpace(claim.Predicate) == "" {
+		subjectURN := claim.GetSubjectUrn()
+		predicate := claim.GetPredicate()
+		if strings.TrimSpace(subjectURN) == "" || strings.TrimSpace(predicate) == "" {
 			continue
 		}
-		key := strings.Join([]string{claim.ClaimType, claim.Predicate, claim.SubjectURN, claim.ObjectURN, claim.SourceEventID}, "\x00")
+		key := strings.Join([]string{claim.GetClaimType(), predicate, subjectURN, claim.GetObjectUrn(), claim.GetSourceEventId()}, "\x00")
 		if _, ok := seen[key]; ok {
 			continue
 		}
 		seen[key] = struct{}{}
 		summaries = append(summaries, map[string]any{
-			"claimType":   claim.ClaimType,
-			"predicate":   claim.Predicate,
-			"subjectUrn":  claim.SubjectURN,
-			"objectUrn":   emptyToNil(claim.ObjectURN),
-			"sourceEvent": emptyToNil(claim.SourceEventID),
+			"claimType":   claim.GetClaimType(),
+			"predicate":   predicate,
+			"subjectUrn":  subjectURN,
+			"objectUrn":   emptyToNil(claim.GetObjectUrn()),
+			"sourceEvent": emptyToNil(claim.GetSourceEventId()),
 		})
 		if len(summaries) >= 8 {
 			break
@@ -168,25 +171,27 @@ func cerebroClaimSummaries(claims []cerebroclient.Claim) []map[string]any {
 	return summaries
 }
 
-func cerebroGraphSignals(claims []cerebroclient.Claim) []map[string]any {
+func cerebroGraphSignals(claims []*cerebrov1.Claim) []map[string]any {
 	signals := make([]map[string]any, 0, minInt(len(claims), 6))
 	seen := map[string]struct{}{}
 	for _, claim := range claims {
-		evidence := firstString(claim.ObjectValue, claim.ObjectURN)
-		if evidence == "" || strings.TrimSpace(claim.Predicate) == "" || strings.TrimSpace(claim.SubjectURN) == "" {
+		subjectURN := claim.GetSubjectUrn()
+		predicate := claim.GetPredicate()
+		evidence := firstString(claim.GetObjectValue(), claim.GetObjectUrn())
+		if evidence == "" || strings.TrimSpace(predicate) == "" || strings.TrimSpace(subjectURN) == "" {
 			continue
 		}
-		key := claim.Predicate + "\x00" + claim.SubjectURN + "\x00" + evidence
+		key := predicate + "\x00" + subjectURN + "\x00" + evidence
 		if _, ok := seen[key]; ok {
 			continue
 		}
 		seen[key] = struct{}{}
-		label := firstString(claim.SubjectRef.Label, shortCerebroURN(claim.SubjectURN))
+		label := firstString(claim.GetSubjectRef().GetLabel(), shortCerebroURN(subjectURN))
 		signals = append(signals, map[string]any{
 			"label":      label,
-			"predicate":  claim.Predicate,
+			"predicate":  predicate,
 			"confidence": 1,
-			"entityUrn":  claim.SubjectURN,
+			"entityUrn":  subjectURN,
 			"evidence":   evidence,
 		})
 		if len(signals) >= 6 {
@@ -196,14 +201,16 @@ func cerebroGraphSignals(claims []cerebroclient.Claim) []map[string]any {
 	return signals
 }
 
-func cerebroGraphSignalCount(claims []cerebroclient.Claim) int {
+func cerebroGraphSignalCount(claims []*cerebrov1.Claim) int {
 	seen := map[string]struct{}{}
 	for _, claim := range claims {
-		evidence := firstString(claim.ObjectValue, claim.ObjectURN)
-		if evidence == "" || strings.TrimSpace(claim.Predicate) == "" || strings.TrimSpace(claim.SubjectURN) == "" {
+		subjectURN := claim.GetSubjectUrn()
+		predicate := claim.GetPredicate()
+		evidence := firstString(claim.GetObjectValue(), claim.GetObjectUrn())
+		if evidence == "" || strings.TrimSpace(predicate) == "" || strings.TrimSpace(subjectURN) == "" {
 			continue
 		}
-		key := claim.Predicate + "\x00" + claim.SubjectURN + "\x00" + evidence
+		key := predicate + "\x00" + subjectURN + "\x00" + evidence
 		seen[key] = struct{}{}
 	}
 	return len(seen)
@@ -306,15 +313,21 @@ func newCerebroEntityCollector() *cerebroEntityCollector {
 	return &cerebroEntityCollector{seen: map[string]map[string]any{}}
 }
 
-func (c *cerebroEntityCollector) addClaim(claim cerebroclient.Claim) {
-	c.addEntityRef(claim.SubjectRef)
-	if claim.ObjectRef != nil {
-		c.addEntityRef(*claim.ObjectRef)
+func (c *cerebroEntityCollector) addClaim(claim *cerebrov1.Claim) {
+	if claim == nil {
+		return
+	}
+	c.addProtoEntityRef(claim.GetSubjectRef())
+	if claim.GetObjectRef() != nil {
+		c.addProtoEntityRef(claim.GetObjectRef())
 	}
 }
 
-func (c *cerebroEntityCollector) addEntityRef(ref cerebroclient.EntityRef) {
-	c.add(ref.URN, ref.EntityType, ref.Label)
+func (c *cerebroEntityCollector) addProtoEntityRef(ref *cerebrov1.EntityRef) {
+	if ref == nil {
+		return
+	}
+	c.add(ref.GetUrn(), ref.GetEntityType(), ref.GetLabel())
 }
 
 func (c *cerebroEntityCollector) addNeighborhood(neighborhood *cerebroclient.EntityNeighborhood) {
