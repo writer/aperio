@@ -1870,6 +1870,7 @@ async function runSmokeE2E() {
       "next",
       "dev",
       "apps/web",
+      "--webpack",
       "-p",
       "3000"
     ], {
