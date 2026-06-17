@@ -80,7 +80,7 @@ func DetectionPackByID(id string) (DetectionPack, bool) {
 }
 
 // RulesInPack returns every RuleCatalog entry that names the given pack
-// ID, preserving catalog display order. An unknown pack returns nil.
+// ID, preserving catalog display order. An unknown pack returns an empty slice.
 func RulesInPack(packID string) []RuleCatalogEntry {
 	out := make([]RuleCatalogEntry, 0, 4)
 	for _, entry := range RuleCatalog {
