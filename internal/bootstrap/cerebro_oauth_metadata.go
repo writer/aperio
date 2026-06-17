@@ -13,7 +13,6 @@ const (
 	oauthAuthorizePath                    = "/oauth/authorize"
 	oauthTokenPath                        = "/oauth/token" // #nosec G101 -- HTTP route path, not a secret token.
 	oauthRevokePath                       = "/oauth/revoke"
-	cerebroMCPEndpointPath                = "/api/v1/mcp"
 )
 
 func (a *App) WithCerebroOAuthIssuerURL(issuerURL string) *App {
@@ -133,22 +132,4 @@ func normalizeAbsoluteURL(raw string) string {
 		return ""
 	}
 	return parsed.String()
-}
-
-func requestOrigin(r *http.Request) string {
-	scheme := strings.TrimSpace(r.Header.Get("X-Forwarded-Proto"))
-	if scheme == "" {
-		scheme = "http"
-		if r.TLS != nil {
-			scheme = "https"
-		}
-	}
-	host := strings.TrimSpace(r.Header.Get("X-Forwarded-Host"))
-	if host == "" {
-		host = r.Host
-	}
-	if host == "" {
-		return ""
-	}
-	return scheme + "://" + host
 }
