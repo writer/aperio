@@ -94,8 +94,8 @@ func TestApprovedResourceTemplatesCatalog(t *testing.T) {
 	}
 
 	templates := ApprovedResourceTemplates()
-	if len(templates) != 2 {
-		t.Fatalf("resource template count = %d, want 2", len(templates))
+	if len(templates) != 3 {
+		t.Fatalf("resource template count = %d, want 3", len(templates))
 	}
 	want := []struct {
 		uriTemplate string
@@ -103,6 +103,7 @@ func TestApprovedResourceTemplatesCatalog(t *testing.T) {
 	}{
 		{"cerebro://aperio/{organizationId}/incidents/{incidentId}", cerebroIncidentMimeType},
 		{"cerebro://aperio/{organizationId}/findings/{findingId}", cerebroFindingMimeType},
+		{"cerebro://aperio/{organizationId}/security/overview", cerebroSecurityOverviewMimeType},
 	}
 	for index, expected := range want {
 		template := templates[index]

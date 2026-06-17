@@ -11,8 +11,9 @@ import (
 )
 
 const (
-	cerebroIncidentMimeType = "application/vnd.aperio.cerebro.incident+json"
-	cerebroFindingMimeType  = "application/vnd.aperio.cerebro.finding+json"
+	cerebroIncidentMimeType         = "application/vnd.aperio.cerebro.incident+json"
+	cerebroFindingMimeType          = "application/vnd.aperio.cerebro.finding+json"
+	cerebroSecurityOverviewMimeType = "application/vnd.aperio.cerebro.security-overview+json"
 )
 
 type cerebroIncidentRow struct {
@@ -783,6 +784,14 @@ func (s *ToolService) ReadResource(ctx context.Context, params ResourceReadParam
 			"findingId":      resourceID,
 		})
 		mimeType = cerebroFindingMimeType
+	case "security":
+		if resourceID != "overview" {
+			return ResourceContent{}, fmt.Errorf("Unsupported Cerebro MCP security resource: %s", resourceID)
+		}
+		payload, err = s.getCerebroSecurityOverviewContext(ctx, map[string]any{
+			"organizationId": organizationID,
+		})
+		mimeType = cerebroSecurityOverviewMimeType
 	default:
 		return ResourceContent{}, fmt.Errorf("Unsupported Cerebro MCP resource collection: %s", collection)
 	}
@@ -839,9 +848,138 @@ func normalizedCerebroResourceURI(organizationID string, collection string, reso
 		return cerebroIncidentResourceURI(organizationID, resourceID)
 	case "findings":
 		return cerebroFindingResourceURI(organizationID, resourceID)
+	case "security":
+		if resourceID == "overview" {
+			return cerebroSecurityOverviewResourceURI(organizationID)
+		}
+		return "cerebro://aperio/" + url.PathEscape(organizationID) + "/security/" + url.PathEscape(resourceID)
 	default:
 		return "cerebro://aperio/" + url.PathEscape(organizationID) + "/" + url.PathEscape(collection) + "/" + url.PathEscape(resourceID)
 	}
+}
+
+func (s *ToolService) getCerebroSecurityOverviewContext(ctx context.Context, input map[string]any) (any, error) {
+	organizationID := stringValue(input["organizationId"])
+	summary, err := s.cerebroSecurityOverviewSummary(ctx, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	findingsResult, err := s.listCerebroFindings(ctx, map[string]any{
+		"organizationId": organizationID,
+		"status":         "OPEN",
+		"limit":          10,
+	})
+	if err != nil {
+		return nil, err
+	}
+	incidentsResult, err := s.listCerebroIncidents(ctx, map[string]any{
+		"organizationId": organizationID,
+		"status":         "ALL",
+		"limit":          10,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	resourceURI := cerebroSecurityOverviewResourceURI(organizationID)
+	mcp := map[string]any{
+		"resourceUri": resourceURI,
+		"mimeType":    cerebroSecurityOverviewMimeType,
+		"tools":       cerebroMCPToolNames(),
+	}
+	return map[string]any{
+		"server": ServerName,
+		"resource": map[string]any{
+			"uri":         resourceURI,
+			"name":        "Aperio security overview",
+			"description": "Tenant-scoped Cerebro security posture overview for Aperio.",
+			"mimeType":    cerebroSecurityOverviewMimeType,
+		},
+		"summary":   summary,
+		"findings":  findingsResult.(map[string]any)["resources"],
+		"incidents": incidentsResult.(map[string]any)["resources"],
+		"cerebroContext": map[string]any{
+			"source":          "local-projection",
+			"mode":            "mcp-resource",
+			"findingContract": "cerebro.v1.Finding",
+			"mcp":             mcp,
+			"responseHints": []string{
+				"Use linked incident and finding resources to inspect Cerebro graph context before response.",
+			},
+		},
+		"mcp": mcp,
+	}, nil
+}
+
+func (s *ToolService) cerebroSecurityOverviewSummary(ctx context.Context, organizationID string) (map[string]any, error) {
+	severityCounts, err := s.cerebroSecurityOverviewCountMap(ctx, `
+		SELECT severity::text, COUNT(*)::int
+		FROM security_findings
+		WHERE organization_id = $1 AND status = 'OPEN'::"FindingStatus"
+		GROUP BY severity::text
+	`, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	incidentStatusCounts, err := s.cerebroSecurityOverviewCountMap(ctx, `
+		SELECT status::text, COUNT(*)::int
+		FROM saas_incidents
+		WHERE organization_id = $1
+		GROUP BY status::text
+	`, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	responseStatusCounts, err := s.cerebroSecurityOverviewCountMap(ctx, `
+		SELECT status::text, COUNT(*)::int
+		FROM saas_response_actions
+		WHERE organization_id = $1
+		GROUP BY status::text
+	`, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	openFindingCount := 0
+	for _, count := range severityCounts {
+		openFindingCount += count
+	}
+	activeIncidentCount := 0
+	for status, count := range incidentStatusCounts {
+		if status != "RESOLVED" {
+			activeIncidentCount += count
+		}
+	}
+	return map[string]any{
+		"openFindingCount":            openFindingCount,
+		"criticalFindingCount":        severityCounts["CRITICAL"],
+		"highFindingCount":            severityCounts["HIGH"],
+		"activeIncidentCount":         activeIncidentCount,
+		"proposedResponseActionCount": responseStatusCounts["PROPOSED"],
+		"findingSeverityCounts":       severityCounts,
+		"incidentStatusCounts":        incidentStatusCounts,
+		"responseActionStatusCounts":  responseStatusCounts,
+	}, nil
+}
+
+func (s *ToolService) cerebroSecurityOverviewCountMap(ctx context.Context, query string, organizationID string) (map[string]int, error) {
+	rows, err := s.db.QueryContext(ctx, query, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	counts := map[string]int{}
+	for rows.Next() {
+		var key string
+		var count int
+		if err := rows.Scan(&key, &count); err != nil {
+			return nil, err
+		}
+		counts[key] = count
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return counts, nil
 }
 
 func (s *ToolService) currentTime() time.Time {
@@ -875,6 +1013,10 @@ func cerebroIncidentResourceURI(organizationID string, incidentID string) string
 
 func cerebroFindingResourceURI(organizationID string, findingID string) string {
 	return "cerebro://aperio/" + url.PathEscape(organizationID) + "/findings/" + url.PathEscape(findingID)
+}
+
+func cerebroSecurityOverviewResourceURI(organizationID string) string {
+	return "cerebro://aperio/" + url.PathEscape(organizationID) + "/security/overview"
 }
 
 func cerebroMCPToolNames() []string {
