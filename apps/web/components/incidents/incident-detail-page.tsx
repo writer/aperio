@@ -19,8 +19,10 @@ import {
   executeSaasResponseAction,
   fetchSaasIncident,
   updateSaasIncidentStatus,
+  type Finding,
   type SaasIncidentDetail,
   type SaasIncidentStatus,
+  type SaasIncidentTimelineEvent,
   type SaasResponseAction
 } from "../../lib/api";
 import { formatDateTime, providerLabel } from "../../lib/format";
@@ -124,7 +126,7 @@ export function IncidentDetailPage({ incidentId }: { incidentId: string }) {
 
   const pendingActions = useMemo(
     () =>
-      detail?.responseActions.filter((action) =>
+      detail?.responseActions.filter((action: SaasResponseAction) =>
         ["PROPOSED", "APPROVED", "EXECUTING"].includes(action.status)
       ) ?? [],
     [detail]
@@ -187,7 +189,7 @@ export function IncidentDetailPage({ incidentId }: { incidentId: string }) {
             </CardHeader>
             <CardContent>
               <ol className="relative space-y-4 border-l border-border pl-5">
-                {detail.timeline.map((event) => (
+                {detail.timeline.map((event: SaasIncidentTimelineEvent) => (
                   <li key={event.id} className="relative">
                     <span className="absolute -left-[27px] top-1 h-3 w-3 rounded-full border border-background bg-signal" />
                     <div className="flex flex-wrap items-center gap-2">
@@ -224,7 +226,7 @@ export function IncidentDetailPage({ incidentId }: { incidentId: string }) {
               </CardDescription>
             </CardHeader>
             <CardContent className="divide-y divide-border p-0">
-              {detail.findings.map((finding) => (
+              {detail.findings.map((finding: Finding) => (
                 <Link
                   key={finding.id}
                   href={`/findings/${finding.id}`}
@@ -266,7 +268,7 @@ export function IncidentDetailPage({ incidentId }: { incidentId: string }) {
                   No response actions are waiting.
                 </p>
               ) : (
-                pendingActions.map((action) => {
+                pendingActions.map((action: SaasResponseAction) => {
                   const needsApproval =
                     action.status === "PROPOSED" && action.approvalRequired;
                   const executable =
@@ -409,14 +411,21 @@ export function IncidentDetailPage({ incidentId }: { incidentId: string }) {
 }
 
 type CerebroContext = SaasIncidentDetail["incident"]["cerebroContext"];
+type CerebroContextValue = NonNullable<CerebroContext>;
+type CerebroEntity = CerebroContextValue["entities"][number];
+type CerebroGraphSignal = CerebroContextValue["graphSignals"][number];
+type CerebroGraphPath = CerebroContextValue["graphPaths"][number];
+type CerebroClaimSummary = CerebroContextValue["claimSummaries"][number];
 
 function CerebroContextCard({ context }: { context: CerebroContext }) {
-  const entities = context?.entities ?? [];
-  const graphSignals = context?.graphSignals ?? [];
-  const graphPaths = context?.graphPaths ?? [];
-  const claimSummaries = context?.claimSummaries ?? [];
-  const responseHints = context?.responseHints ?? [];
-  const entityByUrn = new Map(entities.map((entity) => [entity.urn, entity]));
+  const entities: CerebroEntity[] = context?.entities ?? [];
+  const graphSignals: CerebroGraphSignal[] = context?.graphSignals ?? [];
+  const graphPaths: CerebroGraphPath[] = context?.graphPaths ?? [];
+  const claimSummaries: CerebroClaimSummary[] = context?.claimSummaries ?? [];
+  const responseHints: string[] = context?.responseHints ?? [];
+  const entityByUrn = new Map(
+    entities.map((entity: CerebroEntity) => [entity.urn, entity])
+  );
   const graphSignalCount = graphSignals.length;
   const graphPathCount = graphPaths.length;
   const claimCount = context?.claimCount ?? claimSummaries.length;
@@ -484,7 +493,7 @@ function CerebroContextCard({ context }: { context: CerebroContext }) {
                   ) : null}
                   {(context.mcp.tools ?? []).length > 0 ? (
                     <div className="flex flex-wrap gap-2">
-                      {(context.mcp.tools ?? []).map((tool) => (
+                      {(context.mcp.tools ?? []).map((tool: string) => (
                         <Badge
                           key={tool}
                           variant="signal"
@@ -511,7 +520,7 @@ function CerebroContextCard({ context }: { context: CerebroContext }) {
               Signals
             </h4>
             <div className="space-y-2">
-              {graphSignals.map((signal) => (
+              {graphSignals.map((signal: CerebroGraphSignal) => (
                 <div
                   key={`${signal.label}:${signal.entityUrn ?? ""}`}
                   className="rounded-md border border-border bg-muted/25 p-3"
@@ -547,7 +556,7 @@ function CerebroContextCard({ context }: { context: CerebroContext }) {
               Entity paths
             </h4>
             <div className="space-y-2">
-              {graphPaths.map((path) => (
+              {graphPaths.map((path: CerebroGraphPath) => (
                 <div
                   key={path.id}
                   className="rounded-md border border-border bg-muted/25 p-3"
@@ -563,7 +572,7 @@ function CerebroContextCard({ context }: { context: CerebroContext }) {
                     ) : null}
                   </div>
                   <div className="mt-3 flex flex-wrap items-center gap-2">
-                    {path.nodes.map((node, index) => (
+                    {path.nodes.map((node: CerebroEntity, index: number) => (
                       <div
                         key={`${path.id}:${node.urn}`}
                         className="flex min-w-0 items-center gap-2"
@@ -597,7 +606,7 @@ function CerebroContextCard({ context }: { context: CerebroContext }) {
               Claim provenance
             </h4>
             <div className="space-y-2">
-              {claimSummaries.map((claim) => {
+              {claimSummaries.map((claim: CerebroClaimSummary) => {
                 const subject = entityByUrn.get(claim.subjectUrn);
                 const object = claim.objectUrn
                   ? entityByUrn.get(claim.objectUrn)
@@ -640,7 +649,7 @@ function CerebroContextCard({ context }: { context: CerebroContext }) {
               Response hints
             </h4>
             <ul className="space-y-2">
-              {responseHints.map((hint) => (
+              {responseHints.map((hint: string) => (
                 <li
                   key={hint}
                   className="rounded-md border border-border bg-muted/25 px-3 py-2 text-sm text-muted-foreground"

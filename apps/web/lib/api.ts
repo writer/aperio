@@ -635,7 +635,9 @@ export type ConnectorRulesResponse =
 export type CustomRuleInput =
   import("@aperio/connect/client").ConnectCustomRuleInput;
 
-export async function fetchConnectorRules(integrationId: string) {
+export async function fetchConnectorRules(
+  integrationId: string
+): Promise<ConnectorRulesResponse> {
   const out = await aperioConnectClient.listConnectorRules(integrationId);
   return out.data;
 }
