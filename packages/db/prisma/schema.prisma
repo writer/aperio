@@ -379,6 +379,7 @@ model IntegrationConnection {
   externalAccountId      String            @map("external_account_id") @db.VarChar(255)
   scopes                 String[]          @default([])
   disabledChecks         String[]          @default([]) @map("disabled_checks")
+  disabledCheckMetadata  Json              @default("{}") @map("disabled_check_metadata")
   encryptedAccessToken   String            @map("encrypted_access_token") @db.Text
   encryptedRefreshToken  String?           @map("encrypted_refresh_token") @db.Text
   encryptedWebhookSecret String?           @map("encrypted_webhook_secret") @db.Text

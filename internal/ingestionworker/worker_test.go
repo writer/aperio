@@ -891,6 +891,7 @@ func newFailureDriverState(t *testing.T, disabledChecksJSON string) *failureDriv
 	t.Helper()
 	return &failureDriverState{
 		disabledChecksJSON:        disabledChecksJSON,
+		disabledCheckMetadataJSON: "{}",
 		integrationExternalID:     "int_1",
 		encryptedAccessToken:      encryptIngestionWorkerSecret(t, "org_1", "int_1", "GITHUB", "int_1", "access_token", testIngestionWorkerAccessToken, false),
 		encryptedRefreshToken:     encryptIngestionWorkerSecret(t, "org_1", "int_1", "GITHUB", "int_1", "refresh_token", testIngestionWorkerRefreshToken, false),
@@ -905,6 +906,7 @@ type failureDriverState struct {
 	execs                     [][]driver.NamedValue
 	rolledBack                bool
 	disabledChecksJSON        string
+	disabledCheckMetadataJSON string
 	integrationExternalID     string
 	encryptedAccessToken      string
 	encryptedRefreshToken     string
@@ -964,6 +966,7 @@ func (c *failureConn) QueryContext(_ context.Context, query string, _ []driver.N
 				"provider",
 				"external_account_id",
 				"disabled_checks",
+				"disabled_check_metadata",
 				"encrypted_access_token",
 				"encrypted_refresh_token",
 				"encrypted_webhook_secret",
@@ -976,6 +979,7 @@ func (c *failureConn) QueryContext(_ context.Context, query string, _ []driver.N
 				"GITHUB",
 				c.state.integrationExternalID,
 				disabled,
+				c.state.disabledCheckMetadataJSON,
 				c.state.encryptedAccessToken,
 				c.state.encryptedRefreshToken,
 				c.state.encryptedWebhookSecret,
