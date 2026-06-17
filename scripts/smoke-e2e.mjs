@@ -1035,11 +1035,15 @@ function isRelevantProductFailure(entry) {
   return entry.status >= 400;
 }
 
-function isBenignBrowserLog(text) {
+export function isBenignBrowserLog(text) {
   return (
     text.includes("eval() is not supported in this environment") ||
     text.includes("React requires eval() in development mode") ||
-    text.includes("Failed to load resource:")
+    text.includes("Failed to load resource:") ||
+    text.includes("_clientMiddlewareManifest.js") ||
+    (text.includes("ENOENT: no such file or directory") &&
+      text.includes("/.next/dev/server/app/") &&
+      text.includes("/build-manifest.json"))
   );
 }
 

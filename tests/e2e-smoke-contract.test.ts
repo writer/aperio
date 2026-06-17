@@ -192,6 +192,23 @@ test("browser launch startup failures clean up Chrome and temp profile", () => {
   assert.match(harness, /catch \(error\)[\s\S]*await fsp\.rm\(userDataDir, \{ recursive: true, force: true \}\)/);
 });
 
+test("Next dev manifest noise stays out of browser failure reporting", async () => {
+  const smoke = await loadSmokeHarness();
+  assert.equal(
+    smoke.isBenignBrowserLog(
+      "Refused to execute script from 'http://localhost:3000/_next/static/development/_clientMiddlewareManifest.js' because its MIME type ('application/json') is not executable"
+    ),
+    true
+  );
+  assert.equal(
+    smoke.isBenignBrowserLog(
+      "Error: ENOENT: no such file or directory, open '/tmp/apps/web/.next/dev/server/app/findings/[findingId]/page/build-manifest.json'"
+    ),
+    true
+  );
+  assert.equal(smoke.isBenignBrowserLog("TypeError: product panel crashed"), false);
+});
+
 test("smoke evidence redaction masks cookies, bearer tokens, passwords, and DSNs", async () => {
   const smoke = await loadSmokeHarness();
   const raw = [
