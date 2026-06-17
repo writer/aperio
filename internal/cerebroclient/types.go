@@ -24,7 +24,9 @@ type Claim struct {
 	ClaimType     string            `json:"claim_type"`
 	Status        string            `json:"status"`
 	SourceEventID string            `json:"source_event_id,omitempty"`
-	ObservedAt    string            `json:"observed_at"`
+	ObservedAt    string            `json:"observed_at,omitempty"`
+	ValidFrom     string            `json:"valid_from,omitempty"`
+	ValidTo       string            `json:"valid_to,omitempty"`
 	Attributes    map[string]string `json:"attributes,omitempty"`
 }
 
