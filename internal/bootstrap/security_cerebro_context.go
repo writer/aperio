@@ -2,6 +2,7 @@ package bootstrap
 
 import (
 	"context"
+	"net/url"
 	"strings"
 
 	"github.com/writer/aperio/internal/cerebroclient"
@@ -57,23 +58,24 @@ func (a *App) enrichSecurityOverviewCerebroContext(ctx context.Context, organiza
 		}
 	}
 	graphPaths := []map[string]any{}
+	graphPathCount := 0
 	for _, rootURN := range boundedStrings(findingRoots, maxSecurityCerebroGraphRoots) {
 		neighborhood, err := a.cerebroContextClient.GetEntityNeighborhood(ctx, rootURN, maxSecurityCerebroGraphLimit)
 		if err != nil || neighborhood == nil {
 			continue
 		}
 		entities.addNeighborhood(neighborhood)
+		graphPathCount += cerebroGraphPathCountFromNeighborhood(neighborhood)
 		graphPaths = append(graphPaths, cerebroGraphPathsFromNeighborhood(neighborhood)...)
 	}
-	graphSignals := cerebroGraphSignals(claims)
 	contextPayload["mode"] = "claim-linked"
 	if len(graphPaths) > 0 {
 		contextPayload["mode"] = "graph-linked"
 	}
 	contextPayload["claimCount"] = len(claims)
-	contextPayload["graphSignalCount"] = len(graphSignals)
-	contextPayload["entityCount"] = len(entities.items())
-	contextPayload["graphPathCount"] = len(graphPaths)
+	contextPayload["graphSignalCount"] = cerebroGraphSignalCount(claims)
+	contextPayload["entityCount"] = entities.count()
+	contextPayload["graphPathCount"] = graphPathCount
 	overview["cerebroContext"] = contextPayload
 	return overview
 }
@@ -111,11 +113,11 @@ func (a *App) securityCerebroMCPContext(organizationID string) map[string]any {
 	server := "aperio-a2a-broker"
 	tools := []string{
 		"aperio.list_cerebro_incidents",
-		"aperio.get_cerebro_incident_context",
-		"aperio.propose_cerebro_response",
 	}
+	resourceURI := "cerebro://aperio/" + url.PathEscape(strings.TrimSpace(organizationID)) + "/incidents"
 	if a != nil && strings.TrimSpace(a.cerebroMCPServerURL) != "" {
 		server = strings.TrimSpace(a.cerebroMCPServerURL)
+		resourceURI = "cerebro://aperio/" + url.PathEscape(strings.TrimSpace(organizationID)) + "/security/overview"
 		tools = []string{
 			"cerebro.findings.search",
 			"cerebro.graph.neighborhood",
@@ -125,7 +127,7 @@ func (a *App) securityCerebroMCPContext(organizationID string) map[string]any {
 	}
 	return map[string]any{
 		"server":      server,
-		"resourceUri": "cerebro://aperio/" + strings.TrimSpace(organizationID) + "/security/overview",
+		"resourceUri": resourceURI,
 		"resource":    "cerebro-mcp",
 		"tools":       tools,
 	}
