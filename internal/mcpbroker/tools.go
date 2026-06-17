@@ -70,6 +70,10 @@ func (s *ToolService) CallTool(ctx context.Context, name string, args any) (any,
 		return s.listCerebroIncidents(ctx, scoped)
 	case "aperio.get_cerebro_incident_context":
 		return s.getCerebroIncidentContext(ctx, scoped)
+	case "aperio.list_cerebro_findings":
+		return s.listCerebroFindings(ctx, scoped)
+	case "aperio.get_cerebro_finding_context":
+		return s.getCerebroFindingContext(ctx, scoped)
 	case "aperio.propose_cerebro_response":
 		return s.proposeCerebroResponse(ctx, scoped)
 	default:
