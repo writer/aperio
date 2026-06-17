@@ -314,10 +314,10 @@ func (a *App) listSaasIncidents(
 		listWhere = append(listWhere, "(si.last_activity_at, si.id) < ($"+intPlaceholder(len(listArgs)-1)+", $"+intPlaceholder(len(listArgs))+")")
 	}
 	listArgs = append(listArgs, normalizedLimit(req.Limit))
-	query := saasIncidentSelectSQL(`
-		WHERE ` + strings.Join(listWhere, " AND ") + `
+	query := saasIncidentSelectSQL(false, `
+		WHERE `+strings.Join(listWhere, " AND ")+`
 		ORDER BY si.last_activity_at DESC, si.id DESC
-		LIMIT $` + intPlaceholder(len(listArgs)))
+		LIMIT $`+intPlaceholder(len(listArgs)))
 	rows, err := a.db.QueryContext(ctx, query, listArgs...)
 	if err != nil {
 		return nil, 0, err
@@ -374,11 +374,16 @@ func saasIncidentFilterWhere(organizationID string, req *aperiov1.ListSaasIncide
 }
 
 // saasIncidentSelectSQL returns the SELECT that powers both the list and the
-// single-row read paths. Every caller passes the tenant id as $1 (and the
-// single-row path also passes the incident id as $2), so the count CTEs scope
-// to those parameters to keep aggregation tenant-local and avoid scanning the
-// full saas_incident_findings / saas_response_actions tables on every read.
-func saasIncidentSelectSQL(suffix string) string {
+// single-row read paths. Every caller passes the tenant id as $1; single-row
+// reads also pass the incident id as $2 so the count CTEs avoid aggregating
+// every incident in the tenant.
+func saasIncidentSelectSQL(incidentScoped bool, suffix string) string {
+	findingCountScope := "sif.organization_id = $1"
+	actionCountScope := "organization_id = $1"
+	if incidentScoped {
+		findingCountScope += "\n\t\t\t  AND sif.incident_id = $2"
+		actionCountScope += "\n\t\t\t  AND incident_id = $2"
+	}
 	return `
 		WITH finding_counts AS (
 			SELECT
@@ -389,7 +394,7 @@ func saasIncidentSelectSQL(suffix string) string {
 			JOIN security_findings sf
 				ON sf.id = sif.finding_id
 				AND sf.organization_id = sif.organization_id
-			WHERE sif.organization_id = $1
+			WHERE ` + findingCountScope + `
 			GROUP BY sif.incident_id
 		),
 		action_counts AS (
@@ -398,7 +403,7 @@ func saasIncidentSelectSQL(suffix string) string {
 				COUNT(*)::int AS response_action_count,
 				COUNT(*) FILTER (WHERE status = 'SUCCEEDED')::int AS completed_response_action_count
 			FROM saas_response_actions
-			WHERE organization_id = $1
+			WHERE ` + actionCountScope + `
 			GROUP BY incident_id
 		)
 		SELECT
@@ -542,7 +547,7 @@ func (a *App) getSaasIncidentDetail(ctx context.Context, organizationID, inciden
 }
 
 func (a *App) getSaasIncidentRow(ctx context.Context, organizationID, incidentID string) (saasIncidentRow, error) {
-	query := saasIncidentSelectSQL(`
+	query := saasIncidentSelectSQL(true, `
 		WHERE si.organization_id = $1 AND si.id = $2
 	`)
 	return scanSaasIncidentRow(a.db.QueryRowContext(ctx, query, organizationID, incidentID))
