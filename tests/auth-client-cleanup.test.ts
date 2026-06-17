@@ -154,7 +154,12 @@ test("frontend auth surfaces share Cerebro auth vocabulary", () => {
     /CEREBRO_SESSION_TRANSPORT\s*=\s*"http_only_cookie"/
   );
   assert.match(accountMenu, /formatCerebroScope/);
+  assert.match(accountMenu, /formatCerebroTransport/);
   assert.match(accountMenu, /CEREBRO_API_RESOURCE/);
+  assert.match(
+    authModel,
+    /formatCerebroTransport\(CEREBRO_SESSION_TRANSPORT\)/
+  );
   assert.match(authLayout, /CEREBRO_AUTH_INSIGHTS/);
   assert.match(authLayout, /CEREBRO_MCP_RESOURCE/);
   assert.match(loginPage, /CEREBRO_HUMAN_AUTH_MODE/);

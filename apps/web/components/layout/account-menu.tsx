@@ -7,7 +7,8 @@ import { Avatar, AvatarFallback } from "../ui/avatar";
 import { Button } from "../ui/button";
 import {
   CEREBRO_API_RESOURCE,
-  formatCerebroScope
+  formatCerebroScope,
+  formatCerebroTransport
 } from "../../lib/cerebro-auth";
 import {
   DropdownMenu,
@@ -132,7 +133,7 @@ export function AccountMenu({
                 <div className="grid grid-cols-[96px_minmax(0,1fr)] gap-2">
                   <dt className="text-muted-foreground">Transport</dt>
                   <dd className="truncate font-mono text-foreground">
-                    {authContext.tokenTransport}
+                    {formatCerebroTransport(authContext.tokenTransport)}
                   </dd>
                 </div>
                 <div className="grid grid-cols-[96px_minmax(0,1fr)] gap-2">

@@ -3,10 +3,21 @@ export const CEREBRO_MCP_RESOURCE = "cerebro-mcp";
 export const CEREBRO_HUMAN_AUTH_MODE = "human_workspace_session";
 export const CEREBRO_SESSION_TRANSPORT = "http_only_cookie";
 
+export function formatCerebroTransport(transport: string) {
+  if (transport === CEREBRO_SESSION_TRANSPORT) {
+    return "HttpOnly cookie";
+  }
+  return transport.replaceAll("_", " ");
+}
+
 export const CEREBRO_AUTH_INSIGHTS = [
   { label: "Resource", value: CEREBRO_API_RESOURCE, tone: "signal" },
   { label: "Tenant binding", value: "Required", tone: "critical" },
-  { label: "Transport", value: "HttpOnly cookie", tone: "neutral" }
+  {
+    label: "Transport",
+    value: formatCerebroTransport(CEREBRO_SESSION_TRANSPORT),
+    tone: "neutral"
+  }
 ] as const;
 
 export const CEREBRO_AUTH_PILLARS = [
