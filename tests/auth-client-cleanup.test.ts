@@ -224,6 +224,8 @@ test("frontend auth surfaces share Cerebro auth vocabulary", () => {
   assert.match(authLayout, /CEREBRO_MCP_RESOURCE/);
   assert.match(loginPage, /CEREBRO_HUMAN_AUTH_MODE/);
   assert.match(authInsightHook, /loadCerebroAuthInsights/);
+  assert.match(authInsightHook, /loadDiscovery\s*=\s*true/);
+  assert.match(authInsightHook, /if\s*\(!loadDiscovery\)/);
   for (const source of [
     loginPage,
     signupPage,
@@ -234,6 +236,12 @@ test("frontend auth surfaces share Cerebro auth vocabulary", () => {
     assert.match(source, /useCerebroAuthInsights/);
     assert.match(source, /showSessionMessaging/);
     assert.match(source, /sessionInsights=\{sessionInsights\}/);
+  }
+  for (const source of [resetPasswordPage, acceptInvitePage]) {
+    assert.match(
+      source,
+      /useCerebroAuthInsights\(\{\s*loadDiscovery:\s*!token\s*\}\)/
+    );
   }
   assert.match(nextConfig, /\/\.well-known\/oauth-protected-resource/);
   assert.match(

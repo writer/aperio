@@ -21,7 +21,7 @@ export function AcceptInvitePage() {
   const [password, setPassword] = useState("");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
-  const sessionInsights = useCerebroAuthInsights();
+  const sessionInsights = useCerebroAuthInsights({ loadDiscovery: !token });
 
   const nameId = useId();
   const passwordId = useId();
