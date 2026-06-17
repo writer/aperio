@@ -105,7 +105,6 @@ func (s *Server) handleRequest(ctx context.Context, request rpcRequest, out io.W
 			"capabilities": map[string]any{
 				"tools":     map[string]any{"listChanged": false},
 				"resources": map[string]any{"subscribe": false, "listChanged": false},
-				"prompts":   map[string]any{"listChanged": false},
 			},
 			"serverInfo": map[string]any{
 				"name":    ServerName,

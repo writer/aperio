@@ -44,11 +44,11 @@ func (a *App) enrichSaasCerebroContext(ctx context.Context, organizationID strin
 	payload["findingContract"] = "cerebro.v1.Finding"
 	payload["mcp"] = a.saasCerebroMCPContext(organizationID, incidentID)
 
-	if len(findings) == 0 {
-		return encodeCerebroContextMap(payload, base)
-	}
-	claims := a.saasCerebroIncidentClaims(ctx, findings)
+	claims, queriedClaims := a.saasCerebroIncidentClaims(ctx, findings)
 	if len(claims) == 0 {
+		if queriedClaims {
+			resetSaasCerebroDerivedContext(payload)
+		}
 		return encodeCerebroContextMap(payload, base)
 	}
 	if len(claims) > maxSaasCerebroClaims {
@@ -98,8 +98,26 @@ func (a *App) refreshSaasCerebroMCPContext(organizationID string, incidentID str
 	return encodeCerebroContextMap(payload, base)
 }
 
-func (a *App) saasCerebroIncidentClaims(ctx context.Context, findings []findingRow) []*cerebrov1.Claim {
+func (a *App) enrichAndPersistSaasCerebroContext(ctx context.Context, organizationID string, incidentID string, raw string, findings []findingRow) (string, error) {
+	base := normalizeCerebroContextJSON(raw)
+	enriched := a.enrichSaasCerebroContext(ctx, organizationID, incidentID, raw, findings)
+	if a == nil || a.db == nil || enriched == base {
+		return enriched, nil
+	}
+	if _, err := a.db.ExecContext(ctx, `
+		UPDATE saas_incidents
+		SET cerebro_context = $3::jsonb,
+		    updated_at = NOW()
+		WHERE organization_id = $1 AND id = $2
+	`, organizationID, incidentID, enriched); err != nil {
+		return "", internalServerError("saas_incident.cerebro_context.update", err)
+	}
+	return enriched, nil
+}
+
+func (a *App) saasCerebroIncidentClaims(ctx context.Context, findings []findingRow) ([]*cerebrov1.Claim, bool) {
 	claims := []*cerebrov1.Claim{}
+	queriedClaims := false
 	seenEvents := map[string]struct{}{}
 	for _, finding := range findings {
 		sourceEventID := strings.TrimSpace(stringFromAny(finding.Evidence["sourceEventId"]))
@@ -119,12 +137,25 @@ func (a *App) saasCerebroIncidentClaims(ctx context.Context, findings []findingR
 		if err != nil || response == nil {
 			continue
 		}
+		queriedClaims = true
 		claims = append(claims, response.Claims...)
 		if len(claims) >= maxSaasCerebroClaims || len(seenEvents) >= maxSaasCerebroClaimQueries {
 			break
 		}
 	}
-	return claims
+	return claims, queriedClaims
+}
+
+func resetSaasCerebroDerivedContext(payload map[string]any) {
+	payload["mode"] = "context-pending"
+	payload["claimCount"] = 0
+	payload["claimSummaries"] = []map[string]any{}
+	payload["graphSignals"] = []map[string]any{}
+	payload["entities"] = []map[string]any{}
+	payload["graphPaths"] = []map[string]any{}
+	payload["responseHints"] = []string{
+		"Attach Cerebro claims before executing high-impact response actions.",
+	}
 }
 
 func cerebroContextMap(raw string) map[string]any {

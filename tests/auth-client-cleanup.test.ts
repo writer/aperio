@@ -109,6 +109,15 @@ test("browser localStorage use is limited to the non-auth theme preference", () 
   }
 });
 
+test("login submit delegates authenticated redirects to AuthShell", () => {
+  const loginPage = readRepoFile("apps/web/components/auth/login-page.tsx");
+  const submitHandler = functionBlock(loginPage, "handleSubmit");
+
+  assert.match(submitHandler, /await refreshSession\(\);/);
+  assert.doesNotMatch(submitHandler, /router\.replace\("\/"\)/);
+  assert.doesNotMatch(submitHandler, /window\.location\.replace\("\/"\)/);
+});
+
 test("frontend auth session types do not expose bearer tokens", () => {
   const webApi = readRepoFile("apps/web/lib/api.ts");
   const connectClient = readRepoFile("packages/connect/src/client.ts");

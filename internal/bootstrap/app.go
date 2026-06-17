@@ -230,6 +230,7 @@ func (a *App) routes() {
 	a.mux.HandleFunc("/readyz", a.handleReadyz)
 	a.mux.HandleFunc(oauthProtectedResourceMetadataPath, a.handleOAuthProtectedResourceMetadata)
 	a.mux.HandleFunc(oauthProtectedResourceMetadataMCPPath, a.handleOAuthProtectedResourceMetadata)
+	a.mux.HandleFunc(oauthProtectedResourceMetadataPath+"/", a.handleOAuthProtectedResourceMetadata)
 	a.mux.HandleFunc(oauthAuthorizationServerMetadataPath, a.handleOAuthAuthorizationServerMetadata)
 	a.mux.HandleFunc(oauthAuthorizationServerMetadataPath+"/", a.handleOAuthAuthorizationServerMetadata)
 	a.mux.HandleFunc("/api/v1/integrations/google-workspace/oauth/callback", a.handleGoogleOAuthCallback)
