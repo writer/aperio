@@ -39,6 +39,15 @@ func (a *App) enrichSaasCerebroContext(ctx context.Context, organizationID strin
 
 	claims := a.saasCerebroIncidentClaims(ctx, findings)
 	if len(claims) == 0 {
+		payload["mode"] = "context-pending"
+		payload["claimCount"] = 0
+		payload["claimSummaries"] = []map[string]any{}
+		payload["graphSignals"] = []map[string]any{}
+		payload["entities"] = []map[string]any{}
+		payload["graphPaths"] = []map[string]any{}
+		payload["responseHints"] = []string{
+			"Attach Cerebro claims before executing high-impact response actions.",
+		}
 		return encodeCerebroContextMap(payload, base)
 	}
 	if len(claims) > maxSaasCerebroClaims {
