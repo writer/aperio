@@ -225,6 +225,29 @@ func TestEnrichSaasCerebroContextUpdatesMCPForZeroFindingIncident(t *testing.T) 
 	}
 }
 
+func TestRefreshSaasCerebroMCPContextUsesNativeCatalogWithoutClaimHydration(t *testing.T) {
+	client := &fakeSaasCerebroContextClient{}
+	app := (&App{}).
+		WithCerebroContextClient("runtime-a", client).
+		WithCerebroMCPServerURL("https://cerebro.example.com/api/v1/mcp")
+
+	encoded := app.refreshSaasCerebroMCPContext("org-a", "inc-list", saasCerebroContextJSON("org-a", "inc-list"))
+	contextPayload := decodeSaasCerebroContext(t, encoded)
+	mcp := contextRecord(contextPayload["mcp"])
+	if mcp["server"] != "https://cerebro.example.com/api/v1/mcp" || mcp["resourceUri"] != "cerebro://aperio/org-a/incidents/inc-list" {
+		t.Fatalf("mcp context = %#v", mcp)
+	}
+	tools := contextRecords(mcp["tools"])
+	if !contextRecordsContain(tools, "cerebro.findings.get") ||
+		!contextRecordsContain(tools, "cerebro.graph.neighborhood") ||
+		!contextRecordsContain(tools, "cerebro.findings.action.propose") {
+		t.Fatalf("mcp tools = %#v", tools)
+	}
+	if len(client.listRequests) != 0 || len(client.graphRoots) != 0 {
+		t.Fatalf("unexpected Cerebro calls: list=%#v graph=%#v", client.listRequests, client.graphRoots)
+	}
+}
+
 func decodeSaasCerebroContext(t *testing.T, encoded string) map[string]any {
 	t.Helper()
 	var payload map[string]any
