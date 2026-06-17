@@ -166,8 +166,10 @@ Aperio reads runtime configuration from environment variables. Create a `.env` f
 ### Cerebro integration
 
 When `CEREBRO_BASE_URL`, a credential, and `CEREBRO_TENANT_ID` are configured,
-the Go service ensures Aperio's Cerebro source runtime at startup. Leave these
-unset for local-only development without Cerebro.
+the Go API and ingestion worker ensure Aperio's Cerebro source runtime at
+startup. The ingestion worker also writes supported findings directly to
+Cerebro as tenant-scoped claims. Leave these unset for local-only development
+without Cerebro.
 
 | Variable | Purpose | Default |
 | --- | --- | --- |

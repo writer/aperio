@@ -15,6 +15,7 @@ import (
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/writer/aperio/internal/cerebrofanout"
 	"github.com/writer/aperio/internal/runtimeutil"
 	"github.com/writer/aperio/internal/siemdispatcher"
 	"github.com/writer/aperio/internal/telemetry"
@@ -348,6 +349,40 @@ type recordingLifecyclePublisher struct {
 	db        *sql.DB
 	seen      []FindingLifecycleEvent
 	jobEvents []IngestionJobLifecycleEvent
+}
+
+type recordingCerebroFindingFanout struct {
+	t    *testing.T
+	db   *sql.DB
+	seen []cerebrofanout.FindingPayload
+	err  error
+}
+
+func (f *recordingCerebroFindingFanout) FanoutFinding(ctx context.Context, payload cerebrofanout.FindingPayload) (cerebrofanout.Result, error) {
+	f.t.Helper()
+	findingID, _ := payload.Record["findingId"].(string)
+	var status string
+	if err := f.db.QueryRowContext(ctx, `
+		SELECT status::text
+		FROM security_findings
+		WHERE id = $1 AND organization_id = $2
+	`, findingID, payload.OrganizationID).Scan(&status); err != nil {
+		f.t.Fatalf("Cerebro fanout ran before committed finding was visible: %v", err)
+	}
+	if status == "" {
+		f.t.Fatal("Cerebro fanout saw empty committed finding status")
+	}
+	f.seen = append(f.seen, payload)
+	if f.err != nil {
+		return cerebrofanout.Result{}, f.err
+	}
+	return cerebrofanout.Result{
+		FindingID:     findingID,
+		DedupeKey:     fmt.Sprint(payload.Record["dedupeKey"]),
+		SourceEventID: fmt.Sprint(payload.Record["sourceEventId"]),
+		ClaimCount:    1,
+		ClaimsWritten: 1,
+	}, nil
 }
 
 func (p *recordingLifecyclePublisher) PublishIngestionJobLifecycle(ctx context.Context, event IngestionJobLifecycleEvent) error {
@@ -1990,6 +2025,82 @@ func TestDrainFansOutFindingsOnlyToSameTenantEligibleSubscribedDestinations(t *t
 	}
 }
 
+func TestDrainFansOutCerebroFindingsAfterCommit(t *testing.T) {
+	db := openDBBackedIngestionWorkerDB(t)
+	orgID := seedIngestionWorkerOrg(t, db)
+	integrationID := seedIngestionWorkerIntegration(t, db, orgID, "GITHUB", "CONNECTED")
+
+	payloadMap := map[string]any{
+		"repository": map[string]any{
+			"full_name":  "writer/cerebro-direct",
+			"name":       "cerebro-direct",
+			"private":    false,
+			"visibility": "public",
+		},
+	}
+	payloadJSON, _ := json.Marshal(payloadMap)
+	jobPayload := JobPayload{
+		OrganizationID: orgID,
+		IntegrationID:  integrationID,
+		Provider:       "GITHUB",
+		EventType:      "PUBLIC_REPOSITORY_CREATED",
+		Source:         "test",
+		Actor:          "worker@example.com",
+		OccurredAt:     time.Now().UTC().Add(-time.Minute),
+		Payload:        payloadMap,
+	}
+	finding := Evaluate(jobPayload, nil)[0]
+	dedupe := DedupeKey(jobPayload, finding)
+	jobID := seedIngestionWorkerJob(t, db, struct {
+		orgID         string
+		integrationID string
+		provider      string
+		eventType     string
+		status        string
+		attempts      int
+		maxAttempts   int
+		leaseOwner    *string
+		payload       json.RawMessage
+	}{orgID: orgID, integrationID: integrationID, provider: "GITHUB", eventType: "PUBLIC_REPOSITORY_CREATED", status: "QUEUED", attempts: 0, maxAttempts: 3, payload: payloadJSON})
+
+	fanout := &recordingCerebroFindingFanout{t: t, db: db}
+	worker := (&Worker{db: db, leaseOwner: "go-test-worker"}).WithCerebroFanout(fanout)
+	result, err := worker.Drain(context.Background(), 1)
+	if err != nil {
+		t.Fatalf("drain with Cerebro fanout: %v", err)
+	}
+	if result.Processed != 1 || result.Succeeded != 1 || result.Failed != 0 {
+		_, _, _, _, jobError := ingestionJobState(t, db, jobID)
+		t.Fatalf("unexpected Cerebro fanout drain result: %#v lastError=%v", result, jobError)
+	}
+	if len(fanout.seen) != 1 {
+		t.Fatalf("Cerebro fanout payloads = %d, want 1", len(fanout.seen))
+	}
+
+	var persistedFindingID, eventID string
+	if err := db.QueryRowContext(context.Background(), `
+		SELECT id, event_id
+		FROM security_findings
+		WHERE organization_id = $1 AND dedupe_key = $2
+	`, orgID, dedupe).Scan(&persistedFindingID, &eventID); err != nil {
+		t.Fatalf("query Cerebro fanout finding: %v", err)
+	}
+	payload := fanout.seen[0]
+	if payload.OrganizationID != orgID || payload.Kind != "finding" || payload.OccurredAt == "" {
+		t.Fatalf("Cerebro fanout routing payload = %#v", payload)
+	}
+	requireRecordString(t, payload.Record, "schemaVersion", "aperio.finding.v1")
+	requireRecordString(t, payload.Record, "findingId", persistedFindingID)
+	requireRecordString(t, payload.Record, "dedupeKey", dedupe)
+	requireRecordString(t, payload.Record, "sourceEventId", eventID)
+	requireRecordString(t, payload.Record, "ruleId", finding.RuleID)
+	requireRecordString(t, payload.Record, "title", finding.Title)
+	requireRecordString(t, payload.Record, "provider", "GITHUB")
+	requireRecordString(t, payload.Record, "integrationId", integrationID)
+	requireRecordString(t, payload.Record, "target", finding.Target)
+	requireRecordNumber(t, payload.Record, "riskScore", float64(finding.RiskScore))
+}
+
 func TestDrainPreservesMutedFindingsAndPublishesLifecycleAfterCommit(t *testing.T) {
 	db := openDBBackedIngestionWorkerDB(t)
 	orgID := seedIngestionWorkerOrg(t, db)
@@ -2354,9 +2465,29 @@ func requireRecordString(t *testing.T, record map[string]any, key string, want s
 
 func requireRecordNumber(t *testing.T, record map[string]any, key string, want float64) {
 	t.Helper()
-	got, ok := record[key].(float64)
+	got, ok := recordNumber(record[key])
 	if !ok || got != want {
 		t.Fatalf("delivery record[%s] = %#v, want %v", key, record[key], want)
+	}
+}
+
+func recordNumber(value any) (float64, bool) {
+	switch v := value.(type) {
+	case float64:
+		return v, true
+	case float32:
+		return float64(v), true
+	case int:
+		return float64(v), true
+	case int64:
+		return float64(v), true
+	case int32:
+		return float64(v), true
+	case json.Number:
+		f, err := v.Float64()
+		return f, err == nil
+	default:
+		return 0, false
 	}
 }
 

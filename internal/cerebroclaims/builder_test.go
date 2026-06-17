@@ -62,6 +62,32 @@ func TestRefEncodesExternalIDLikeCerebroURNPathSegment(t *testing.T) {
 	}
 }
 
+func TestBuildUsesExplicitCerebroTenantForURNs(t *testing.T) {
+	claims, err := Build(BuildInput{
+		TenantID:       "cerebro-tenant",
+		OrganizationID: "aperio-org",
+		RuntimeID:      "runtime-main",
+		Payload: Payload{
+			Kind:       "finding",
+			OccurredAt: "2026-06-16T12:00:00Z",
+			Record: map[string]any{
+				"title":         "Tenant mapped finding",
+				"dedupeKey":     "dedupe-tenant",
+				"sourceEventId": "evt-tenant",
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Build() error = %v", err)
+	}
+	if len(claims) == 0 {
+		t.Fatal("Build() returned no claims")
+	}
+	if got := claims[0].SubjectURN; got != "urn:cerebro:cerebro-tenant:runtime:runtime-main:finding:dedupe-tenant" {
+		t.Fatalf("SubjectURN = %q", got)
+	}
+}
+
 func hasClaim(claims []cerebroclient.Claim, claimType string, predicate string, objectValue string) bool {
 	for _, claim := range claims {
 		if claim.ClaimType == claimType && claim.Predicate == predicate {

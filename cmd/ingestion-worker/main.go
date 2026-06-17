@@ -10,6 +10,8 @@ import (
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/writer/aperio/internal/cerebroclient"
+	"github.com/writer/aperio/internal/cerebrofanout"
 	"github.com/writer/aperio/internal/config"
 	"github.com/writer/aperio/internal/ingestionworker"
 )
@@ -35,6 +37,25 @@ func main() {
 	db.SetConnMaxIdleTime(time.Duration(cfg.ConnMaxIdleMinutes) * time.Minute)
 
 	worker := ingestionworker.New(db)
+	cerebroCfg := cerebroclient.ConfigFromEnv()
+	if cerebroCfg.Enabled() {
+		cerebroClient, err := cerebroclient.New(cerebroCfg)
+		if err != nil {
+			log.Fatalf("Cerebro client setup failed: %v", err)
+		}
+		cerebroCtx, cancelCerebro := context.WithTimeout(context.Background(), cerebroCfg.Timeout)
+		runtime, err := cerebroClient.EnsureDefaultRuntime(cerebroCtx, cerebroCfg)
+		cancelCerebro()
+		if err != nil {
+			log.Fatalf("Cerebro runtime ensure failed: %v", err)
+		}
+		fanout, err := cerebrofanout.New(cerebroCfg, cerebroClient)
+		if err != nil {
+			log.Fatalf("Cerebro finding fanout setup failed: %v", err)
+		}
+		worker.WithCerebroFanout(fanout)
+		log.Printf("Cerebro finding fanout enabled runtime=%s tenant=%s", runtime.ID, runtime.TenantID)
+	}
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
