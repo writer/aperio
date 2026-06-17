@@ -160,6 +160,24 @@ func seedRemediationFixture(t *testing.T, app *App, auth compatAuth, provider st
 	return integrationID, findingID
 }
 
+func TestGetFindingBoundsCerebroEnrichment(t *testing.T) {
+	app, auth := newTestDBApp(t)
+	header := seedSessionHeader(t, app, auth)
+	client := &fakeSaasCerebroContextClient{}
+	app.WithCerebroContextClient("runtime-a", client)
+	_, findingID := seedSlackFinding(t, app, auth, "REMEDIATION", "xoxp-cerebro-timeout", "TCBR"+strings.ToUpper(randomBase36(6)), `{"subject":"EVIDENCE_APP","sourceEventId":"evt-cerebro-timeout"}`)
+
+	req := connect.NewRequest(&aperiov1.GetFindingRequest{Id: findingID})
+	copyCompatHeaders(req.Header(), header)
+	if _, err := app.GetFinding(context.Background(), req); err != nil {
+		t.Fatalf("GetFinding failed: %v", err)
+	}
+
+	if len(client.listDeadlines) != 1 || !client.listDeadlines[0] {
+		t.Fatalf("expected bounded Cerebro ListClaims context, deadlines=%#v requests=%#v", client.listDeadlines, client.listRequests)
+	}
+}
+
 func remediationExternalAccountID(provider string) string {
 	switch provider {
 	case "GITHUB":
