@@ -221,7 +221,7 @@ jobs:
           github_token: ${{ github.token }}
           automatic_review: true
           automatic_security_review: true
-          review_model: ${{ needs.droid-review-preflight.outputs.review_model || 'claude-opus-4-8' }}
+          review_model: ${{ needs.droid-review-preflight.outputs.review_model || 'claude-sonnet-4-6' }}
           security_model: gpt-5.4
           allowed_bots: dependabot
 
