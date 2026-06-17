@@ -27,6 +27,7 @@ import {
   switchWorkspace,
   type WorkspaceMembership
 } from "../../lib/api";
+import { CEREBRO_API_RESOURCE } from "../../lib/cerebro-auth";
 
 export function WorkspaceSwitcher() {
   const { session, refreshSession } = useAuth();
@@ -231,8 +232,8 @@ export function WorkspaceSwitcher() {
             <DialogTitle>Switch tenant</DialogTitle>
             <DialogDescription>
               Re-enter credentials for{" "}
-              {pendingWorkspace?.name ?? "the target tenant"} before binding
-              this session to that tenant.
+              {pendingWorkspace?.name ?? "the target tenant"} before rebinding
+              this {CEREBRO_API_RESOURCE} session to that tenant.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSwitchSubmit} className="space-y-4">

@@ -1,21 +1,16 @@
 import * as React from "react";
 import { ArrowUpRight, Cpu, Radar, ShieldCheck } from "lucide-react";
+import {
+  CEREBRO_AUTH_INSIGHTS,
+  CEREBRO_AUTH_PILLARS,
+  CEREBRO_MCP_RESOURCE
+} from "../../lib/cerebro-auth";
 import { BrandLockup, BrandMark } from "../layout/brand-mark";
 
-const INSIGHTS: {
-  label: string;
-  value: string;
-  tone: "signal" | "critical" | "neutral";
-}[] = [
-  { label: "Tenant binding", value: "Required", tone: "critical" },
-  { label: "Principal scope", value: "Role-derived", tone: "signal" },
-  { label: "Credential transport", value: "HttpOnly", tone: "neutral" }
-];
-
 const PILLARS = [
-  { icon: Radar, label: "Tenant-bound sessions" },
-  { icon: ShieldCheck, label: "Principal attribution" },
-  { icon: Cpu, label: "Scoped Cerebro actions" }
+  { icon: Radar, label: CEREBRO_AUTH_PILLARS[0] },
+  { icon: ShieldCheck, label: CEREBRO_AUTH_PILLARS[1] },
+  { icon: Cpu, label: CEREBRO_AUTH_PILLARS[2] }
 ];
 
 export function AuthLayout({
@@ -56,6 +51,21 @@ export function AuthLayout({
                   {description}
                 </p>
               ) : null}
+              {showSessionMessaging ? (
+                <dl className="mt-3 grid gap-1.5 text-[11px] lg:hidden">
+                  {CEREBRO_AUTH_INSIGHTS.map((insight) => (
+                    <div
+                      key={insight.label}
+                      className="flex items-center justify-between border-t border-border/70 pt-1.5 first:border-t-0 first:pt-0"
+                    >
+                      <dt className="text-muted-foreground">{insight.label}</dt>
+                      <dd className="font-mono text-foreground">
+                        {insight.value}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              ) : null}
             </div>
             {children}
           </div>
@@ -94,31 +104,32 @@ function BrandPanel({
           <span
             className="h-1.5 w-1.5 animate-pulse rounded-full bg-signal"
           />
-          Cerebro-aligned auth
+          Cerebro auth model
         </span>
         <h2 className="text-balance text-3xl font-semibold leading-[1.15] tracking-tight text-foreground sm:text-4xl">
-          A tenant-bound console for your{" "}
+          A tenant-bound console on your{" "}
           <span className="text-signal">SaaS attack surface.</span>
         </h2>
         {showSessionMessaging ? (
-          <p className="max-w-sm text-sm leading-relaxed text-muted-foreground">
-            Every session carries the tenant, principal, and scoped action set
-            Aperio uses when it reaches Cerebro.
-          </p>
-        ) : null}
+          <>
+            <p className="max-w-sm text-sm leading-relaxed text-muted-foreground">
+              Aperio signs users into a human workspace session, then carries
+              Cerebro resource, tenant, principal, group, and scope context
+              through the app.
+            </p>
 
-        {showSessionMessaging ? (
-          <ul className="grid grid-cols-1 gap-2.5">
-            {PILLARS.map(({ icon: Icon, label }) => (
-              <li
-                key={label}
-                className="flex items-center gap-2.5 rounded-md border border-border/70 bg-background/40 px-3 py-2 text-sm text-muted-foreground backdrop-blur-sm"
-              >
-                <Icon className="h-4 w-4 text-signal" aria-hidden />
-                <span className="text-foreground/90">{label}</span>
-              </li>
-            ))}
-          </ul>
+            <ul className="grid grid-cols-1 gap-2.5">
+              {PILLARS.map(({ icon: Icon, label }) => (
+                <li
+                  key={label}
+                  className="flex items-center gap-2.5 rounded-md border border-border/70 bg-background/40 px-3 py-2 text-sm text-muted-foreground backdrop-blur-sm"
+                >
+                  <Icon className="h-4 w-4 text-signal" aria-hidden />
+                  <span className="text-foreground/90">{label}</span>
+                </li>
+              ))}
+            </ul>
+          </>
         ) : null}
       </div>
 
@@ -134,7 +145,7 @@ function BrandPanel({
             />
           </div>
           <dl className="grid grid-cols-1 gap-2">
-            {INSIGHTS.map((insight) => (
+            {CEREBRO_AUTH_INSIGHTS.map((insight) => (
               <div
                 key={insight.label}
                 className="flex items-center justify-between rounded-md border border-border/70 bg-background/40 px-3 py-2 text-sm backdrop-blur-sm"
@@ -159,7 +170,7 @@ function BrandPanel({
           </dl>
           <p className="mt-4 max-w-sm text-xs text-muted-foreground">
             Sign-in keeps human workspace access separate from Cerebro service
-            credentials and MCP capability tokens.
+            credentials and {CEREBRO_MCP_RESOURCE} capability tokens.
           </p>
         </div>
       ) : null}
