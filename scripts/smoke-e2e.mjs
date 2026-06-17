@@ -29,8 +29,9 @@ export function isOAuthWellKnownMetadataRequest(url) {
     return (
       parsed.origin === WEB_ORIGIN &&
       (parsed.pathname === "/.well-known/oauth-protected-resource" ||
-        parsed.pathname === "/.well-known/oauth-protected-resource/api/v1/mcp" ||
-        parsed.pathname === "/.well-known/oauth-authorization-server")
+        parsed.pathname.startsWith("/.well-known/oauth-protected-resource/") ||
+        parsed.pathname === "/.well-known/oauth-authorization-server" ||
+        parsed.pathname.startsWith("/.well-known/oauth-authorization-server/"))
     );
   } catch {
     return false;
