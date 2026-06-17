@@ -200,7 +200,7 @@ func TestGetSaasIncidentPersistsEnrichedCerebroContext(t *testing.T) {
 	}
 
 	rootURN := "urn:cerebro:" + auth.OrganizationID + ":runtime:runtime-a:finding:" + findingID
-	app.WithCerebroContextClient("runtime-a", &fakeSaasCerebroContextClient{
+	cerebroClient := &fakeSaasCerebroContextClient{
 		claims: map[string][]cerebroclient.Claim{
 			sourceEventID: {
 				{
@@ -214,7 +214,8 @@ func TestGetSaasIncidentPersistsEnrichedCerebroContext(t *testing.T) {
 				},
 			},
 		},
-	})
+	}
+	app.WithCerebroContextClient("runtime-a", cerebroClient)
 
 	detail, err := app.getSaasIncidentDetail(ctx, auth.OrganizationID, incidentID)
 	if err != nil {
@@ -234,15 +235,50 @@ func TestGetSaasIncidentPersistsEnrichedCerebroContext(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list incidents: %v", err)
 	}
+	found := false
 	for _, row := range rows {
 		if row.ID != incidentID {
 			continue
 		}
 		listContext := decodeSaasCerebroContext(t, row.CerebroContextJSON)
 		assertCerebroContextHydrated(t, "list row", listContext)
-		return
+		found = true
+		break
 	}
-	t.Fatalf("incident %s missing from list rows", incidentID)
+	if !found {
+		t.Fatalf("incident %s missing from list rows", incidentID)
+	}
+
+	nextSourceEventID := "evt-" + randomBase36(8)
+	evidence, err = json.Marshal(map[string]any{
+		"sourceEventId": nextSourceEventID,
+		"subject":       "writer/aperio",
+	})
+	if err != nil {
+		t.Fatalf("marshal replacement evidence: %v", err)
+	}
+	if _, err := app.db.ExecContext(ctx, `
+		UPDATE security_findings
+		SET evidence = $3::jsonb
+		WHERE organization_id = $1 AND id = $2
+	`, auth.OrganizationID, findingID, string(evidence)); err != nil {
+		t.Fatalf("replace finding evidence: %v", err)
+	}
+	cerebroClient.claims = map[string][]cerebroclient.Claim{}
+
+	detail, err = app.getSaasIncidentDetail(ctx, auth.OrganizationID, incidentID)
+	if err != nil {
+		t.Fatalf("get incident detail after no-claim lookup: %v", err)
+	}
+	detailContext = decodeSaasCerebroContext(t, detail.Incident.CerebroContextJson)
+	assertCerebroContextPending(t, "detail after no-claim lookup", detailContext)
+
+	row, err = app.getSaasIncidentRow(ctx, auth.OrganizationID, incidentID)
+	if err != nil {
+		t.Fatalf("reload incident after no-claim lookup: %v", err)
+	}
+	persistedContext = decodeSaasCerebroContext(t, row.CerebroContextJSON)
+	assertCerebroContextPending(t, "persisted row after no-claim lookup", persistedContext)
 }
 
 func assertCerebroContextHydrated(t *testing.T, label string, contextPayload map[string]any) {
@@ -255,6 +291,24 @@ func assertCerebroContextHydrated(t *testing.T, label string, contextPayload map
 	}
 	if contextPayload["sourceRuntimeId"] != "runtime-a" {
 		t.Fatalf("%s sourceRuntimeId = %#v, want runtime-a", label, contextPayload["sourceRuntimeId"])
+	}
+}
+
+func assertCerebroContextPending(t *testing.T, label string, contextPayload map[string]any) {
+	t.Helper()
+	if contextPayload["mode"] != "context-pending" {
+		t.Fatalf("%s mode = %#v, want context-pending", label, contextPayload["mode"])
+	}
+	if contextPayload["claimCount"] != float64(0) {
+		t.Fatalf("%s claimCount = %#v, want 0", label, contextPayload["claimCount"])
+	}
+	for _, key := range []string{"claimSummaries", "graphSignals", "entities", "graphPaths"} {
+		if got := len(contextRecords(contextPayload[key])); got != 0 {
+			t.Fatalf("%s %s = %d, want 0", label, key, got)
+		}
+	}
+	if got := len(contextRecords(contextPayload["responseHints"])); got != 1 {
+		t.Fatalf("%s responseHints = %d, want 1", label, got)
 	}
 }
 
