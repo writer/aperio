@@ -62,6 +62,7 @@ type overviewFinding struct {
 	IntegrationName string
 	AssetID         string
 	RuleID          string
+	SourceEventID   string
 }
 
 type overviewGoogleIntegration struct {
@@ -129,7 +130,8 @@ func (a *App) loadOverviewOpenFindings(ctx context.Context, organizationID strin
 	rows, err := a.db.QueryContext(ctx, `
 		SELECT sf.id, sf.title, sf.risk_score, COALESCE(sf.integration_id, ''),
 		       COALESCE(ic.display_name, ''), COALESCE(sf.asset_id, ''),
-		       COALESCE(sf.evidence->>'ruleId', '')
+		       COALESCE(sf.evidence->>'ruleId', ''),
+		       COALESCE(sf.evidence->>'sourceEventId', '')
 		FROM security_findings sf
 		LEFT JOIN integration_connections ic ON ic.id = sf.integration_id
 		WHERE sf.organization_id = $1 AND sf.status = 'OPEN'
@@ -142,7 +144,7 @@ func (a *App) loadOverviewOpenFindings(ctx context.Context, organizationID strin
 	findings := []overviewFinding{}
 	for rows.Next() {
 		var row overviewFinding
-		if err := rows.Scan(&row.ID, &row.Title, &row.RiskScore, &row.IntegrationID, &row.IntegrationName, &row.AssetID, &row.RuleID); err != nil {
+		if err := rows.Scan(&row.ID, &row.Title, &row.RiskScore, &row.IntegrationID, &row.IntegrationName, &row.AssetID, &row.RuleID, &row.SourceEventID); err != nil {
 			return nil, err
 		}
 		findings = append(findings, row)
