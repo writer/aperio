@@ -301,6 +301,13 @@ func TestSecurityOverviewCerebroContextHydratesClaimsAndGraph(t *testing.T) {
 	if !contextRecordsContain(tools, "cerebro.findings.get") || !contextRecordsContain(tools, "cerebro.risk.summary") {
 		t.Fatalf("security Cerebro MCP tools = %#v", tools)
 	}
+	templates := contextRecords(mcp["resourceTemplates"])
+	if len(templates) != 3 {
+		t.Fatalf("security Cerebro MCP resource templates = %#v, want three templates", templates)
+	}
+	if securityTemplate := contextRecord(templates[2]); securityTemplate["uriTemplate"] != "cerebro://aperio/{organizationId}/security/overview" {
+		t.Fatalf("security resource template drifted: %#v", securityTemplate)
+	}
 	if len(client.listRequests) != 1 || client.listRequests[0].SourceEventID != "evt-1" {
 		t.Fatalf("list requests = %#v", client.listRequests)
 	}

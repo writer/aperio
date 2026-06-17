@@ -126,6 +126,13 @@ func TestEnrichSaasCerebroContextHydratesClaimsAndGraph(t *testing.T) {
 		!contextRecordsContain(tools, "cerebro.findings.action.propose") {
 		t.Fatalf("mcp tools = %#v", tools)
 	}
+	templates := contextRecords(mcp["resourceTemplates"])
+	if len(templates) != 3 {
+		t.Fatalf("mcp resource templates = %#v, want three templates", templates)
+	}
+	if firstTemplate := contextRecord(templates[0]); firstTemplate["uriTemplate"] != "cerebro://aperio/{organizationId}/incidents/{incidentId}" {
+		t.Fatalf("incident resource template drifted: %#v", firstTemplate)
+	}
 }
 
 func TestCerebroGraphPathsUseEndpointStableIDs(t *testing.T) {
@@ -261,14 +268,36 @@ func decodeSaasCerebroContext(t *testing.T, encoded string) map[string]any {
 }
 
 func contextRecord(value any) map[string]any {
-	record, _ := value.(map[string]any)
-	return record
+	switch record := value.(type) {
+	case map[string]any:
+		return record
+	case map[string]string:
+		values := make(map[string]any, len(record))
+		for key, field := range record {
+			values[key] = field
+		}
+		return values
+	default:
+		return nil
+	}
 }
 
 func contextRecords(value any) []any {
 	switch records := value.(type) {
 	case []any:
 		return records
+	case []map[string]string:
+		values := make([]any, len(records))
+		for index, record := range records {
+			values[index] = record
+		}
+		return values
+	case []map[string]any:
+		values := make([]any, len(records))
+		for index, record := range records {
+			values[index] = record
+		}
+		return values
 	case []string:
 		values := make([]any, len(records))
 		for index, record := range records {

@@ -146,9 +146,10 @@ func (a *App) securityCerebroMCPContext(organizationID string) map[string]any {
 		tools = saasCerebroNativeMCPTools()
 	}
 	return map[string]any{
-		"server":      server,
-		"resourceUri": resourceURI,
-		"resource":    "cerebro-mcp",
-		"tools":       tools,
+		"server":            server,
+		"resourceUri":       resourceURI,
+		"resource":          "cerebro-mcp",
+		"tools":             tools,
+		"resourceTemplates": saasCerebroMCPResourceTemplates(),
 	}
 }
