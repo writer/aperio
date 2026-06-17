@@ -165,6 +165,26 @@ export type ConnectorDefinition = {
   fields: ConnectorField[];
 };
 
+export type DetectionPackRule = {
+  id: string;
+  title: string;
+  description: string;
+  severity: string;
+  eventTypes: string[];
+  mitreTechniques: string[];
+  intent: string;
+  tags: string[];
+};
+
+export type DetectionPack = {
+  id: string;
+  provider: string;
+  name: string;
+  description: string;
+  version: string;
+  rules: DetectionPackRule[];
+};
+
 export type IntegrationConnection = {
   id: string;
   provider: Provider;
@@ -490,6 +510,12 @@ export async function acceptFindingRisk(id: string, resolutionNote?: string) {
 export async function fetchConnectorCatalog() {
   return aperioConnectClient.listConnectorCatalog() as Promise<{
     data: ConnectorDefinition[];
+  }>;
+}
+
+export async function fetchDetectionPacks(filters?: { provider?: string }) {
+  return aperioConnectClient.listDetectionPacks(filters) as Promise<{
+    data: DetectionPack[];
   }>;
 }
 
