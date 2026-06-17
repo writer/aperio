@@ -195,7 +195,7 @@ var RuleCatalog = []RuleCatalogEntry{
 		PackID:          "aperio.google_workspace.mail.v1",
 		MitreTechniques: []string{"T1098.002"},
 		Intent:          "Adversary persists access to the mailbox by delegating it to an attacker-controlled account.",
-		Tags:            []string{TagEmailDelegation},
+		Tags:            []string{TagEmailDelegation, TagDataAccess},
 	},
 	{
 		ID:              "google_workspace.legacy_mail_auth_used",
