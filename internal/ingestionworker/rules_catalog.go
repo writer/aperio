@@ -111,7 +111,7 @@ var RuleCatalog = []RuleCatalogEntry{
 		PackID:          "aperio.google_workspace.drive.v1",
 		MitreTechniques: []string{"T1530"},
 		Intent:          "Adversary or insider expands a Drive resource's audience to exfiltrate it through legitimate-looking sharing links.",
-		Tags:            []string{TagDataExternalShare},
+		Tags:            []string{TagDataExternalShare, TagPolicyWeakened},
 	},
 	{
 		ID:              "google_workspace.super_admin_granted",
