@@ -114,7 +114,9 @@ func TestEnrichSaasCerebroContextHydratesClaimsAndGraph(t *testing.T) {
 		t.Fatalf("mcp context = %#v", mcp)
 	}
 	tools := contextRecords(mcp["tools"])
-	if len(tools) != 4 || tools[1] != "cerebro.graph.neighborhood" {
+	if !contextRecordsContain(tools, "cerebro.findings.get") ||
+		!contextRecordsContain(tools, "cerebro.graph.neighborhood") ||
+		!contextRecordsContain(tools, "cerebro.findings.action.propose") {
 		t.Fatalf("mcp tools = %#v", tools)
 	}
 }
@@ -203,6 +205,25 @@ func contextRecord(value any) map[string]any {
 }
 
 func contextRecords(value any) []any {
-	records, _ := value.([]any)
-	return records
+	switch records := value.(type) {
+	case []any:
+		return records
+	case []string:
+		values := make([]any, len(records))
+		for index, record := range records {
+			values[index] = record
+		}
+		return values
+	default:
+		return nil
+	}
+}
+
+func contextRecordsContain(values []any, target string) bool {
+	for _, value := range values {
+		if value == target {
+			return true
+		}
+	}
+	return false
 }

@@ -118,12 +118,7 @@ func (a *App) securityCerebroMCPContext(organizationID string) map[string]any {
 	if a != nil && strings.TrimSpace(a.cerebroMCPServerURL) != "" {
 		server = strings.TrimSpace(a.cerebroMCPServerURL)
 		resourceURI = "cerebro://aperio/" + url.PathEscape(strings.TrimSpace(organizationID)) + "/security/overview"
-		tools = []string{
-			"cerebro.findings.search",
-			"cerebro.graph.neighborhood",
-			"cerebro.investigation.context",
-			"cerebro.agent.preflight",
-		}
+		tools = saasCerebroNativeMCPTools()
 	}
 	return map[string]any{
 		"server":      server,

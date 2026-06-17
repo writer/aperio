@@ -293,6 +293,10 @@ func TestSecurityOverviewCerebroContextHydratesClaimsAndGraph(t *testing.T) {
 	if mcp["server"] != "https://cerebro.example.com/api/v1/mcp" || mcp["resourceUri"] != "cerebro://aperio/org-a/security/overview" {
 		t.Fatalf("unexpected Cerebro MCP context: %#v", mcp)
 	}
+	tools := contextRecords(mcp["tools"])
+	if !contextRecordsContain(tools, "cerebro.findings.get") || !contextRecordsContain(tools, "cerebro.risk.summary") {
+		t.Fatalf("security Cerebro MCP tools = %#v", tools)
+	}
 	if len(client.listRequests) != 1 || client.listRequests[0].SourceEventID != "evt-1" {
 		t.Fatalf("list requests = %#v", client.listRequests)
 	}
