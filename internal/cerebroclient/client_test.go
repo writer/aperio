@@ -13,6 +13,7 @@ import (
 
 func TestConfigFromEnvDefaultsAndTrims(t *testing.T) {
 	t.Setenv("CEREBRO_BASE_URL", " https://cerebro.example.com ")
+	t.Setenv("CEREBRO_MCP_URL", " https://cerebro.example.com/custom/mcp ")
 	t.Setenv("CEREBRO_API_KEY", " api-key ")
 	t.Setenv("CEREBRO_TOKEN", "ignored-token")
 	t.Setenv("CEREBRO_TENANT_ID", " tenant-a ")
@@ -23,6 +24,9 @@ func TestConfigFromEnvDefaultsAndTrims(t *testing.T) {
 	config := ConfigFromEnv()
 	if config.BaseURL != "https://cerebro.example.com" {
 		t.Fatalf("BaseURL = %q", config.BaseURL)
+	}
+	if config.MCPURL != "https://cerebro.example.com/custom/mcp" {
+		t.Fatalf("MCPURL = %q", config.MCPURL)
 	}
 	if config.APIKey != "api-key" {
 		t.Fatalf("APIKey = %q", config.APIKey)
@@ -48,6 +52,29 @@ func TestConfigFromEnvDefaultsAndTrims(t *testing.T) {
 	}
 	if runtime.Config["surface"] != "aperio_saas_dr" {
 		t.Fatalf("DefaultRuntime().Config[surface] = %q", runtime.Config["surface"])
+	}
+	if config.MCPServerURL() != "https://cerebro.example.com/custom/mcp" {
+		t.Fatalf("MCPServerURL() = %q", config.MCPServerURL())
+	}
+}
+
+func TestMCPServerURLDerivesFromBaseURL(t *testing.T) {
+	cases := []struct {
+		name string
+		base string
+		want string
+	}{
+		{name: "origin", base: "https://cerebro.example.com", want: "https://cerebro.example.com/api/v1/mcp"},
+		{name: "api prefix", base: "https://cerebro.example.com/api", want: "https://cerebro.example.com/api/v1/mcp"},
+		{name: "tenant prefix", base: "https://proxy.example.com/cerebro", want: "https://proxy.example.com/cerebro/api/v1/mcp"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := (Config{BaseURL: tc.base}).MCPServerURL()
+			if got != tc.want {
+				t.Fatalf("MCPServerURL() = %q, want %q", got, tc.want)
+			}
+		})
 	}
 }
 

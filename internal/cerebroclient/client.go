@@ -27,6 +27,7 @@ const (
 // the server-side integration principal used for Cerebro HTTP and MCP calls.
 type Config struct {
 	BaseURL   string
+	MCPURL    string
 	APIKey    string
 	TenantID  string
 	RuntimeID string
@@ -37,12 +38,36 @@ type Config struct {
 func ConfigFromEnv() Config {
 	return Config{
 		BaseURL:   trimEnv("CEREBRO_BASE_URL"),
+		MCPURL:    trimEnv("CEREBRO_MCP_URL"),
 		APIKey:    firstEnv("CEREBRO_API_KEY", "CEREBRO_TOKEN"),
 		TenantID:  trimEnv("CEREBRO_TENANT_ID"),
 		RuntimeID: envDefault("CEREBRO_SOURCE_RUNTIME_ID", DefaultRuntimeID),
 		SourceID:  envDefault("CEREBRO_SOURCE_ID", DefaultSourceID),
 		Timeout:   durationEnv("CEREBRO_HTTP_TIMEOUT_SECONDS", defaultTimeout),
 	}
+}
+
+func (c Config) MCPServerURL() string {
+	if strings.TrimSpace(c.MCPURL) != "" {
+		return strings.TrimSpace(c.MCPURL)
+	}
+	baseURL, err := parseBaseURL(c.BaseURL)
+	if err != nil {
+		return ""
+	}
+	value := *baseURL
+	path := strings.TrimRight(value.Path, "/")
+	rawPath := strings.TrimRight(value.EscapedPath(), "/")
+	if strings.HasSuffix(path, "/api") {
+		value.Path = path + "/v1/mcp"
+		value.RawPath = rawPath + "/v1/mcp"
+	} else {
+		value.Path = path + "/api/v1/mcp"
+		value.RawPath = rawPath + "/api/v1/mcp"
+	}
+	value.RawQuery = ""
+	value.Fragment = ""
+	return value.String()
 }
 
 func (c Config) Enabled() bool {

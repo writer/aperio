@@ -43,6 +43,7 @@ type App struct {
 	slackAPIBaseURL       string
 	cerebroContextClient  saasCerebroContextClient
 	cerebroRuntimeID      string
+	cerebroMCPServerURL   string
 }
 
 // dashboardMetrics mirrors the existing web dashboard response shape. Keeping
