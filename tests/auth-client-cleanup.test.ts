@@ -180,8 +180,16 @@ test("frontend auth surfaces share Cerebro auth vocabulary", () => {
     authModel,
     /formatCerebroTransport\(CEREBRO_SESSION_TRANSPORT\)/
   );
-  assert.match(accountMenu, /CEREBRO_MCP_RESOURCE_METADATA_PATH/);
-  assert.match(accountMenu, /CEREBRO_OAUTH_AUTHORIZATION_SERVER_METADATA_PATH/);
+  assert.match(accountMenu, /cerebroMcpResourceMetadataPath/);
+  assert.match(
+    accountMenu,
+    /cerebroOauthAuthorizationServerMetadataPath/
+  );
+  assert.doesNotMatch(accountMenu, /CEREBRO_MCP_RESOURCE_METADATA_PATH/);
+  assert.doesNotMatch(
+    accountMenu,
+    /CEREBRO_OAUTH_AUTHORIZATION_SERVER_METADATA_PATH/
+  );
   assert.match(accountMenu, /cerebroMcpGrantTypes/);
   assert.match(authLayout, /CEREBRO_AUTH_INSIGHTS/);
   assert.match(authLayout, /CEREBRO_MCP_RESOURCE/);

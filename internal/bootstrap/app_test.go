@@ -439,11 +439,11 @@ func TestTypedAuthSessionDropsCompatibilityToken(t *testing.T) {
 	if session.AuthContext.CerebroMcpResource != "cerebro-mcp" {
 		t.Fatalf("unexpected MCP resource: %#v", session.AuthContext)
 	}
-	if session.AuthContext.CerebroMcpResourceMetadataPath != "/.well-known/oauth-protected-resource/api/v1/mcp" {
-		t.Fatalf("unexpected MCP resource metadata path: %#v", session.AuthContext)
+	if session.AuthContext.CerebroMcpResourceMetadataPath != "" {
+		t.Fatalf("MCP resource metadata path should not be advertised without mounted discovery routes: %#v", session.AuthContext)
 	}
-	if session.AuthContext.CerebroOauthAuthorizationServerMetadataPath != "/.well-known/oauth-authorization-server" {
-		t.Fatalf("unexpected OAuth authorization server metadata path: %#v", session.AuthContext)
+	if session.AuthContext.CerebroOauthAuthorizationServerMetadataPath != "" {
+		t.Fatalf("OAuth authorization server metadata path should not be advertised without mounted discovery routes: %#v", session.AuthContext)
 	}
 	for _, grantType := range []string{"authorization_code", "refresh_token", "client_credentials"} {
 		if !stringSliceContains(session.AuthContext.CerebroMcpGrantTypes, grantType) {

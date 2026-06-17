@@ -1040,10 +1040,6 @@ function parseMetadata(metadataJson: string): Record<string, unknown> | null {
 const CEREBRO_READ_SCOPE = "cerebro.cosmo.security.read";
 const CEREBRO_API_RESOURCE = "cerebro-api";
 const CEREBRO_MCP_RESOURCE = "cerebro-mcp";
-const CEREBRO_MCP_RESOURCE_METADATA_PATH =
-  "/.well-known/oauth-protected-resource/api/v1/mcp";
-const CEREBRO_OAUTH_AUTHORIZATION_SERVER_METADATA_PATH =
-  "/.well-known/oauth-authorization-server";
 const CEREBRO_MCP_GRANT_TYPES = [
   "authorization_code",
   "refresh_token",
@@ -1108,9 +1104,8 @@ function fallbackAuthContext(
     cerebroScopes: [...CEREBRO_SCOPES_BY_ROLE[user.role]],
     groups: ["security"],
     cerebroMcpResource: CEREBRO_MCP_RESOURCE,
-    cerebroMcpResourceMetadataPath: CEREBRO_MCP_RESOURCE_METADATA_PATH,
-    cerebroOauthAuthorizationServerMetadataPath:
-      CEREBRO_OAUTH_AUTHORIZATION_SERVER_METADATA_PATH,
+    cerebroMcpResourceMetadataPath: "",
+    cerebroOauthAuthorizationServerMetadataPath: "",
     cerebroMcpGrantTypes: [...CEREBRO_MCP_GRANT_TYPES],
     cerebroMcpBearerMethods: [...CEREBRO_MCP_BEARER_METHODS]
   };
@@ -1142,12 +1137,9 @@ function authContextFromProto(
     groups: authContext.groups.length ? [...authContext.groups] : fallback.groups,
     cerebroMcpResource:
       authContext.cerebroMcpResource || fallback.cerebroMcpResource,
-    cerebroMcpResourceMetadataPath:
-      authContext.cerebroMcpResourceMetadataPath ||
-      fallback.cerebroMcpResourceMetadataPath,
+    cerebroMcpResourceMetadataPath: authContext.cerebroMcpResourceMetadataPath,
     cerebroOauthAuthorizationServerMetadataPath:
-      authContext.cerebroOauthAuthorizationServerMetadataPath ||
-      fallback.cerebroOauthAuthorizationServerMetadataPath,
+      authContext.cerebroOauthAuthorizationServerMetadataPath,
     cerebroMcpGrantTypes: authContext.cerebroMcpGrantTypes.length
       ? [...authContext.cerebroMcpGrantTypes]
       : fallback.cerebroMcpGrantTypes,

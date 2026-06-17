@@ -10,8 +10,6 @@ import {
   CEREBRO_MCP_BEARER_METHODS,
   CEREBRO_MCP_GRANT_TYPES,
   CEREBRO_MCP_RESOURCE,
-  CEREBRO_MCP_RESOURCE_METADATA_PATH,
-  CEREBRO_OAUTH_AUTHORIZATION_SERVER_METADATA_PATH,
   formatCerebroScope,
   formatCerebroTransport
 } from "../../lib/cerebro-auth";
@@ -50,6 +48,9 @@ export function AccountMenu({
   const accountLabel =
     session?.user.displayName ?? session?.user.email ?? "Account";
   const authContext = session?.authContext;
+  const mcpMetadataPath = authContext?.cerebroMcpResourceMetadataPath;
+  const oauthMetadataPath =
+    authContext?.cerebroOauthAuthorizationServerMetadataPath;
 
   return (
     <DropdownMenu>
@@ -145,26 +146,18 @@ export function AccountMenu({
                   <dt className="text-muted-foreground">MCP metadata</dt>
                   <dd
                     className="truncate font-mono text-foreground"
-                    title={
-                      authContext.cerebroMcpResourceMetadataPath ||
-                      CEREBRO_MCP_RESOURCE_METADATA_PATH
-                    }
+                    title={mcpMetadataPath || undefined}
                   >
-                    {authContext.cerebroMcpResourceMetadataPath ||
-                      CEREBRO_MCP_RESOURCE_METADATA_PATH}
+                    {mcpMetadataPath || "Not published"}
                   </dd>
                 </div>
                 <div className="grid grid-cols-[96px_minmax(0,1fr)] gap-2">
                   <dt className="text-muted-foreground">OAuth metadata</dt>
                   <dd
                     className="truncate font-mono text-foreground"
-                    title={
-                      authContext.cerebroOauthAuthorizationServerMetadataPath ||
-                      CEREBRO_OAUTH_AUTHORIZATION_SERVER_METADATA_PATH
-                    }
+                    title={oauthMetadataPath || undefined}
                   >
-                    {authContext.cerebroOauthAuthorizationServerMetadataPath ||
-                      CEREBRO_OAUTH_AUTHORIZATION_SERVER_METADATA_PATH}
+                    {oauthMetadataPath || "Not published"}
                   </dd>
                 </div>
                 <div className="grid grid-cols-[96px_minmax(0,1fr)] gap-2">
