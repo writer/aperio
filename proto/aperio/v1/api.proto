@@ -1133,6 +1133,7 @@ message SecurityOverview {
   repeated SecurityAsset ownership_gaps = 7;
   repeated RiskException exceptions = 8;
   repeated DomainWideDelegation domain_wide_delegations = 9;
+  SecurityCerebroContext cerebro_context = 10;
 }
 
 message SecurityOverviewSummary {
@@ -1143,6 +1144,26 @@ message SecurityOverviewSummary {
   int32 unowned_assets = 5;
   int32 active_exceptions = 6;
   int32 top_blast_radius_score = 7;
+}
+
+message SecurityCerebroContext {
+  string source = 1;
+  string mode = 2;
+  string source_runtime_id = 3;
+  string finding_contract = 4;
+  int32 claim_count = 5;
+  int32 graph_signal_count = 6;
+  int32 entity_count = 7;
+  int32 graph_path_count = 8;
+  SecurityCerebroMCPContext mcp = 9;
+  repeated string response_hints = 10;
+}
+
+message SecurityCerebroMCPContext {
+  string server = 1;
+  string resource_uri = 2;
+  string resource = 3;
+  repeated string tools = 4;
 }
 
 message SecurityIdentity {

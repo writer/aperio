@@ -665,6 +665,7 @@ func securityOverviewFromMap(data map[string]any) *aperiov1.SecurityOverview {
 		OwnershipGaps:         securityAssetsFromAny(data["ownershipGaps"]),
 		Exceptions:            riskExceptionsFromAny(data["exceptions"]),
 		DomainWideDelegations: domainWideDelegationsFromAny(data["domainWideDelegations"]),
+		CerebroContext:        securityCerebroContextFromMap(asMap(data["cerebroContext"])),
 	}
 }
 
@@ -677,6 +678,36 @@ func securityOverviewSummaryFromMap(data map[string]any) *aperiov1.SecurityOverv
 		UnownedAssets:             int32(intValue(data["unownedAssets"])),
 		ActiveExceptions:          int32(intValue(data["activeExceptions"])),
 		TopBlastRadiusScore:       int32(intValue(data["topBlastRadiusScore"])),
+	}
+}
+
+func securityCerebroContextFromMap(data map[string]any) *aperiov1.SecurityCerebroContext {
+	if len(data) == 0 {
+		return nil
+	}
+	return &aperiov1.SecurityCerebroContext{
+		Source:           stringFromAny(data["source"]),
+		Mode:             stringFromAny(data["mode"]),
+		SourceRuntimeId:  stringFromAny(data["sourceRuntimeId"]),
+		FindingContract:  stringFromAny(data["findingContract"]),
+		ClaimCount:       int32(intValue(data["claimCount"])),
+		GraphSignalCount: int32(intValue(data["graphSignalCount"])),
+		EntityCount:      int32(intValue(data["entityCount"])),
+		GraphPathCount:   int32(intValue(data["graphPathCount"])),
+		Mcp:              securityCerebroMCPContextFromMap(asMap(data["mcp"])),
+		ResponseHints:    stringSliceFromAny(data["responseHints"]),
+	}
+}
+
+func securityCerebroMCPContextFromMap(data map[string]any) *aperiov1.SecurityCerebroMCPContext {
+	if len(data) == 0 {
+		return nil
+	}
+	return &aperiov1.SecurityCerebroMCPContext{
+		Server:      stringFromAny(data["server"]),
+		ResourceUri: stringFromAny(data["resourceUri"]),
+		Resource:    stringFromAny(data["resource"]),
+		Tools:       stringSliceFromAny(data["tools"]),
 	}
 }
 

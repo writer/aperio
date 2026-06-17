@@ -34,6 +34,8 @@ import {
   type SecurityGraphEdge as ProtoSecurityGraphEdge,
   type SecurityGraphNode as ProtoSecurityGraphNode,
   type SecurityIdentity as ProtoSecurityIdentity,
+  type SecurityCerebroContext as ProtoSecurityCerebroContext,
+  type SecurityCerebroMCPContext as ProtoSecurityCerebroMCPContext,
   type SecurityOverview as ProtoSecurityOverview,
   type SecurityAsset as ProtoSecurityAsset,
   type SecurityPrincipal as ProtoSecurityPrincipal,
@@ -836,6 +838,23 @@ export type ConnectSecurityOverview = {
     lastSyncAt: string | null;
     configuredAt: string;
   }[];
+  cerebroContext: {
+    source: string;
+    mode: string;
+    sourceRuntimeId: string;
+    findingContract: string;
+    claimCount: number;
+    graphSignalCount: number;
+    entityCount: number;
+    graphPathCount: number;
+    mcp: {
+      server: string;
+      resourceUri: string;
+      resource: string;
+      tools: string[];
+    } | null;
+    responseHints: string[];
+  } | null;
 };
 
 export type ConnectEmailDomainHealth = {
@@ -1936,6 +1955,36 @@ function securityGraphFromProto(graph?: ProtoSecurityGraph | null) {
   };
 }
 
+function securityCerebroMCPContextFromProto(
+  mcp?: ProtoSecurityCerebroMCPContext | null
+) {
+  if (!mcp) return null;
+  return {
+    server: mcp.server,
+    resourceUri: mcp.resourceUri,
+    resource: mcp.resource,
+    tools: [...mcp.tools]
+  };
+}
+
+function securityCerebroContextFromProto(
+  context?: ProtoSecurityCerebroContext | null
+): ConnectSecurityOverview["cerebroContext"] {
+  if (!context) return null;
+  return {
+    source: context.source,
+    mode: context.mode,
+    sourceRuntimeId: context.sourceRuntimeId,
+    findingContract: context.findingContract,
+    claimCount: context.claimCount,
+    graphSignalCount: context.graphSignalCount,
+    entityCount: context.entityCount,
+    graphPathCount: context.graphPathCount,
+    mcp: securityCerebroMCPContextFromProto(context.mcp),
+    responseHints: [...context.responseHints]
+  };
+}
+
 function securityOverviewFromProto(
   overview: ProtoSecurityOverview
 ): ConnectSecurityOverview {
@@ -1986,7 +2035,8 @@ function securityOverviewFromProto(
       openMailboxFindings: delegation.openMailboxFindings,
       lastSyncAt: delegation.lastSyncAt || null,
       configuredAt: delegation.configuredAt
-    }))
+    })),
+    cerebroContext: securityCerebroContextFromProto(overview.cerebroContext)
   };
 }
 
