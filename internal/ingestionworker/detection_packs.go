@@ -55,7 +55,7 @@ var DetectionPacks = []DetectionPack{
 		ID:          "aperio.google_workspace.mail.v1",
 		Provider:    "GOOGLE_WORKSPACE",
 		Name:        "Google Workspace mailbox exfiltration",
-		Description: "Mail forwarding, mailbox delegation, send-as, and legacy IMAP/SMTP auth paths attackers use to siphon Gmail.",
+		Description: "Mail forwarding, mailbox delegation, and legacy IMAP/SMTP auth paths attackers use to siphon Gmail.",
 		Version:     "1.0.0",
 	},
 	{
