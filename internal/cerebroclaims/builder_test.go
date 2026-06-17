@@ -48,6 +48,41 @@ func TestBuildCreatesFindingAssetAndIntegrationClaims(t *testing.T) {
 	}
 }
 
+func TestBuildProtoCreatesCanonicalCerebroClaims(t *testing.T) {
+	claims, err := BuildProto(BuildInput{
+		TenantID:       "cerebro-tenant",
+		OrganizationID: "org_123",
+		RuntimeID:      "runtime-main",
+		Payload: Payload{
+			Kind:       "FINDING_CREATED",
+			OccurredAt: "2026-06-16T12:00:00Z",
+			Record: map[string]any{
+				"provider":      "GITHUB",
+				"title":         "Public repository created",
+				"target":        "payments-service",
+				"dedupeKey":     "dedupe-123",
+				"sourceEventId": "evt-123",
+				"riskScore":     float64(91),
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("BuildProto() error = %v", err)
+	}
+	if len(claims) != 8 {
+		t.Fatalf("len(claims) = %d, want 8", len(claims))
+	}
+	if got := string(claims[0].ProtoReflect().Descriptor().FullName()); got != "cerebro.v1.Claim" {
+		t.Fatalf("claim descriptor = %q", got)
+	}
+	if got := claims[0].GetSubjectUrn(); got != "urn:cerebro:cerebro-tenant:runtime:runtime-main:finding:dedupe-123" {
+		t.Fatalf("SubjectURN = %q", got)
+	}
+	if got := claims[0].GetAttributes()["aperio_schema"]; got != "aperio/finding/v1" {
+		t.Fatalf("aperio_schema = %q", got)
+	}
+}
+
 func TestRefEncodesExternalIDLikeCerebroURNPathSegment(t *testing.T) {
 	ref := Ref(
 		"org_urn_encoding",

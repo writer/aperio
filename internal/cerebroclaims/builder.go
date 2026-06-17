@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	cerebrov1 "github.com/writer/aperio/gen/cerebro/v1"
 	"github.com/writer/aperio/internal/cerebroclient"
 )
 
@@ -91,6 +92,14 @@ func Build(input BuildInput) ([]cerebroclient.Claim, error) {
 		claims = append(claims, attributeClaim(finding, "description", description, input.Payload))
 	}
 	return claims, nil
+}
+
+func BuildProto(input BuildInput) ([]*cerebrov1.Claim, error) {
+	claims, err := Build(input)
+	if err != nil {
+		return nil, err
+	}
+	return cerebroclient.ClaimsToProto(claims), nil
 }
 
 func Ref(organizationID, runtimeID, entityType, externalID, label string) cerebroclient.EntityRef {
