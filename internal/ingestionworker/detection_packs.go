@@ -27,14 +27,14 @@ var DetectionPacks = []DetectionPack{
 		ID:          "aperio.github.core.v1",
 		Provider:    "GITHUB",
 		Name:        "GitHub repository hygiene",
-		Description: "Public repository creation, branch protection bypass, and personal access token misuse on GitHub.",
+		Description: "Public repository creation events on GitHub.",
 		Version:     "1.0.0",
 	},
 	{
 		ID:          "aperio.slack.core.v1",
 		Provider:    "SLACK",
 		Name:        "Slack workspace access",
-		Description: "Multi-factor authentication state and external-collaborator access events on Slack.",
+		Description: "Multi-factor authentication disablement on Slack.",
 		Version:     "1.0.0",
 	},
 	{
@@ -62,7 +62,7 @@ var DetectionPacks = []DetectionPack{
 		ID:          "aperio.google_workspace.drive.v1",
 		Provider:    "GOOGLE_WORKSPACE",
 		Name:        "Google Workspace Drive sharing & OAuth",
-		Description: "External Drive sharing, risky OAuth grants, and mass-download exfiltration patterns in Google Workspace.",
+		Description: "External Drive sharing and risky third-party OAuth grants in Google Workspace.",
 		Version:     "1.0.0",
 	},
 }
