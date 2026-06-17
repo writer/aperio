@@ -38,7 +38,7 @@ export const ingestionPayloadSchema = z.object({
   source: z.string().trim().min(1).max(180),
   actor: z.string().trim().max(255).optional(),
   occurredAt: z.string().datetime().optional(),
-  payload: z.record(z.unknown())
+  payload: z.record(z.string(), z.unknown())
 });
 
 export type Provider = (typeof providers)[number];

@@ -35,7 +35,7 @@ export const agentProposalStatusSchema = z.enum([
   "FAILED"
 ]);
 
-export const jsonRecordSchema = z.record(z.unknown());
+export const jsonRecordSchema = z.record(z.string(), z.unknown());
 
 export const registerAgentSchema = z
   .object({
