@@ -224,7 +224,7 @@ func cerebroClaimToProto(claim cerebroClaim) *cerebrov1.Claim {
 		ObjectValue:   claim.ObjectValue,
 		ClaimType:     claim.ClaimType,
 		Status:        claim.Status,
-		SourceEventId: claim.SourceEvent,
+		SourceEventId: claim.SourceEventID,
 		ObservedAt:    observedAt,
 		Attributes:    compactEventAttributes(claim.Attributes),
 	}
