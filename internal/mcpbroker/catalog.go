@@ -139,6 +139,68 @@ var approvedTools = []Tool{
 			},
 		),
 	},
+	{
+		Name:        "aperio.list_cerebro_incidents",
+		Description: "List Cerebro-backed posture incident MCP resources for a tenant.",
+		InputSchema: objectSchema(
+			[]string{"organizationId"},
+			map[string]any{
+				"organizationId": stringSchema(1, 0),
+				"authToken":      stringSchema(1, 0),
+				"status": map[string]any{
+					"type": "string",
+					"enum": []any{"OPEN", "INVESTIGATING", "CONTAINED", "RESOLVED", "ALL"},
+				},
+				"severity": map[string]any{
+					"type": "string",
+					"enum": []any{"CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"},
+				},
+				"limit": integerSchemaWithDefault(1, 100, 25),
+			},
+		),
+	},
+	{
+		Name:        "aperio.get_cerebro_incident_context",
+		Description: "Fetch one incident as a Cerebro MCP graph-context resource with findings, timeline, and response actions.",
+		InputSchema: objectSchema(
+			[]string{"organizationId", "incidentId"},
+			map[string]any{
+				"organizationId": stringSchema(1, 0),
+				"authToken":      stringSchema(1, 0),
+				"incidentId":     stringSchema(1, 0),
+			},
+		),
+	},
+	{
+		Name:        "aperio.propose_cerebro_response",
+		Description: "Create a human-gated SaaS incident response action from Cerebro MCP graph context.",
+		InputSchema: objectSchema(
+			[]string{"organizationId", "incidentId", "action", "targetType", "targetIdentifier", "rationale"},
+			map[string]any{
+				"organizationId":     stringSchema(1, 0),
+				"authToken":          stringSchema(1, 0),
+				"incidentId":         stringSchema(1, 0),
+				"findingId":          stringSchema(1, 0),
+				"taskId":             stringSchema(1, 0),
+				"proposedByAgentKey": stringSchema(2, 120),
+				"action": map[string]any{
+					"type": "string",
+					"enum": []any{"REVOKE_OAUTH_GRANT", "SUSPEND_USER", "RESET_MFA", "REVOKE_SESSION", "REMOVE_EXTERNAL_SHARE", "DISABLE_FORWARDING", "REMOVE_ADMIN_ROLE", "QUARANTINE_APP", "OPEN_TICKET", "NOTIFY_SECOPS"},
+				},
+				"provider": map[string]any{
+					"type": "string",
+					"enum": []any{"GITHUB", "SLACK", "GOOGLE_WORKSPACE", "ONE_PASSWORD", "OKTA", "MICROSOFT_365", "ATLASSIAN", "SALESFORCE"},
+				},
+				"targetType":       stringSchema(1, 120),
+				"targetIdentifier": stringSchema(1, 255),
+				"rationale":        stringSchema(2, 4000),
+				"approvalRequired": map[string]any{
+					"type":    "boolean",
+					"default": true,
+				},
+			},
+		),
+	},
 }
 
 func objectSchema(required []string, properties map[string]any) map[string]any {
@@ -177,6 +239,15 @@ func datetimeSchema() map[string]any {
 	return map[string]any{
 		"type":   "string",
 		"format": "date-time",
+	}
+}
+
+func integerSchemaWithDefault(minimum int, maximum int, defaultValue int) map[string]any {
+	return map[string]any{
+		"type":    "integer",
+		"minimum": minimum,
+		"maximum": maximum,
+		"default": defaultValue,
 	}
 }
 

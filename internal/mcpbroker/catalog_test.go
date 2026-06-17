@@ -14,6 +14,9 @@ func TestApprovedToolsCatalog(t *testing.T) {
 		"aperio.list_tasks",
 		"aperio.propose_remediation",
 		"aperio.enqueue_siem_payload",
+		"aperio.list_cerebro_incidents",
+		"aperio.get_cerebro_incident_context",
+		"aperio.propose_cerebro_response",
 	}
 	if len(tools) != len(wantNames) {
 		t.Fatalf("tool count = %d, want %d", len(tools), len(wantNames))
@@ -44,6 +47,9 @@ func TestApprovedToolsCatalog(t *testing.T) {
 	assertRequired(t, required["aperio.list_tasks"], "organizationId")
 	assertRequired(t, required["aperio.propose_remediation"], "organizationId", "action", "rationale", "payload")
 	assertRequired(t, required["aperio.enqueue_siem_payload"], "organizationId", "record")
+	assertRequired(t, required["aperio.list_cerebro_incidents"], "organizationId")
+	assertRequired(t, required["aperio.get_cerebro_incident_context"], "organizationId", "incidentId")
+	assertRequired(t, required["aperio.propose_cerebro_response"], "organizationId", "incidentId", "action", "targetType", "targetIdentifier", "rationale")
 
 	registerProps := tools[0].InputSchema["properties"].(map[string]any)
 	if registerProps["kind"].(map[string]any)["default"] != "CUSTOM" {
@@ -62,6 +68,14 @@ func TestApprovedToolsCatalog(t *testing.T) {
 	}
 	if enqueueProps["occurredAt"].(map[string]any)["format"] != "date-time" {
 		t.Fatalf("enqueue occurredAt must advertise date-time format")
+	}
+	cerebroListProps := tools[6].InputSchema["properties"].(map[string]any)
+	if cerebroListProps["limit"].(map[string]any)["default"] != 25 {
+		t.Fatalf("list_cerebro_incidents limit default drifted")
+	}
+	cerebroResponseProps := tools[8].InputSchema["properties"].(map[string]any)
+	if cerebroResponseProps["approvalRequired"].(map[string]any)["default"] != true {
+		t.Fatalf("propose_cerebro_response approval default drifted")
 	}
 }
 
@@ -119,6 +133,35 @@ func TestValidateToolArgumentsDefaultsAndTrimming(t *testing.T) {
 	if enqueue["kind"] != "finding" || enqueue["occurredAt"] != now.Format(time.RFC3339Nano) {
 		t.Fatalf("enqueue defaults wrong: %#v", enqueue)
 	}
+
+	cerebroList, err := ValidateToolArguments("aperio.list_cerebro_incidents", map[string]any{
+		"organizationId": " org_1 ",
+	}, now)
+	if err != nil {
+		t.Fatalf("list_cerebro_incidents validation failed: %v", err)
+	}
+	if cerebroList["organizationId"] != "org_1" || cerebroList["limit"] != 25 {
+		t.Fatalf("list_cerebro_incidents defaults wrong: %#v", cerebroList)
+	}
+
+	cerebroResponse, err := ValidateToolArguments("aperio.propose_cerebro_response", map[string]any{
+		"organizationId":     "org_1",
+		"incidentId":         " inc_1 ",
+		"action":             "REVOKE_OAUTH_GRANT",
+		"targetType":         " oauth_app ",
+		"targetIdentifier":   " Vendor App ",
+		"rationale":          " Required by Cerebro graph context. ",
+		"proposedByAgentKey": " planner ",
+	}, now)
+	if err != nil {
+		t.Fatalf("propose_cerebro_response validation failed: %v", err)
+	}
+	if cerebroResponse["approvalRequired"] != true ||
+		cerebroResponse["incidentId"] != "inc_1" ||
+		cerebroResponse["targetIdentifier"] != "Vendor App" ||
+		cerebroResponse["proposedByAgentKey"] != "planner" {
+		t.Fatalf("propose_cerebro_response defaults/trimming wrong: %#v", cerebroResponse)
+	}
 }
 
 func TestValidateToolArgumentsRejectsInvalidInputs(t *testing.T) {
@@ -152,6 +195,16 @@ func TestValidateToolArgumentsRejectsInvalidInputs(t *testing.T) {
 			name: "record must be object",
 			tool: "aperio.enqueue_siem_payload",
 			args: map[string]any{"organizationId": "org", "record": []any{"bad"}},
+		},
+		{
+			name: "invalid cerebro limit",
+			tool: "aperio.list_cerebro_incidents",
+			args: map[string]any{"organizationId": "org", "limit": 101},
+		},
+		{
+			name: "invalid cerebro action",
+			tool: "aperio.propose_cerebro_response",
+			args: map[string]any{"organizationId": "org", "incidentId": "inc", "action": "DELETE_TENANT", "targetType": "app", "targetIdentifier": "app", "rationale": "bad"},
 		},
 	}
 	for _, tc := range cases {

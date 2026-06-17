@@ -66,6 +66,12 @@ func (s *ToolService) CallTool(ctx context.Context, name string, args any) (any,
 		return s.proposeRemediation(ctx, scoped)
 	case "aperio.enqueue_siem_payload":
 		return s.enqueueSIEMPayload(ctx, scoped)
+	case "aperio.list_cerebro_incidents":
+		return s.listCerebroIncidents(ctx, scoped)
+	case "aperio.get_cerebro_incident_context":
+		return s.getCerebroIncidentContext(ctx, scoped)
+	case "aperio.propose_cerebro_response":
+		return s.proposeCerebroResponse(ctx, scoped)
 	default:
 		return nil, fmt.Errorf("Unknown tool: %s", name)
 	}
