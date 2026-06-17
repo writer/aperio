@@ -29,8 +29,9 @@ export function isOAuthWellKnownMetadataRequest(url) {
     return (
       parsed.origin === WEB_ORIGIN &&
       (parsed.pathname === "/.well-known/oauth-protected-resource" ||
-        parsed.pathname === "/.well-known/oauth-protected-resource/api/v1/mcp" ||
-        parsed.pathname === "/.well-known/oauth-authorization-server")
+        parsed.pathname.startsWith("/.well-known/oauth-protected-resource/") ||
+        parsed.pathname === "/.well-known/oauth-authorization-server" ||
+        parsed.pathname.startsWith("/.well-known/oauth-authorization-server/"))
     );
   } catch {
     return false;
@@ -1518,7 +1519,7 @@ async function runBrowserValidation(report) {
       `location.pathname === "/"`,
       90_000
     );
-    const sessionReady = await waitFor(
+    await waitFor(
       "cookie-backed current session after login",
       () =>
         evaluate(
@@ -1537,7 +1538,7 @@ async function runBrowserValidation(report) {
     report.browser.login = {
       status: "passed",
       path: await evaluate(cdp, "location.pathname"),
-      cookieBackedSession: sessionReady ? "passed" : "failed",
+      cookieBackedSession: "passed",
       credentialSource: process.env.DEMO_OWNER_PASSWORD
         ? "DEMO_OWNER_PASSWORD"
         : "seed-default"

@@ -46,9 +46,8 @@ func TestServerLifecycleAndErrorFrames(t *testing.T) {
 	if !ok || resources["subscribe"] != false || resources["listChanged"] != false {
 		t.Fatalf("initialize capabilities missing resources: %#v", initialize)
 	}
-	prompts, ok := capabilities["prompts"].(map[string]any)
-	if !ok || prompts["listChanged"] != false {
-		t.Fatalf("initialize prompts capability drifted: %#v", initialize)
+	if _, ok := capabilities["prompts"]; ok {
+		t.Fatalf("initialize advertised prompts without prompts/list support: %#v", initialize)
 	}
 
 	if result := frames[1]["result"].(map[string]any); len(result) != 0 || frames[1]["id"] != "ping-1" {

@@ -104,6 +104,43 @@ func TestOAuthProtectedResourceMetadataMirrorsCerebroMCP(t *testing.T) {
 	}
 }
 
+func TestOAuthProtectedResourceMetadataMirrorsPathPrefixedCerebroMCP(t *testing.T) {
+	app := NewApp(config.Config{WebOrigin: "https://app.example.com"}, nil).
+		WithCerebroOAuthIssuerURL("https://proxy.example.com/cerebro/api/v1").
+		WithCerebroMCPServerURL("https://proxy.example.com/cerebro/api/v1/mcp")
+	path := oauthProtectedResourceMetadataPath + "/cerebro/api/v1/mcp"
+	req := httptest.NewRequest(http.MethodGet, path, nil)
+	rec := httptest.NewRecorder()
+
+	app.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("%s status = %d", path, rec.Code)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("%s decode metadata: %v", path, err)
+	}
+	if payload["resource"] != "https://proxy.example.com/cerebro/api/v1/mcp" {
+		t.Fatalf("%s resource = %#v", path, payload["resource"])
+	}
+	assertStringList(t, payload["authorization_servers"], []string{"https://proxy.example.com/cerebro"})
+}
+
+func TestOAuthProtectedResourceMetadataRejectsWrongResourcePath(t *testing.T) {
+	app := NewApp(config.Config{WebOrigin: "https://app.example.com"}, nil).
+		WithCerebroOAuthIssuerURL("https://proxy.example.com/cerebro/api/v1").
+		WithCerebroMCPServerURL("https://proxy.example.com/cerebro/api/v1/mcp")
+	req := httptest.NewRequest(http.MethodGet, oauthProtectedResourceMetadataPath+"/other/api/v1/mcp", nil)
+	rec := httptest.NewRecorder()
+
+	app.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("mismatched protected resource metadata path status = %d", rec.Code)
+	}
+}
+
 func TestOAuthMetadataRequiresCerebroConfig(t *testing.T) {
 	app := NewApp(config.Config{WebOrigin: "https://app.example.com"}, nil)
 

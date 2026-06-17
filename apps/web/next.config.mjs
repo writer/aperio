@@ -69,8 +69,16 @@ const nextConfig = {
         destination: `${apiProxyTarget}/.well-known/oauth-protected-resource/api/v1/mcp`
       },
       {
+        source: "/.well-known/oauth-protected-resource/:path*",
+        destination: `${apiProxyTarget}/.well-known/oauth-protected-resource/:path*`
+      },
+      {
         source: "/.well-known/oauth-authorization-server",
         destination: `${apiProxyTarget}/.well-known/oauth-authorization-server`
+      },
+      {
+        source: "/.well-known/oauth-authorization-server/:path*",
+        destination: `${apiProxyTarget}/.well-known/oauth-authorization-server/:path*`
       },
       {
         source: "/compliance/reports/render",
