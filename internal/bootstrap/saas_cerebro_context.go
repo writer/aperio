@@ -201,7 +201,7 @@ func cerebroGraphPathsFromNeighborhood(neighborhood *cerebroclient.EntityNeighbo
 			continue
 		}
 		paths = append(paths, map[string]any{
-			"id":    fmt.Sprintf("cerebro-path-%d-%s", index+1, relation.Relation),
+			"id":    cerebroGraphPathID(index, relation),
 			"title": relation.Relation,
 			"risk":  "observed",
 			"nodes": []map[string]any{from, to},
@@ -211,6 +211,41 @@ func cerebroGraphPathsFromNeighborhood(neighborhood *cerebroclient.EntityNeighbo
 		}
 	}
 	return paths
+}
+
+func cerebroGraphPathID(index int, relation cerebroclient.GraphRelation) string {
+	return fmt.Sprintf(
+		"cerebro-path-%s-%s-%s-%d",
+		cerebroGraphPathIDPart(relation.FromURN),
+		cerebroGraphPathIDPart(relation.Relation),
+		cerebroGraphPathIDPart(relation.ToURN),
+		index+1,
+	)
+}
+
+func cerebroGraphPathIDPart(value string) string {
+	part := strings.ToLower(strings.TrimSpace(value))
+	if part == "" {
+		return "unknown"
+	}
+	part = strings.NewReplacer(
+		":", "-",
+		"/", "-",
+		"\\", "-",
+		" ", "-",
+		"\t", "-",
+		"\n", "-",
+		".", "-",
+		"@", "-",
+	).Replace(part)
+	for strings.Contains(part, "--") {
+		part = strings.ReplaceAll(part, "--", "-")
+	}
+	part = strings.Trim(part, "-")
+	if part == "" {
+		return "unknown"
+	}
+	return part
 }
 
 type cerebroEntityCollector struct {

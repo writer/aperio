@@ -113,6 +113,39 @@ func TestEnrichSaasCerebroContextHydratesClaimsAndGraph(t *testing.T) {
 	}
 }
 
+func TestCerebroGraphPathsUseEndpointStableIDs(t *testing.T) {
+	assetURN := "urn:cerebro:tenant-a:runtime:runtime-a:asset:GITHUB%3Awriter%2Faperio"
+	firstRootURN := "urn:cerebro:tenant-a:runtime:runtime-a:finding:dedupe-a"
+	secondRootURN := "urn:cerebro:tenant-a:runtime:runtime-a:finding:dedupe-b"
+	firstPaths := cerebroGraphPathsFromNeighborhood(&cerebroclient.EntityNeighborhood{
+		Root: &cerebroclient.GraphEntity{URN: firstRootURN, EntityType: "finding", Label: "Finding A"},
+		Neighbors: []cerebroclient.GraphEntity{
+			{URN: assetURN, EntityType: "asset", Label: "writer/aperio"},
+		},
+		Relations: []cerebroclient.GraphRelation{
+			{FromURN: firstRootURN, Relation: "affects", ToURN: assetURN},
+		},
+	})
+	secondPaths := cerebroGraphPathsFromNeighborhood(&cerebroclient.EntityNeighborhood{
+		Root: &cerebroclient.GraphEntity{URN: secondRootURN, EntityType: "finding", Label: "Finding B"},
+		Neighbors: []cerebroclient.GraphEntity{
+			{URN: assetURN, EntityType: "asset", Label: "writer/aperio"},
+		},
+		Relations: []cerebroclient.GraphRelation{
+			{FromURN: secondRootURN, Relation: "affects", ToURN: assetURN},
+		},
+	})
+	if len(firstPaths) != 1 || len(secondPaths) != 1 {
+		t.Fatalf("paths = %#v %#v", firstPaths, secondPaths)
+	}
+	if firstPaths[0]["id"] == secondPaths[0]["id"] {
+		t.Fatalf("graph path ids must be unique across neighborhoods: %#v", firstPaths[0]["id"])
+	}
+	if firstPaths[0]["id"] == "cerebro-path-1-affects" || secondPaths[0]["id"] == "cerebro-path-1-affects" {
+		t.Fatalf("graph path id does not include relation endpoints: %#v %#v", firstPaths[0]["id"], secondPaths[0]["id"])
+	}
+}
+
 func TestEnrichSaasCerebroContextKeepsSafeFallbackOnReadFailure(t *testing.T) {
 	client := &fakeSaasCerebroContextClient{listErr: errors.New("cerebro unavailable")}
 	app := (&App{}).WithCerebroContextClient("runtime-a", client)
