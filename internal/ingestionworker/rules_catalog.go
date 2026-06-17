@@ -169,7 +169,7 @@ var RuleCatalog = []RuleCatalogEntry{
 		Severity:        "HIGH",
 		EventTypes:      []string{"ADMIN_EXTERNAL_RECOVERY_EMAIL"},
 		PackID:          "aperio.google_workspace.identity.v1",
-		MitreTechniques: []string{"T1556.003"},
+		MitreTechniques: []string{"T1098.001"},
 		Intent:          "Adversary stages an off-tenant recovery path so a future password reset hands them the admin account.",
 		Tags:            []string{TagAuthAccountRecovery},
 	},
