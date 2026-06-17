@@ -10,12 +10,13 @@ import (
 	"github.com/nats-io/nats.go"
 	aperiocontractsv1 "github.com/writer/aperio/gen/aperio/contracts/v1"
 	cerebrov1 "github.com/writer/aperio/gen/cerebro/v1"
+	"github.com/writer/aperio/internal/cerebroclient"
 	"google.golang.org/protobuf/proto"
 )
 
 func TestEncodeCerebroClaimsFanoutEventUsesStableEnvelope(t *testing.T) {
 	occurredAt := time.Date(2026, 6, 5, 20, 0, 0, 0, time.UTC)
-	claim := cerebroClaim{
+	claim := cerebroclient.ClaimToProto(cerebroclient.Claim{
 		SubjectURN: "urn:cerebro:org_123:runtime:writer-aperio-sspm:finding:dedupe_123",
 		SubjectRef: cerebroEntityRef{
 			URN:        "urn:cerebro:org_123:runtime:writer-aperio-sspm:finding:dedupe_123",
@@ -31,7 +32,7 @@ func TestEncodeCerebroClaimsFanoutEventUsesStableEnvelope(t *testing.T) {
 			"ruleId":        "github.public_repository_created",
 			"sourceEventId": "evt_123",
 		},
-	}
+	})
 	encoded, err := encodeCerebroClaimsFanoutEvent(CerebroClaimsFanoutEvent{
 		DeliveryID:     "del_123",
 		OrganizationID: "org_123",
@@ -40,7 +41,7 @@ func TestEncodeCerebroClaimsFanoutEventUsesStableEnvelope(t *testing.T) {
 		FindingID:      "finding_123",
 		DedupeKey:      "dedupe_123",
 		OccurredAt:     occurredAt,
-		Claims:         []cerebroClaim{claim},
+		Claims:         []*cerebrov1.Claim{claim},
 		Status:         "delivered",
 	})
 	if err != nil {
@@ -113,7 +114,7 @@ func TestNATSCerebroClaimFanoutPublisherPublishesWhenEnabled(t *testing.T) {
 		DedupeKey:      "dedupe_nats_123",
 		OccurredAt:     time.Now().UTC(),
 		Status:         "delivered",
-		Claims: []cerebroClaim{{
+		Claims: []*cerebrov1.Claim{cerebroclient.ClaimToProto(cerebroclient.Claim{
 			SubjectURN: "urn:cerebro:org_nats_123:runtime:runtime_nats_123:finding:dedupe_nats_123",
 			SubjectRef: cerebroEntityRef{
 				URN:        "urn:cerebro:org_nats_123:runtime:runtime_nats_123:finding:dedupe_nats_123",
@@ -125,7 +126,7 @@ func TestNATSCerebroClaimFanoutPublisherPublishesWhenEnabled(t *testing.T) {
 			Status:        "asserted",
 			SourceEventID: "evt_nats_123",
 			ObservedAt:    time.Now().UTC().Format(time.RFC3339Nano),
-		}},
+		})},
 	})
 	if err != nil {
 		t.Fatalf("publish Cerebro claim fanout to NATS: %v", err)

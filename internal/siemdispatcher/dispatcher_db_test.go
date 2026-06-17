@@ -1116,7 +1116,7 @@ func TestProcessCerebroClaimsDeliveryCapturesRequestsAndPublishesAfterFinalizati
 	if event.Status != "delivered" || event.Error != "" || event.RuntimeID != "runtime-db" || event.FindingID != "fnd_cerebro_db" || event.DedupeKey != "dedupe_cerebro_db" {
 		t.Fatalf("unexpected fanout event: %#v", event)
 	}
-	if len(event.Claims) != len(requestBody.Claims) || event.Claims[0].SourceEventID != "evt_cerebro_db" {
+	if len(event.Claims) != len(requestBody.Claims) || event.Claims[0].GetSourceEventId() != "evt_cerebro_db" {
 		t.Fatalf("fanout claims = %#v", event.Claims)
 	}
 }

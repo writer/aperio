@@ -31,7 +31,7 @@ type CerebroClaimsFanoutEvent struct {
 	FindingID      string
 	DedupeKey      string
 	OccurredAt     time.Time
-	Claims         []cerebroClaim
+	Claims         []*cerebrov1.Claim
 	Status         string
 	Error          string
 }
@@ -141,7 +141,7 @@ func (d *Dispatcher) publishCerebroFanout(ctx context.Context, item delivery, de
 		FindingID:      result.FindingID,
 		DedupeKey:      result.DedupeKey,
 		OccurredAt:     occurredAt,
-		Claims:         result.CerebroClaims,
+		Claims:         cerebroclient.ClaimsToProto(result.CerebroClaims),
 		Status:         status,
 		Error:          message,
 	})
@@ -164,7 +164,7 @@ func encodeCerebroClaimsFanoutEvent(event CerebroClaimsFanoutEvent) (encodedSIEM
 		FindingId:      event.FindingID,
 		DedupeKey:      event.DedupeKey,
 		OccurredAt:     occurredAt,
-		Claims:         cerebroclient.ClaimsToProto(event.Claims),
+		Claims:         event.Claims,
 		Status:         event.Status,
 		Error:          event.Error,
 	})
