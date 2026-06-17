@@ -87,6 +87,13 @@ func (a *App) enrichSaasCerebroContext(ctx context.Context, organizationID strin
 	return encodeCerebroContextMap(payload, base)
 }
 
+func (a *App) refreshSaasCerebroMCPContext(organizationID string, incidentID string, raw string) string {
+	base := normalizeCerebroContextJSON(raw)
+	payload := cerebroContextMap(base)
+	payload["mcp"] = a.saasCerebroMCPContext(organizationID, incidentID)
+	return encodeCerebroContextMap(payload, base)
+}
+
 func (a *App) saasCerebroIncidentClaims(ctx context.Context, findings []findingRow) []cerebroclient.Claim {
 	claims := []cerebroclient.Claim{}
 	seenEvents := map[string]struct{}{}
