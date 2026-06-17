@@ -104,9 +104,29 @@ func TestOAuthProtectedResourceMetadataMirrorsCerebroMCP(t *testing.T) {
 	}
 }
 
+func TestOAuthMetadataRequiresCerebroConfig(t *testing.T) {
+	app := NewApp(config.Config{WebOrigin: "https://app.example.com"}, nil)
+
+	for _, path := range []string{
+		oauthProtectedResourceMetadataPath,
+		oauthProtectedResourceMetadataMCPPath,
+		oauthAuthorizationServerMetadataPath,
+	} {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		rec := httptest.NewRecorder()
+
+		app.Handler().ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusNotFound {
+			t.Fatalf("%s status = %d, want 404 when Cerebro discovery is unconfigured", path, rec.Code)
+		}
+	}
+}
+
 func TestOAuthAuthorizationServerMetadataMirrorsCerebro(t *testing.T) {
 	app := NewApp(config.Config{WebOrigin: "https://app.example.com"}, nil).
-		WithCerebroOAuthIssuerURL("https://proxy.example.com/cerebro/api/v1")
+		WithCerebroOAuthIssuerURL("https://proxy.example.com/cerebro/api/v1").
+		WithCerebroMCPServerURL("https://proxy.example.com/cerebro/api/v1/mcp")
 	req := httptest.NewRequest(http.MethodGet, oauthAuthorizationServerMetadataPath, nil)
 	rec := httptest.NewRecorder()
 
@@ -583,6 +603,24 @@ func TestTypedAuthSessionDropsCompatibilityToken(t *testing.T) {
 
 	if legacySession.Token != "" {
 		t.Fatalf("legacy typed auth session exposed token %q", legacySession.Token)
+	}
+}
+
+func TestConfiguredAuthContextAdvertisesOAuthDiscoveryMetadata(t *testing.T) {
+	app := NewApp(config.Config{}, nil).
+		WithCerebroOAuthIssuerURL("https://cerebro.example.com/api").
+		WithCerebroMCPServerURL("https://cerebro.example.com/api/v1/mcp")
+
+	context := app.compatAuthContextForSession(
+		compatSessionUser{Email: "user@example.com", Role: "OWNER"},
+		compatSessionOrg{ID: "org_1", Slug: "example"},
+	)
+
+	if context.CerebroMCPResourceMetadataPath != compatCerebroMCPResourceMetadataPath {
+		t.Fatalf("unexpected MCP resource metadata path: %#v", context)
+	}
+	if context.CerebroOAuthAuthorizationServerMetadataPath != compatCerebroOAuthAuthorizationServerMetadataPath {
+		t.Fatalf("unexpected OAuth authorization server metadata path: %#v", context)
 	}
 }
 

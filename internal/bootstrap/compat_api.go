@@ -852,7 +852,7 @@ func (a *App) compatSignup(ctx context.Context, body map[string]any, headers htt
 	headers.Add("Set-Cookie", compatSessionCookie(session))
 	user := compatSessionUser{ID: userID, Email: email, DisplayName: displayName, MFAEnabled: false, Role: "OWNER"}
 	org := compatSessionOrg{ID: orgID, Name: orgName, Slug: orgSlug}
-	return map[string]any{"data": compatSessionPayload(session, user, org)}, nil
+	return map[string]any{"data": a.compatSessionPayload(session, user, org)}, nil
 }
 
 func (a *App) compatLogin(ctx context.Context, body map[string]any, headers http.Header) (any, error) {
@@ -908,7 +908,7 @@ func (a *App) compatLogin(ctx context.Context, body map[string]any, headers http
 		"auth.login", "user", userID,
 		map[string]any{"email": email, "mfaUsed": mfaEnabled, "workspaceSlug": orgSlug},
 	)
-	return map[string]any{"data": compatSessionPayload(session, compatSessionUser{ID: userID, Email: email, DisplayName: nullStringPtr(displayName), MFAEnabled: mfaEnabled, Role: role}, compatSessionOrg{ID: orgID, Name: orgName, Slug: orgSlug})}, nil
+	return map[string]any{"data": a.compatSessionPayload(session, compatSessionUser{ID: userID, Email: email, DisplayName: nullStringPtr(displayName), MFAEnabled: mfaEnabled, Role: role}, compatSessionOrg{ID: orgID, Name: orgName, Slug: orgSlug})}, nil
 }
 
 func (a *App) compatSession(ctx context.Context, auth compatAuth, token string) (any, error) {
@@ -923,7 +923,7 @@ func (a *App) compatSession(ctx context.Context, auth compatAuth, token string) 
 		return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("unauthorized"))
 	}
 	user.DisplayName = nullStringPtr(displayName)
-	return map[string]any{"data": compatSessionPayload(token, user, org)}, nil
+	return map[string]any{"data": a.compatSessionPayload(token, user, org)}, nil
 }
 
 func (a *App) compatWorkspaces(ctx context.Context, auth compatAuth) (any, error) {
@@ -1139,7 +1139,7 @@ func (a *App) compatConsumeAuthToken(ctx context.Context, token, password, purpo
 		auditAction, "user", userID,
 		map[string]any{"email": email, "workspaceSlug": orgSlug},
 	)
-	return map[string]any{"data": compatSessionPayload(session, compatSessionUser{ID: userID, Email: email, DisplayName: nullStringPtr(displayName), MFAEnabled: false, Role: role}, compatSessionOrg{ID: orgID, Name: orgName, Slug: orgSlug})}, nil
+	return map[string]any{"data": a.compatSessionPayload(session, compatSessionUser{ID: userID, Email: email, DisplayName: nullStringPtr(displayName), MFAEnabled: false, Role: role}, compatSessionOrg{ID: orgID, Name: orgName, Slug: orgSlug})}, nil
 }
 
 func (a *App) compatMFASetup(ctx context.Context, auth compatAuth) (any, error) {
@@ -2892,6 +2892,12 @@ func compatSessionPayload(token string, user compatSessionUser, org compatSessio
 	}
 }
 
+func (a *App) compatSessionPayload(token string, user compatSessionUser, org compatSessionOrg) map[string]any {
+	payload := compatSessionPayload(token, user, org)
+	payload["authContext"] = a.compatAuthContextForSession(user, org)
+	return payload
+}
+
 const (
 	compatCerebroAPIResource                          = "cerebro-api"
 	compatCerebroMCPResource                          = "cerebro-mcp"
@@ -2922,6 +2928,15 @@ func compatAuthContextForSession(user compatSessionUser, org compatSessionOrg) c
 		CerebroMCPGrantTypes:    compatCerebroMCPGrantTypes(),
 		CerebroMCPBearerMethods: compatCerebroMCPBearerMethods(),
 	}
+}
+
+func (a *App) compatAuthContextForSession(user compatSessionUser, org compatSessionOrg) compatSessionAuthContext {
+	context := compatAuthContextForSession(user, org)
+	if a.cerebroOAuthDiscoveryConfigured() {
+		context.CerebroMCPResourceMetadataPath = compatCerebroMCPResourceMetadataPath
+		context.CerebroOAuthAuthorizationServerMetadataPath = compatCerebroOAuthAuthorizationServerMetadataPath
+	}
+	return context
 }
 
 func compatCerebroMCPGrantTypes() []string {
