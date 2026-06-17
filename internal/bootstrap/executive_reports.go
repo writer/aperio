@@ -282,13 +282,13 @@ func defaultReportTitle(period string, periodEnd time.Time, template string) str
 	}
 	switch period {
 	case "WEEK":
-		return fmt.Sprintf("Weekly security posture - week of %s", periodEnd.Format("Jan 2, 2006"))
+		return fmt.Sprintf("Weekly SaaS Detection & Response - week of %s", periodEnd.Format("Jan 2, 2006"))
 	case "QUARTER":
-		return fmt.Sprintf("Quarterly security posture - through %s", periodEnd.Format("Jan 2, 2006"))
+		return fmt.Sprintf("Quarterly SaaS Detection & Response - through %s", periodEnd.Format("Jan 2, 2006"))
 	case "CUSTOM":
-		return fmt.Sprintf("Security posture report - %s", periodEnd.Format("Jan 2, 2006"))
+		return fmt.Sprintf("SaaS Detection & Response report - %s", periodEnd.Format("Jan 2, 2006"))
 	default:
-		return fmt.Sprintf("Monthly security posture - %s", periodEnd.Format("January 2006"))
+		return fmt.Sprintf("Monthly SaaS Detection & Response - %s", periodEnd.Format("January 2006"))
 	}
 }
 

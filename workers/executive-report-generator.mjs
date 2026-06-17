@@ -375,10 +375,10 @@ function buildNarrative(report, data) {
     );
   }
   if (recommendations.length === 0) {
-    recommendations.push("Posture is stable — continue current cadence.");
+    recommendations.push("Detection signal is stable; continue current cadence.");
   }
   if (changes.length === 0) {
-    changes.push("Posture indicators were broadly flat versus the prior period.");
+    changes.push("Detection indicators were broadly flat versus the prior period.");
   }
 
   const summary = changes.slice(0, 3).join(" ");
@@ -572,7 +572,7 @@ function renderHtml(report, data, narrative) {
   </div>
 
   <footer>
-    Aperio · Security Posture Management · For CISO &amp; executive distribution.
+    Aperio · SaaS Detection &amp; Response · For CISO &amp; executive distribution.
   </footer>
 </div>
 </body>

@@ -177,7 +177,7 @@ func rawConnectorCatalog() []connectorDefinition {
 			Name:               "1Password",
 			Category:           "Identity",
 			Availability:       "preview",
-			ReadinessNote:      "Catalog and posture surfacing are available, but production ingestion coverage is still being expanded.",
+			ReadinessNote:      "Catalog and SaaS detection surfacing are available, but production ingestion coverage is still being expanded.",
 			Description:        "Monitor 1Password Events API activity for vault access changes, admin grants, and risky account configuration drift.",
 			ReadScopes:         []string{"events:read", "vaults:read", "groups:read"},
 			RemediationScopes:  []string{},

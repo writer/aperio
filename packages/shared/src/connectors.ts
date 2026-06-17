@@ -373,7 +373,7 @@ const rawConnectorCatalog: ConnectorDefinition[] = [
     category: "Identity",
     availability: "preview",
     readinessNote:
-      "Catalog and posture surfacing are available, but production ingestion coverage is still being expanded.",
+      "Catalog and SaaS detection surfacing are available, but production ingestion coverage is still being expanded.",
     description:
       "Monitor 1Password Events API activity for vault access changes, admin grants, and risky account configuration drift.",
     readScopes: ["events:read", "vaults:read", "groups:read"],

@@ -1,6 +1,6 @@
 # Overview
 
-Aperio is a multi-tenant SaaS security posture management prototype. It combines Go runtimes for the API, ingestion worker, SIEM dispatcher, and stdio MCP broker with a Next.js console and Prisma-backed Postgres storage.
+Aperio is a multi-tenant SaaS Detection & Response prototype on top of Cerebro. It combines Go runtimes for the API, ingestion worker, SIEM dispatcher, and stdio MCP broker with a Next.js console and Prisma-backed Postgres storage.
 
 Key runtime pieces:
 

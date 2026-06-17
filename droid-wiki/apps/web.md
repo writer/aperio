@@ -1,6 +1,6 @@
 # Web console
 
-`apps/web` is the Next.js operator console. It renders dashboard, findings, apps, connectors, SIEM destinations, security posture, shadow IT, auth, and settings pages.
+`apps/web` is the Next.js operator console. It renders the SaaS Detection & Response dashboard, SaaS incidents, findings, apps, connectors, SIEM destinations, security graph, shadow IT, auth, and settings pages.
 
 ## Important files
 

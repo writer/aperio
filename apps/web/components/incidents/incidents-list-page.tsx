@@ -97,7 +97,7 @@ export function IncidentsListPage() {
         error={error}
         className="space-y-5"
         onRetry={() => void load("initial")}
-        errorTitle="Unable to load posture incidents"
+        errorTitle="Unable to load SaaS incidents"
         skeleton={
           <div className="space-y-4">
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -152,7 +152,7 @@ export function IncidentsListPage() {
               <CardHeader>
                 <CardTitle>Incident queue</CardTitle>
                 <CardDescription>
-                  Grouped posture findings with linked context, SLA, and response
+                  Grouped SaaS detections with linked context, SLA, and response
                   progress.
                 </CardDescription>
               </CardHeader>
@@ -160,8 +160,8 @@ export function IncidentsListPage() {
                 {rows.length === 0 ? (
                   <div className="p-6">
                     <EmptyState
-                      title="No posture incidents yet"
-                      description="Create incidents from high-signal detections to drive triage and response."
+                      title="No SaaS incidents yet"
+                      description="Create incidents from high-signal SaaS detections to drive triage and response."
                     />
                   </div>
                 ) : (

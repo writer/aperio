@@ -12,13 +12,13 @@ import (
 func TestDefaultReportTitleAndPeriodStart(t *testing.T) {
 	t.Parallel()
 	end := time.Date(2026, 6, 7, 0, 0, 0, 0, time.UTC)
-	if got := defaultReportTitle("MONTH", end, "EXECUTIVE_SUMMARY"); got != "Monthly security posture - June 2026" {
+	if got := defaultReportTitle("MONTH", end, "EXECUTIVE_SUMMARY"); got != "Monthly SaaS Detection & Response - June 2026" {
 		t.Fatalf("month title: %q", got)
 	}
-	if got := defaultReportTitle("WEEK", end, "EXECUTIVE_SUMMARY"); got != "Weekly security posture - week of Jun 7, 2026" {
+	if got := defaultReportTitle("WEEK", end, "EXECUTIVE_SUMMARY"); got != "Weekly SaaS Detection & Response - week of Jun 7, 2026" {
 		t.Fatalf("week title: %q", got)
 	}
-	if got := defaultReportTitle("QUARTER", end, "EXECUTIVE_SUMMARY"); got != "Quarterly security posture - through Jun 7, 2026" {
+	if got := defaultReportTitle("QUARTER", end, "EXECUTIVE_SUMMARY"); got != "Quarterly SaaS Detection & Response - through Jun 7, 2026" {
 		t.Fatalf("quarter title: %q", got)
 	}
 	if got := defaultPeriodStart("WEEK", end); !got.Equal(end.AddDate(0, 0, -7)) {

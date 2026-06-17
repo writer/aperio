@@ -1,10 +1,10 @@
 # Aperio
 
-**SaaS security posture management for the SIEM-native era.**
+**SaaS Detection & Response on top of Cerebro.**
 
-Aperio is an open-source SSPM that connects to your SaaS estate, surfaces posture risks and OAuth grants, and pushes normalized findings into the SIEM you already operate. The current `main` branch ships a Go/ConnectRPC API backed by Prisma/Postgres data, a Next.js operator console, an stdio MCP broker, an ingestion worker, an optional NATS JetStream event bus, and a durable SIEM dispatcher with adapters for Splunk HEC, Panther, Panopticon, Elasticsearch, Datadog Logs, generic webhooks, and JSON Lines files.
+Aperio is an open-source SaaS Detection & Response platform. It connects to your SaaS estate, fires Cerebro-grounded SaaS detections, opens human-owned incidents with a replayable timeline, runs human-gated response actions with separation of duties, and forwards every lifecycle event to the SIEM you already operate. The current `main` branch ships a Go/ConnectRPC API backed by Prisma/Postgres data, a Next.js operator console, an stdio MCP broker, an ingestion worker, an optional NATS JetStream event bus, and a durable SIEM dispatcher with adapters for Splunk HEC, Panther, Panopticon, Elasticsearch, Datadog Logs, generic webhooks, and JSON Lines files.
 
-In practical terms, Aperio ingests connector events, evaluates detection rules, tracks user-granted OAuth apps (shadow IT) and domain-wide delegations, opens and dedupes findings, and fans canonical `aperio.finding.v1` envelopes out to your SIEM destinations.
+In practical terms, Aperio ingests connector events, evaluates SaaS detection rules, opens and dedupes incidents enriched with Cerebro graph and claim context, gates response actions behind two-person approval, and fans canonical `aperio.finding.v1` envelopes out to your SIEM destinations.
 
 ![Node](https://img.shields.io/badge/Node-20%2B-green?style=flat&logo=node.js) ![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat&logo=next.js) ![Prisma](https://img.shields.io/badge/Prisma-5-2D3748?style=flat&logo=prisma) ![License](https://img.shields.io/badge/License-MIT-blue.svg)
 
@@ -13,7 +13,7 @@ In practical terms, Aperio ingests connector events, evaluates detection rules, 
 ## Current capabilities
 
 - **Connector catalog** — built-in support for GitHub, Slack, Google Workspace, Okta, 1Password, Microsoft 365, and Atlassian (Jira & Confluence), with encrypted credential storage (AES-256-GCM) and per-check toggles.
-- **Posture detection** — public-repo detection (GitHub), MFA-disabled detection (Slack), and a deep Google Workspace pack covering external sharing, admin posture (super-admin 2SV, recovery emails), Gmail auto-forwarding / delegates / send-as, and the domain-wide-delegation allow-list.
+- **SaaS detections** — public-repo detection (GitHub), MFA-disabled detection (Slack), and a deep Google Workspace pack covering external sharing, admin posture (super-admin 2SV, recovery emails), Gmail auto-forwarding / delegates / send-as, and the domain-wide-delegation allow-list.
 - **Shadow IT** — per-user `users.tokens.list` scan that catalogs every third-party OAuth app users have authorized, with graduated risk scoring (CRITICAL/HIGH/MEDIUM/LOW) calibrated against Google scope sensitivity.
 - **Findings lifecycle** — auto-resolution on next sync when the underlying signal disappears, evidence persistence, severity scoring, dedupe by stable key, and risk exceptions with compensating controls.
 - **SIEM fanout** — durable outbox with adapters for Splunk HEC, Panther, Panopticon, Elasticsearch, Datadog Logs, generic webhooks, and JSON Lines file sinks. Canonical envelope `aperio.finding.v1`.

@@ -24,7 +24,7 @@ The web console still uses some REST-shaped paths such as `/api/v1/integrations`
 | `/api/v1/admin/*` | Organization settings, members, roles, audit log |
 | `/api/v1/integrations/*` | Connector catalog, creation, checks, OAuth, force-sync |
 | `/api/v1/findings/*` | Mutations and exports not yet promoted to typed RPCs |
-| `/api/v1/security/*` | Posture overview and asset compatibility responses |
+| `/api/v1/security/*` | Security graph and asset compatibility responses |
 | `/api/v1/shadow-it/*` | OAuth app inventory compatibility responses |
 | `/api/v1/siem/*` | SIEM catalog, CRUD, and test dispatch compatibility |
 | `/api/v1/agents/*` | Agent task/message/proposal compatibility workflows |

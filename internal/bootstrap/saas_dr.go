@@ -857,7 +857,7 @@ func (a *App) createSaasIncident(ctx context.Context, auth compatAuth, req *aper
 		"mcpResourceUri":  saasCerebroIncidentResourceURI(auth.OrganizationID, incidentID),
 		"mcpTools":        saasCerebroMCPTools(),
 	}
-	if err := insertSaasTimelineEvent(ctx, tx, auth.OrganizationID, incidentID, "", "", "CEREBRO_CONTEXT", "Cerebro context attached", "Aperio will enrich this incident with Cerebro posture, graph, ownership, and finding context.", "cerebro", "CEREBRO", cerebroEvidence, now.Add(time.Millisecond)); err != nil {
+	if err := insertSaasTimelineEvent(ctx, tx, auth.OrganizationID, incidentID, "", "", "CEREBRO_CONTEXT", "Cerebro context attached", "Aperio will enrich this incident with Cerebro graph, claim, ownership, and finding signals.", "cerebro", "CEREBRO", cerebroEvidence, now.Add(time.Millisecond)); err != nil {
 		return "", err
 	}
 	linkerID := sql.NullString{String: strings.TrimSpace(auth.UserID), Valid: strings.TrimSpace(auth.UserID) != ""}

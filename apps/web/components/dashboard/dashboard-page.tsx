@@ -143,7 +143,7 @@ export function DashboardPage() {
             <div>
               <CardTitle>Open findings</CardTitle>
               <CardDescription>
-                Filter, sort, and triage posture findings across all connected apps.
+                Filter, sort, and triage SaaS detections across all connected apps.
               </CardDescription>
             </div>
             <Button variant="outline" size="sm" asChild>
@@ -168,7 +168,7 @@ export function DashboardPage() {
                 showStatusFilter={false}
                 showUser={false}
                 emptyTitle="No open findings"
-                emptyDescription="When new posture findings surface, they will appear here."
+                emptyDescription="When new SaaS detections surface, they will appear here."
               />
             )}
           </CardContent>

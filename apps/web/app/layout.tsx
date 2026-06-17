@@ -20,7 +20,7 @@ const mono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: "Aperio",
-  description: "SaaS security posture management"
+  description: "SaaS Detection & Response on Cerebro"
 };
 
 const themeBootstrap = `
