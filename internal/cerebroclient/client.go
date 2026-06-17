@@ -49,7 +49,11 @@ func ConfigFromEnv() Config {
 
 func (c Config) MCPServerURL() string {
 	if strings.TrimSpace(c.MCPURL) != "" {
-		return strings.TrimSpace(c.MCPURL)
+		mcpURL, err := parseBaseURL(c.MCPURL)
+		if err != nil {
+			return ""
+		}
+		return mcpURL.String()
 	}
 	baseURL, err := parseBaseURL(c.BaseURL)
 	if err != nil {

@@ -78,6 +78,21 @@ func TestMCPServerURLDerivesFromBaseURL(t *testing.T) {
 	}
 }
 
+func TestMCPServerURLRejectsUnsafeExplicitOverride(t *testing.T) {
+	cases := []string{
+		"https://user:token@cerebro.example.com/api/v1/mcp",
+		"https://cerebro.example.com/api/v1/mcp?token=secret",
+		"https://cerebro.example.com/api/v1/mcp#token",
+	}
+	for _, raw := range cases {
+		t.Run(raw, func(t *testing.T) {
+			if got := (Config{MCPURL: raw}).MCPServerURL(); got != "" {
+				t.Fatalf("MCPServerURL() = %q, want empty", got)
+			}
+		})
+	}
+}
+
 func TestPutSourceRuntimeSendsTenantScopedBearerRequest(t *testing.T) {
 	var seenBody map[string]SourceRuntime
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

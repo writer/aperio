@@ -168,6 +168,26 @@ func TestEnrichSaasCerebroContextKeepsSafeFallbackOnReadFailure(t *testing.T) {
 	}
 }
 
+func TestEnrichSaasCerebroContextUpdatesMCPBeforeClaimHydration(t *testing.T) {
+	client := &fakeSaasCerebroContextClient{}
+	app := (&App{}).
+		WithCerebroContextClient("runtime-a", client).
+		WithCerebroMCPServerURL("https://cerebro.example.com/api/v1/mcp")
+
+	encoded := app.enrichSaasCerebroContext(context.Background(), "org-a", "inc-a", "{}", []findingRow{
+		{Evidence: map[string]any{"sourceEventId": "evt-a"}},
+	})
+	contextPayload := decodeSaasCerebroContext(t, encoded)
+	mcp := contextRecord(contextPayload["mcp"])
+	if mcp["server"] != "https://cerebro.example.com/api/v1/mcp" || mcp["resourceUri"] != "cerebro://aperio/org-a/incidents/inc-a" {
+		t.Fatalf("mcp context = %#v", mcp)
+	}
+	tools := contextRecords(mcp["tools"])
+	if len(tools) != 4 || tools[0] != "cerebro.findings.search" {
+		t.Fatalf("mcp tools = %#v", tools)
+	}
+}
+
 func decodeSaasCerebroContext(t *testing.T, encoded string) map[string]any {
 	t.Helper()
 	var payload map[string]any
