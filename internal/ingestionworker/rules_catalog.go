@@ -37,7 +37,7 @@ var RuleCatalog = []RuleCatalogEntry{
 		Severity:        "CRITICAL",
 		EventTypes:      []string{"PUBLIC_REPOSITORY_CREATED", "REPOSITORY_PUBLICIZED"},
 		PackID:          "aperio.github.core.v1",
-		MitreTechniques: []string{"T1213"},
+		MitreTechniques: []string{"T1567.001"},
 		Intent:          "Adversary publishes a private repo to exfiltrate source, secrets, or customer data outside the tenant boundary.",
 		Tags:            []string{TagDataPublicExposure},
 	},
