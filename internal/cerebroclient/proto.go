@@ -1,12 +1,27 @@
 package cerebroclient
 
 import (
+	"context"
 	"strings"
 	"time"
 
 	cerebrov1 "github.com/writer/aperio/gen/cerebro/v1"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
+
+type WriteProtoClaimsRequest struct {
+	RuntimeID       string
+	Claims          []*cerebrov1.Claim
+	ReplaceExisting bool
+}
+
+func (c *Client) WriteProtoClaims(ctx context.Context, request WriteProtoClaimsRequest) (*WriteClaimsResponse, error) {
+	return c.WriteClaims(ctx, WriteClaimsRequest{
+		RuntimeID:       request.RuntimeID,
+		Claims:          ClaimsFromProto(request.Claims),
+		ReplaceExisting: request.ReplaceExisting,
+	})
+}
 
 func ClaimToProto(claim Claim) *cerebrov1.Claim {
 	return &cerebrov1.Claim{
