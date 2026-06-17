@@ -1635,6 +1635,7 @@ func (w *Worker) loadCustomRules(ctx context.Context, integrationID string) ([]C
 func (w *Worker) loadIntegrationConfig(ctx context.Context, item job) (integrationConfig, error) {
 	var config integrationConfig
 	var rawDisabledChecks string
+	var rawDisabledMetadata string
 	if err := w.db.QueryRowContext(ctx, `
 		SELECT
 			id,
@@ -1642,6 +1643,7 @@ func (w *Worker) loadIntegrationConfig(ctx context.Context, item job) (integrati
 			provider::text,
 			external_account_id,
 			COALESCE(array_to_json(disabled_checks)::text, '[]'),
+			COALESCE(disabled_check_metadata::text, '{}'),
 			encrypted_access_token,
 			encrypted_refresh_token,
 			encrypted_webhook_secret,
@@ -1655,6 +1657,7 @@ func (w *Worker) loadIntegrationConfig(ctx context.Context, item job) (integrati
 		&config.Provider,
 		&config.ExternalAccountID,
 		&rawDisabledChecks,
+		&rawDisabledMetadata,
 		&config.EncryptedAccessToken,
 		&config.EncryptedRefreshToken,
 		&config.EncryptedWebhookSecret,
@@ -1669,6 +1672,7 @@ func (w *Worker) loadIntegrationConfig(ctx context.Context, item job) (integrati
 	if err := json.Unmarshal([]byte(rawDisabledChecks), &config.DisabledChecks); err != nil {
 		return integrationConfig{}, errIntegrationConfigurationIncomplete
 	}
+	config.DisabledChecks = applyDisabledCheckExpiry(config.DisabledChecks, decodeDisabledCheckMetadata(rawDisabledMetadata), time.Now().UTC())
 	return config, nil
 }
 
