@@ -127,39 +127,58 @@ func TestOAuthAuthorizationServerMetadataMirrorsCerebro(t *testing.T) {
 	app := NewApp(config.Config{WebOrigin: "https://app.example.com"}, nil).
 		WithCerebroOAuthIssuerURL("https://proxy.example.com/cerebro/api/v1").
 		WithCerebroMCPServerURL("https://proxy.example.com/cerebro/api/v1/mcp")
-	req := httptest.NewRequest(http.MethodGet, oauthAuthorizationServerMetadataPath, nil)
+	issuer := "https://proxy.example.com/cerebro"
+	for _, path := range []string{
+		oauthAuthorizationServerMetadataPath,
+		oauthAuthorizationServerMetadataPath + "/cerebro",
+	} {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		rec := httptest.NewRecorder()
+
+		app.Handler().ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("%s authorization metadata status = %d", path, rec.Code)
+		}
+		var payload map[string]any
+		if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("%s decode authorization metadata: %v", path, err)
+		}
+		if payload["issuer"] != issuer {
+			t.Fatalf("%s issuer = %#v", path, payload["issuer"])
+		}
+		if payload["authorization_endpoint"] != issuer+oauthAuthorizePath {
+			t.Fatalf("%s authorization endpoint = %#v", path, payload["authorization_endpoint"])
+		}
+		if payload["token_endpoint"] != issuer+oauthTokenPath {
+			t.Fatalf("%s token endpoint = %#v", path, payload["token_endpoint"])
+		}
+		if payload["revocation_endpoint"] != issuer+oauthRevokePath {
+			t.Fatalf("%s revocation endpoint = %#v", path, payload["revocation_endpoint"])
+		}
+		if payload["resource_indicators_supported"] != true {
+			t.Fatalf("%s resource_indicators_supported = %#v", path, payload["resource_indicators_supported"])
+		}
+		assertStringList(t, payload["response_types_supported"], []string{"code"})
+		assertStringList(t, payload["grant_types_supported"], compatCerebroMCPGrantTypes())
+		assertStringList(t, payload["code_challenge_methods_supported"], []string{"S256"})
+		assertStringList(t, payload["token_endpoint_auth_methods_supported"], []string{"none", "client_secret_basic", "client_secret_post"})
+		assertStringList(t, payload["scopes_supported"], []string{compatCerebroReadScope})
+	}
+}
+
+func TestOAuthAuthorizationServerMetadataRejectsWrongIssuerPath(t *testing.T) {
+	app := NewApp(config.Config{WebOrigin: "https://app.example.com"}, nil).
+		WithCerebroOAuthIssuerURL("https://proxy.example.com/cerebro/api/v1").
+		WithCerebroMCPServerURL("https://proxy.example.com/cerebro/api/v1/mcp")
+	req := httptest.NewRequest(http.MethodGet, oauthAuthorizationServerMetadataPath+"/other", nil)
 	rec := httptest.NewRecorder()
 
 	app.Handler().ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusOK {
-		t.Fatalf("authorization metadata status = %d", rec.Code)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("mismatched issuer metadata path status = %d", rec.Code)
 	}
-	var payload map[string]any
-	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
-		t.Fatalf("decode authorization metadata: %v", err)
-	}
-	issuer := "https://proxy.example.com/cerebro"
-	if payload["issuer"] != issuer {
-		t.Fatalf("issuer = %#v", payload["issuer"])
-	}
-	if payload["authorization_endpoint"] != issuer+oauthAuthorizePath {
-		t.Fatalf("authorization endpoint = %#v", payload["authorization_endpoint"])
-	}
-	if payload["token_endpoint"] != issuer+oauthTokenPath {
-		t.Fatalf("token endpoint = %#v", payload["token_endpoint"])
-	}
-	if payload["revocation_endpoint"] != issuer+oauthRevokePath {
-		t.Fatalf("revocation endpoint = %#v", payload["revocation_endpoint"])
-	}
-	if payload["resource_indicators_supported"] != true {
-		t.Fatalf("resource_indicators_supported = %#v", payload["resource_indicators_supported"])
-	}
-	assertStringList(t, payload["response_types_supported"], []string{"code"})
-	assertStringList(t, payload["grant_types_supported"], compatCerebroMCPGrantTypes())
-	assertStringList(t, payload["code_challenge_methods_supported"], []string{"S256"})
-	assertStringList(t, payload["token_endpoint_auth_methods_supported"], []string{"none", "client_secret_basic", "client_secret_post"})
-	assertStringList(t, payload["scopes_supported"], []string{compatCerebroReadScope})
 }
 
 func TestOAuthMetadataRejectsNonGet(t *testing.T) {
