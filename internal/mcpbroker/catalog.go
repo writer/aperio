@@ -55,6 +55,12 @@ var approvedResourceTemplates = []ResourceTemplate{
 		Description: "Tenant-scoped Cerebro finding context with evidence, incident links, and response actions.",
 		MimeType:    cerebroFindingMimeType,
 	},
+	{
+		URITemplate: "cerebro://aperio/{organizationId}/security/overview",
+		Name:        "Aperio Cerebro security overview",
+		Description: "Tenant-scoped Cerebro security posture overview with linked incident and finding resources.",
+		MimeType:    cerebroSecurityOverviewMimeType,
+	},
 }
 
 var approvedTools = []Tool{
