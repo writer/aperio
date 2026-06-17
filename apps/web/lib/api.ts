@@ -13,6 +13,11 @@ export type AuthContext = {
   allowedTenants: string[];
   cerebroScopes: string[];
   groups: string[];
+  cerebroMcpResource: string;
+  cerebroMcpResourceMetadataPath: string;
+  cerebroOauthAuthorizationServerMetadataPath: string;
+  cerebroMcpGrantTypes: string[];
+  cerebroMcpBearerMethods: string[];
 };
 
 export type AuthSession = {

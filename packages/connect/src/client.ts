@@ -306,6 +306,11 @@ export type ConnectAuthContext = {
   allowedTenants: string[];
   cerebroScopes: string[];
   groups: string[];
+  cerebroMcpResource: string;
+  cerebroMcpResourceMetadataPath: string;
+  cerebroOauthAuthorizationServerMetadataPath: string;
+  cerebroMcpGrantTypes: string[];
+  cerebroMcpBearerMethods: string[];
 };
 
 export type ConnectAuthSession = {
@@ -1033,6 +1038,18 @@ function parseMetadata(metadataJson: string): Record<string, unknown> | null {
 }
 
 const CEREBRO_READ_SCOPE = "cerebro.cosmo.security.read";
+const CEREBRO_API_RESOURCE = "cerebro-api";
+const CEREBRO_MCP_RESOURCE = "cerebro-mcp";
+const CEREBRO_MCP_RESOURCE_METADATA_PATH =
+  "/.well-known/oauth-protected-resource/api/v1/mcp";
+const CEREBRO_OAUTH_AUTHORIZATION_SERVER_METADATA_PATH =
+  "/.well-known/oauth-authorization-server";
+const CEREBRO_MCP_GRANT_TYPES = [
+  "authorization_code",
+  "refresh_token",
+  "client_credentials"
+];
+const CEREBRO_MCP_BEARER_METHODS = ["header"];
 
 const CEREBRO_SCOPES_BY_ROLE: Record<ConnectTenantRole, string[]> = {
   OWNER: [
@@ -1086,10 +1103,16 @@ function fallbackAuthContext(
     credentialKind: "human_workspace_session",
     authMode: "human_workspace_session",
     tokenTransport: "http_only_cookie",
-    cerebroResource: "cerebro-api",
+    cerebroResource: CEREBRO_API_RESOURCE,
     allowedTenants: organization.id ? [organization.id] : [],
     cerebroScopes: [...CEREBRO_SCOPES_BY_ROLE[user.role]],
-    groups: ["security"]
+    groups: ["security"],
+    cerebroMcpResource: CEREBRO_MCP_RESOURCE,
+    cerebroMcpResourceMetadataPath: CEREBRO_MCP_RESOURCE_METADATA_PATH,
+    cerebroOauthAuthorizationServerMetadataPath:
+      CEREBRO_OAUTH_AUTHORIZATION_SERVER_METADATA_PATH,
+    cerebroMcpGrantTypes: [...CEREBRO_MCP_GRANT_TYPES],
+    cerebroMcpBearerMethods: [...CEREBRO_MCP_BEARER_METHODS]
   };
 }
 
@@ -1116,7 +1139,21 @@ function authContextFromProto(
     cerebroScopes: authContext.cerebroScopes.length
       ? [...authContext.cerebroScopes]
       : fallback.cerebroScopes,
-    groups: authContext.groups.length ? [...authContext.groups] : fallback.groups
+    groups: authContext.groups.length ? [...authContext.groups] : fallback.groups,
+    cerebroMcpResource:
+      authContext.cerebroMcpResource || fallback.cerebroMcpResource,
+    cerebroMcpResourceMetadataPath:
+      authContext.cerebroMcpResourceMetadataPath ||
+      fallback.cerebroMcpResourceMetadataPath,
+    cerebroOauthAuthorizationServerMetadataPath:
+      authContext.cerebroOauthAuthorizationServerMetadataPath ||
+      fallback.cerebroOauthAuthorizationServerMetadataPath,
+    cerebroMcpGrantTypes: authContext.cerebroMcpGrantTypes.length
+      ? [...authContext.cerebroMcpGrantTypes]
+      : fallback.cerebroMcpGrantTypes,
+    cerebroMcpBearerMethods: authContext.cerebroMcpBearerMethods.length
+      ? [...authContext.cerebroMcpBearerMethods]
+      : fallback.cerebroMcpBearerMethods
   };
 }
 
