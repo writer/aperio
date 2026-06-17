@@ -60,6 +60,14 @@ func main() {
 	}
 
 	app := bootstrap.NewApp(cfg, db)
+	if cerebroEnabled {
+		cerebroClient, err := cerebroclient.New(cerebroCfg)
+		if err != nil {
+			_ = db.Close()
+			log.Fatalf("Cerebro client setup failed: %v", err)
+		}
+		app.WithCerebroContextClient(runtime.ID, cerebroClient)
+	}
 	// The service intentionally uses the standard net/http server that ConnectRPC
 	// generates handlers for; this mirrors Cerebro's lightweight server wiring.
 	server := &http.Server{
