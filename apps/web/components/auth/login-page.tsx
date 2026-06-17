@@ -41,7 +41,6 @@ export function LoginPage() {
         totpCode: totpCode.trim() || undefined
       });
       await refreshSession();
-      window.location.replace("/");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Unable to sign in");
     } finally {
