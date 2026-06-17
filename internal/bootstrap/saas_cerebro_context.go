@@ -41,6 +41,7 @@ func (a *App) enrichSaasCerebroContext(ctx context.Context, organizationID strin
 	payload["source"] = "cerebro"
 	payload["sourceRuntimeId"] = a.cerebroRuntimeID
 	payload["findingContract"] = "cerebro.v1.Finding"
+	payload["mcp"] = a.saasCerebroMCPContext(organizationID, incidentID)
 
 	claims := a.saasCerebroIncidentClaims(ctx, findings)
 	if len(claims) == 0 {
@@ -80,7 +81,6 @@ func (a *App) enrichSaasCerebroContext(ctx context.Context, organizationID strin
 	payload["responseHints"] = []string{
 		"Review Cerebro claims and graph paths before executing high-impact response actions.",
 	}
-	payload["mcp"] = a.saasCerebroMCPContext(organizationID, incidentID)
 	return encodeCerebroContextMap(payload, base)
 }
 
