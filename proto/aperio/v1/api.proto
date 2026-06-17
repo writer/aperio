@@ -231,6 +231,11 @@ message AuthContext {
   repeated string allowed_tenants = 8;
   repeated string cerebro_scopes = 9;
   repeated string groups = 10;
+  string cerebro_mcp_resource = 11;
+  string cerebro_mcp_resource_metadata_path = 12;
+  string cerebro_oauth_authorization_server_metadata_path = 13;
+  repeated string cerebro_mcp_grant_types = 14;
+  repeated string cerebro_mcp_bearer_methods = 15;
 }
 
 message WorkspaceMembership {

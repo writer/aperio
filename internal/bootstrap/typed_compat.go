@@ -515,16 +515,21 @@ func authContextFromAny(value any) *aperiov1.AuthContext {
 	switch typed := value.(type) {
 	case compatSessionAuthContext:
 		return &aperiov1.AuthContext{
-			Principal:       typed.Principal,
-			TenantId:        typed.TenantID,
-			TenantSlug:      typed.TenantSlug,
-			CredentialKind:  typed.CredentialKind,
-			AuthMode:        typed.AuthMode,
-			TokenTransport:  typed.TokenTransport,
-			CerebroResource: typed.CerebroResource,
-			AllowedTenants:  typed.AllowedTenants,
-			CerebroScopes:   typed.CerebroScopes,
-			Groups:          typed.Groups,
+			Principal:                      typed.Principal,
+			TenantId:                       typed.TenantID,
+			TenantSlug:                     typed.TenantSlug,
+			CredentialKind:                 typed.CredentialKind,
+			AuthMode:                       typed.AuthMode,
+			TokenTransport:                 typed.TokenTransport,
+			CerebroResource:                typed.CerebroResource,
+			AllowedTenants:                 typed.AllowedTenants,
+			CerebroScopes:                  typed.CerebroScopes,
+			Groups:                         typed.Groups,
+			CerebroMcpResource:             typed.CerebroMCPResource,
+			CerebroMcpResourceMetadataPath: typed.CerebroMCPResourceMetadataPath,
+			CerebroOauthAuthorizationServerMetadataPath: typed.CerebroOAuthAuthorizationServerMetadataPath,
+			CerebroMcpGrantTypes:                        typed.CerebroMCPGrantTypes,
+			CerebroMcpBearerMethods:                     typed.CerebroMCPBearerMethods,
 		}
 	case *compatSessionAuthContext:
 		if typed != nil {
@@ -536,16 +541,21 @@ func authContextFromAny(value any) *aperiov1.AuthContext {
 		return nil
 	}
 	return &aperiov1.AuthContext{
-		Principal:       stringFromAny(data["principal"]),
-		TenantId:        stringFromAny(data["tenantId"]),
-		TenantSlug:      stringFromAny(data["tenantSlug"]),
-		CredentialKind:  stringFromAny(data["credentialKind"]),
-		AuthMode:        stringFromAny(data["authMode"]),
-		TokenTransport:  stringFromAny(data["tokenTransport"]),
-		CerebroResource: stringFromAny(data["cerebroResource"]),
-		AllowedTenants:  stringSliceFromAny(data["allowedTenants"]),
-		CerebroScopes:   stringSliceFromAny(data["cerebroScopes"]),
-		Groups:          stringSliceFromAny(data["groups"]),
+		Principal:                      stringFromAny(data["principal"]),
+		TenantId:                       stringFromAny(data["tenantId"]),
+		TenantSlug:                     stringFromAny(data["tenantSlug"]),
+		CredentialKind:                 stringFromAny(data["credentialKind"]),
+		AuthMode:                       stringFromAny(data["authMode"]),
+		TokenTransport:                 stringFromAny(data["tokenTransport"]),
+		CerebroResource:                stringFromAny(data["cerebroResource"]),
+		AllowedTenants:                 stringSliceFromAny(data["allowedTenants"]),
+		CerebroScopes:                  stringSliceFromAny(data["cerebroScopes"]),
+		Groups:                         stringSliceFromAny(data["groups"]),
+		CerebroMcpResource:             stringFromAny(data["cerebroMcpResource"]),
+		CerebroMcpResourceMetadataPath: stringFromAny(data["cerebroMcpResourceMetadataPath"]),
+		CerebroOauthAuthorizationServerMetadataPath: stringFromAny(data["cerebroOauthAuthorizationServerMetadataPath"]),
+		CerebroMcpGrantTypes:                        stringSliceFromAny(data["cerebroMcpGrantTypes"]),
+		CerebroMcpBearerMethods:                     stringSliceFromAny(data["cerebroMcpBearerMethods"]),
 	}
 }
 

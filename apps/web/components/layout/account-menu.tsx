@@ -7,6 +7,11 @@ import { Avatar, AvatarFallback } from "../ui/avatar";
 import { Button } from "../ui/button";
 import {
   CEREBRO_API_RESOURCE,
+  CEREBRO_MCP_BEARER_METHODS,
+  CEREBRO_MCP_GRANT_TYPES,
+  CEREBRO_MCP_RESOURCE,
+  CEREBRO_MCP_RESOURCE_METADATA_PATH,
+  CEREBRO_OAUTH_AUTHORIZATION_SERVER_METADATA_PATH,
   formatCerebroScope,
   formatCerebroTransport
 } from "../../lib/cerebro-auth";
@@ -28,7 +33,7 @@ function initialsOf(input?: string | null) {
   return (first + second).toUpperCase() || "?";
 }
 
-function compactList(values: string[]) {
+function compactList(values: readonly string[]) {
   return values.length ? values.join(", ") : "none";
 }
 
@@ -131,9 +136,61 @@ export function AccountMenu({
                   </dd>
                 </div>
                 <div className="grid grid-cols-[96px_minmax(0,1fr)] gap-2">
+                  <dt className="text-muted-foreground">MCP resource</dt>
+                  <dd className="truncate font-mono text-foreground">
+                    {authContext.cerebroMcpResource || CEREBRO_MCP_RESOURCE}
+                  </dd>
+                </div>
+                <div className="grid grid-cols-[96px_minmax(0,1fr)] gap-2">
+                  <dt className="text-muted-foreground">MCP metadata</dt>
+                  <dd
+                    className="truncate font-mono text-foreground"
+                    title={
+                      authContext.cerebroMcpResourceMetadataPath ||
+                      CEREBRO_MCP_RESOURCE_METADATA_PATH
+                    }
+                  >
+                    {authContext.cerebroMcpResourceMetadataPath ||
+                      CEREBRO_MCP_RESOURCE_METADATA_PATH}
+                  </dd>
+                </div>
+                <div className="grid grid-cols-[96px_minmax(0,1fr)] gap-2">
+                  <dt className="text-muted-foreground">OAuth metadata</dt>
+                  <dd
+                    className="truncate font-mono text-foreground"
+                    title={
+                      authContext.cerebroOauthAuthorizationServerMetadataPath ||
+                      CEREBRO_OAUTH_AUTHORIZATION_SERVER_METADATA_PATH
+                    }
+                  >
+                    {authContext.cerebroOauthAuthorizationServerMetadataPath ||
+                      CEREBRO_OAUTH_AUTHORIZATION_SERVER_METADATA_PATH}
+                  </dd>
+                </div>
+                <div className="grid grid-cols-[96px_minmax(0,1fr)] gap-2">
                   <dt className="text-muted-foreground">Transport</dt>
                   <dd className="truncate font-mono text-foreground">
                     {formatCerebroTransport(authContext.tokenTransport)}
+                  </dd>
+                </div>
+                <div className="grid grid-cols-[96px_minmax(0,1fr)] gap-2">
+                  <dt className="text-muted-foreground">MCP grants</dt>
+                  <dd className="truncate font-mono text-foreground">
+                    {compactList(
+                      authContext.cerebroMcpGrantTypes.length
+                        ? authContext.cerebroMcpGrantTypes
+                        : CEREBRO_MCP_GRANT_TYPES
+                    )}
+                  </dd>
+                </div>
+                <div className="grid grid-cols-[96px_minmax(0,1fr)] gap-2">
+                  <dt className="text-muted-foreground">Bearer method</dt>
+                  <dd className="truncate font-mono text-foreground">
+                    {compactList(
+                      authContext.cerebroMcpBearerMethods.length
+                        ? authContext.cerebroMcpBearerMethods
+                        : CEREBRO_MCP_BEARER_METHODS
+                    )}
                   </dd>
                 </div>
                 <div className="grid grid-cols-[96px_minmax(0,1fr)] gap-2">

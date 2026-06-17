@@ -185,16 +185,21 @@ type compatSessionOrg struct {
 }
 
 type compatSessionAuthContext struct {
-	Principal       string   `json:"principal"`
-	TenantID        string   `json:"tenantId"`
-	TenantSlug      string   `json:"tenantSlug"`
-	CredentialKind  string   `json:"credentialKind"`
-	AuthMode        string   `json:"authMode"`
-	TokenTransport  string   `json:"tokenTransport"`
-	CerebroResource string   `json:"cerebroResource"`
-	AllowedTenants  []string `json:"allowedTenants"`
-	CerebroScopes   []string `json:"cerebroScopes"`
-	Groups          []string `json:"groups"`
+	Principal                                   string   `json:"principal"`
+	TenantID                                    string   `json:"tenantId"`
+	TenantSlug                                  string   `json:"tenantSlug"`
+	CredentialKind                              string   `json:"credentialKind"`
+	AuthMode                                    string   `json:"authMode"`
+	TokenTransport                              string   `json:"tokenTransport"`
+	CerebroResource                             string   `json:"cerebroResource"`
+	AllowedTenants                              []string `json:"allowedTenants"`
+	CerebroScopes                               []string `json:"cerebroScopes"`
+	Groups                                      []string `json:"groups"`
+	CerebroMCPResource                          string   `json:"cerebroMcpResource"`
+	CerebroMCPResourceMetadataPath              string   `json:"cerebroMcpResourceMetadataPath"`
+	CerebroOAuthAuthorizationServerMetadataPath string   `json:"cerebroOauthAuthorizationServerMetadataPath"`
+	CerebroMCPGrantTypes                        []string `json:"cerebroMcpGrantTypes"`
+	CerebroMCPBearerMethods                     []string `json:"cerebroMcpBearerMethods"`
 }
 
 // normalizeCompatRoute turns a tunneled REST path into a low-cardinality route
@@ -2908,28 +2913,45 @@ func compatSessionPayload(token string, user compatSessionUser, org compatSessio
 }
 
 const (
-	compatCerebroReadScope                 = "cerebro.cosmo.security.read"
-	compatCerebroFindingCandidateScope     = "cerebro.finding_candidates.promote"
-	compatCerebroFindingLifecycleScope     = "cerebro.findings.write"
-	compatCerebroGRCInventoryScope         = "cerebro.grc.inventory.write"
-	compatCerebroConnectorCredentialsRead  = "cerebro.connector_credentials.read"
-	compatCerebroConnectorCredentialsWrite = "cerebro.connector_credentials.write"
-	compatCerebroRuntimeResponseScope      = "cerebro.runtime_response.write"
+	compatCerebroAPIResource                          = "cerebro-api"
+	compatCerebroMCPResource                          = "cerebro-mcp"
+	compatCerebroMCPResourceMetadataPath              = "/.well-known/oauth-protected-resource/api/v1/mcp"
+	compatCerebroOAuthAuthorizationServerMetadataPath = "/.well-known/oauth-authorization-server"
+	compatCerebroReadScope                            = "cerebro.cosmo.security.read"
+	compatCerebroFindingCandidateScope                = "cerebro.finding_candidates.promote"
+	compatCerebroFindingLifecycleScope                = "cerebro.findings.write"
+	compatCerebroGRCInventoryScope                    = "cerebro.grc.inventory.write"
+	compatCerebroConnectorCredentialsRead             = "cerebro.connector_credentials.read"
+	compatCerebroConnectorCredentialsWrite            = "cerebro.connector_credentials.write"
+	compatCerebroRuntimeResponseScope                 = "cerebro.runtime_response.write"
 )
 
 func compatAuthContextForSession(user compatSessionUser, org compatSessionOrg) compatSessionAuthContext {
 	return compatSessionAuthContext{
-		Principal:       strings.TrimSpace(user.Email),
-		TenantID:        strings.TrimSpace(org.ID),
-		TenantSlug:      strings.TrimSpace(org.Slug),
-		CredentialKind:  "human_workspace_session",
-		AuthMode:        "human_workspace_session",
-		TokenTransport:  "http_only_cookie",
-		CerebroResource: "cerebro-api",
-		AllowedTenants:  compactStrings(org.ID),
-		CerebroScopes:   compatCerebroScopesForRole(user.Role),
-		Groups:          compatCerebroGroupsForRole(user.Role),
+		Principal:                      strings.TrimSpace(user.Email),
+		TenantID:                       strings.TrimSpace(org.ID),
+		TenantSlug:                     strings.TrimSpace(org.Slug),
+		CredentialKind:                 "human_workspace_session",
+		AuthMode:                       "human_workspace_session",
+		TokenTransport:                 "http_only_cookie",
+		CerebroResource:                compatCerebroAPIResource,
+		AllowedTenants:                 compactStrings(org.ID),
+		CerebroScopes:                  compatCerebroScopesForRole(user.Role),
+		Groups:                         compatCerebroGroupsForRole(user.Role),
+		CerebroMCPResource:             compatCerebroMCPResource,
+		CerebroMCPResourceMetadataPath: compatCerebroMCPResourceMetadataPath,
+		CerebroOAuthAuthorizationServerMetadataPath: compatCerebroOAuthAuthorizationServerMetadataPath,
+		CerebroMCPGrantTypes:                        compatCerebroMCPGrantTypes(),
+		CerebroMCPBearerMethods:                     compatCerebroMCPBearerMethods(),
 	}
+}
+
+func compatCerebroMCPGrantTypes() []string {
+	return []string{"authorization_code", "refresh_token", "client_credentials"}
+}
+
+func compatCerebroMCPBearerMethods() []string {
+	return []string{"header"}
 }
 
 func compatCerebroScopesForRole(role string) []string {
