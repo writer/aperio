@@ -183,7 +183,7 @@ var RuleCatalog = []RuleCatalogEntry{
 		PackID:          "aperio.google_workspace.mail.v1",
 		MitreTechniques: []string{"T1114.003"},
 		Intent:          "Adversary auto-forwards mailbox contents to an attacker-controlled address to silently exfiltrate mail.",
-		Tags:            []string{TagEmailForwarding},
+		Tags:            []string{TagEmailForwarding, TagDataExternalShare},
 	},
 	{
 		ID:              "google_workspace.mailbox_delegation_granted",
