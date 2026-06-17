@@ -161,7 +161,8 @@ func seedRemediationFixture(t *testing.T, app *App, auth compatAuth, provider st
 }
 
 func TestGetFindingBoundsCerebroEnrichment(t *testing.T) {
-	app, auth := newTestDBApp(t)
+	app, baseAuth := newTestDBApp(t)
+	auth := seedOrgAdmin(t, app, baseAuth.OrganizationID)
 	header := seedSessionHeader(t, app, auth)
 	client := &fakeSaasCerebroContextClient{}
 	app.WithCerebroContextClient("runtime-a", client)
