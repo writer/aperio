@@ -66,6 +66,8 @@ func TestMCPServerURLDerivesFromBaseURL(t *testing.T) {
 	}{
 		{name: "origin", base: "https://cerebro.example.com", want: "https://cerebro.example.com/api/v1/mcp"},
 		{name: "api prefix", base: "https://cerebro.example.com/api", want: "https://cerebro.example.com/api/v1/mcp"},
+		{name: "versioned api prefix", base: "https://proxy.example.com/api/v1", want: "https://proxy.example.com/api/v1/mcp"},
+		{name: "nested versioned api prefix", base: "https://proxy.example.com/cerebro/api/v2", want: "https://proxy.example.com/cerebro/api/v2/mcp"},
 		{name: "tenant prefix", base: "https://proxy.example.com/cerebro", want: "https://proxy.example.com/cerebro/api/v1/mcp"},
 	}
 	for _, tc := range cases {
