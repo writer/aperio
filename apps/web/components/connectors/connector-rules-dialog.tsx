@@ -153,7 +153,7 @@ export function ConnectorRulesDialog({
       try {
         const fresh = await fetchConnectorRules(integrationId);
         const next = new Set<string>();
-        fresh.builtIn.forEach((r) => {
+        fresh.builtIn.forEach((r: ConnectorBuiltInRule) => {
           if (!r.enabled) next.add(r.id);
         });
         if (nextEnabled) {
@@ -327,7 +327,7 @@ export function ConnectorRulesDialog({
                     No built-in rules registered for this provider yet.
                   </li>
                 ) : (
-                  data.builtIn.map((rule) => (
+                  data.builtIn.map((rule: ConnectorBuiltInRule) => (
                     <li
                       key={rule.id}
                       className="flex items-start gap-3 rounded border border-border bg-background p-3"
@@ -368,7 +368,7 @@ export function ConnectorRulesDialog({
                     conditions.
                   </li>
                 ) : (
-                  data.custom.map((rule) => (
+                  data.custom.map((rule: ConnectorCustomRule) => (
                     <li
                       key={rule.id}
                       className="flex items-start gap-3 rounded border border-border bg-background p-3"

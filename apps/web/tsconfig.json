@@ -1,7 +1,17 @@
 {
   "extends": "../../tsconfig.json",
   "compilerOptions": {
-    "plugins": [{ "name": "next" }]
+    "plugins": [{ "name": "next" }],
+    "baseUrl": "../..",
+    "paths": {
+      "@/*": ["apps/web/*"],
+      "@aperio/db": ["packages/db/src/client.ts"],
+      "@aperio/connect/*": ["packages/connect/src/*"],
+      "@aperio/security": ["packages/security/src/index.ts"],
+      "@aperio/security/*": ["packages/security/src/*"],
+      "@aperio/shared": ["packages/shared/src/types.ts"],
+      "@aperio/shared/*": ["packages/shared/src/*"]
+    }
   },
   "include": [
     "next-env.d.ts",
