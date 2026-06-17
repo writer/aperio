@@ -165,11 +165,19 @@ export type ConnectCerebroClaimSummary = {
   sourceEvent?: string | null;
 };
 
+export type ConnectCerebroMCPResourceTemplate = {
+  uriTemplate: string;
+  name?: string | null;
+  description?: string | null;
+  mimeType?: string | null;
+};
+
 export type ConnectCerebroMCPContext = {
   server?: string | null;
   resourceUri?: string | null;
   mimeType?: string | null;
   tools: string[];
+  resourceTemplates: ConnectCerebroMCPResourceTemplate[];
 };
 
 export type ConnectCerebroIncidentContext = {
@@ -866,6 +874,7 @@ export type ConnectSecurityOverview = {
       resourceUri: string;
       resource: string;
       tools: string[];
+      resourceTemplates: ConnectCerebroMCPResourceTemplate[];
     } | null;
     responseHints: string[];
   } | null;
@@ -1222,7 +1231,8 @@ function cerebroMCPContextFromProto(
     server: mcp.server || null,
     resourceUri: mcp.resourceUri || null,
     mimeType: mcp.mimeType || null,
-    tools: [...mcp.tools]
+    tools: [...mcp.tools],
+    resourceTemplates: []
   };
 }
 
@@ -1315,6 +1325,19 @@ function stringsFromUnknown(value: unknown): string[] {
     : [];
 }
 
+function cerebroMCPResourceTemplatesFromUnknown(
+  value: unknown
+): ConnectCerebroMCPResourceTemplate[] {
+  return recordsFromUnknown(value)
+    .map((record) => ({
+      uriTemplate: stringFromRecord(record, "uriTemplate") ?? "",
+      name: stringFromRecord(record, "name"),
+      description: stringFromRecord(record, "description"),
+      mimeType: stringFromRecord(record, "mimeType")
+    }))
+    .filter((template) => template.uriTemplate);
+}
+
 function cerebroEntityRefFromRecord(
   record: Record<string, unknown>
 ): ConnectCerebroEntityRef | null {
@@ -1405,12 +1428,23 @@ function cerebroMCPContextFromUnknown(
   const resourceUri = stringFromRecord(record, "resourceUri");
   const mimeType = stringFromRecord(record, "mimeType");
   const tools = stringsFromUnknown(record.tools);
-  if (!server && !resourceUri && !mimeType && tools.length === 0) return null;
+  const resourceTemplates = cerebroMCPResourceTemplatesFromUnknown(
+    record.resourceTemplates
+  );
+  if (
+    !server &&
+    !resourceUri &&
+    !mimeType &&
+    tools.length === 0 &&
+    resourceTemplates.length === 0
+  )
+    return null;
   return {
     server,
     resourceUri,
     mimeType,
-    tools
+    tools,
+    resourceTemplates
   };
 }
 
@@ -2056,7 +2090,15 @@ function securityCerebroMCPContextFromProto(
     server: mcp.server,
     resourceUri: mcp.resourceUri,
     resource: mcp.resource,
-    tools: [...mcp.tools]
+    tools: [...mcp.tools],
+    resourceTemplates: mcp.resourceTemplates
+      .map((template) => ({
+        uriTemplate: template.uriTemplate,
+        name: template.name || null,
+        description: template.description || null,
+        mimeType: template.mimeType || null
+      }))
+      .filter((template) => template.uriTemplate)
   };
 }
 

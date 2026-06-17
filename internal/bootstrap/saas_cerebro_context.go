@@ -416,10 +416,34 @@ func (a *App) saasCerebroMCPContext(organizationID string, incidentID string) ma
 		tools = saasCerebroNativeMCPTools()
 	}
 	return map[string]any{
-		"server":      server,
-		"resourceUri": saasCerebroIncidentResourceURI(organizationID, incidentID),
-		"mimeType":    "application/vnd.aperio.cerebro.incident+json",
-		"tools":       tools,
+		"server":            server,
+		"resourceUri":       saasCerebroIncidentResourceURI(organizationID, incidentID),
+		"mimeType":          "application/vnd.aperio.cerebro.incident+json",
+		"tools":             tools,
+		"resourceTemplates": saasCerebroMCPResourceTemplates(),
+	}
+}
+
+func saasCerebroMCPResourceTemplates() []map[string]string {
+	return []map[string]string{
+		{
+			"uriTemplate": "cerebro://aperio/{organizationId}/incidents/{incidentId}",
+			"name":        "Aperio Cerebro incident",
+			"description": "Tenant-scoped Cerebro graph context for a SaaS incident in Aperio.",
+			"mimeType":    "application/vnd.aperio.cerebro.incident+json",
+		},
+		{
+			"uriTemplate": "cerebro://aperio/{organizationId}/findings/{findingId}",
+			"name":        "Aperio Cerebro finding",
+			"description": "Tenant-scoped Cerebro finding context with evidence, incident links, and response actions.",
+			"mimeType":    "application/vnd.aperio.cerebro.finding+json",
+		},
+		{
+			"uriTemplate": "cerebro://aperio/{organizationId}/security/overview",
+			"name":        "Aperio Cerebro security overview",
+			"description": "Tenant-scoped Cerebro security posture overview with linked incident and finding resources.",
+			"mimeType":    "application/vnd.aperio.cerebro.security-overview+json",
+		},
 	}
 }
 

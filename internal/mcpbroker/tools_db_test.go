@@ -430,6 +430,9 @@ func TestDBBackedCerebroFindingToolsExposeContextAndTenantBoundaries(t *testing.
 	if mcp["resourceUri"] != cerebroFindingResourceURI(orgID, findingID) || mcp["mimeType"] != cerebroFindingMimeType {
 		t.Fatalf("detail finding MCP context drifted: %#v", mcp)
 	}
+	if templates := mcp["resourceTemplates"].([]any); len(templates) != 3 {
+		t.Fatalf("detail finding MCP resource templates = %#v, want three templates", templates)
+	}
 	incidents := detail["incidents"].([]any)
 	if len(incidents) != 1 || incidents[0].(map[string]any)["id"] != incidentID {
 		t.Fatalf("detail finding incidents drifted: %#v", incidents)
@@ -510,6 +513,9 @@ func TestDBBackedCerebroResourceReadsUseAuthAndTenantScope(t *testing.T) {
 	securityMCP := securityContext["mcp"].(map[string]any)
 	if securityContext["mode"] != "mcp-resource" || securityMCP["resourceUri"] != cerebroSecurityOverviewResourceURI(orgID) {
 		t.Fatalf("security overview Cerebro MCP context drifted: %#v", securityContext)
+	}
+	if templates := securityMCP["resourceTemplates"].([]any); len(templates) != 3 {
+		t.Fatalf("security overview MCP resource templates = %#v, want three templates", templates)
 	}
 
 	missingTokenOutput := expectMCPResourceReadErrorFrame(t, service, "read-missing-token", cerebroIncidentResourceURI(orgID, incidentID))

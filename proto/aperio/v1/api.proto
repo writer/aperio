@@ -414,6 +414,13 @@ message CerebroMCPContext {
   repeated string tools = 4;
 }
 
+message CerebroMCPResourceTemplate {
+  string uri_template = 1;
+  string name = 2;
+  string description = 3;
+  string mime_type = 4;
+}
+
 message ListSaasIncidentsRequest {
   string status = 1;
   string severity = 2;
@@ -1217,6 +1224,7 @@ message SecurityCerebroMCPContext {
   string resource_uri = 2;
   string resource = 3;
   repeated string tools = 4;
+  repeated CerebroMCPResourceTemplate resource_templates = 5;
 }
 
 message SecurityIdentity {

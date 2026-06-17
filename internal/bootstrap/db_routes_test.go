@@ -57,7 +57,16 @@ func newTestDBApp(t *testing.T) (*App, compatAuth) {
 	})
 
 	app := NewApp(config.Config{WebOrigin: "http://localhost:3000", SessionIdleMinutes: 120}, db)
-	auth := compatAuth{OrganizationID: orgID, UserID: compatID("usr"), Email: "admin@example.com", Role: "ADMIN"}
+	roleID, err := app.ensureCompatRole(context.Background(), orgID, "ADMIN")
+	if err != nil {
+		t.Fatalf("seed admin role: %v", err)
+	}
+	userID := compatID("usr")
+	email := "admin-" + randomBase36(10) + "@example.com"
+	if _, err := db.ExecContext(context.Background(), `INSERT INTO users (id, organization_id, role_id, email, display_name, is_active, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,TRUE,NOW(),NOW())`, userID, orgID, roleID, email, "Admin User"); err != nil {
+		t.Fatalf("seed admin user: %v", err)
+	}
+	auth := compatAuth{OrganizationID: orgID, UserID: userID, Email: email, Role: "ADMIN"}
 	return app, auth
 }
 

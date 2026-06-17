@@ -301,12 +301,25 @@ func TestSecurityOverviewCerebroContextHydratesClaimsAndGraph(t *testing.T) {
 	if !contextRecordsContain(tools, "cerebro.findings.get") || !contextRecordsContain(tools, "cerebro.risk.summary") {
 		t.Fatalf("security Cerebro MCP tools = %#v", tools)
 	}
+	templates := contextRecords(mcp["resourceTemplates"])
+	if len(templates) != 3 {
+		t.Fatalf("security Cerebro MCP resource templates = %#v, want three templates", templates)
+	}
+	if securityTemplate := contextRecord(templates[2]); securityTemplate["uriTemplate"] != "cerebro://aperio/{organizationId}/security/overview" {
+		t.Fatalf("security resource template drifted: %#v", securityTemplate)
+	}
 	if len(client.listRequests) != 1 || client.listRequests[0].SourceEventID != "evt-1" {
 		t.Fatalf("list requests = %#v", client.listRequests)
 	}
 	proto := securityOverviewFromMap(overview)
 	if proto.CerebroContext == nil || proto.CerebroContext.ClaimCount != 1 || proto.CerebroContext.Mcp == nil {
 		t.Fatalf("proto Cerebro context = %#v", proto.CerebroContext)
+	}
+	if got := len(proto.CerebroContext.Mcp.ResourceTemplates); got != 3 {
+		t.Fatalf("proto MCP resource templates = %d, want 3", got)
+	}
+	if proto.CerebroContext.Mcp.ResourceTemplates[2].UriTemplate != "cerebro://aperio/{organizationId}/security/overview" {
+		t.Fatalf("proto security resource template drifted: %#v", proto.CerebroContext.Mcp.ResourceTemplates[2])
 	}
 }
 

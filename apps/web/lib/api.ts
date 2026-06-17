@@ -976,6 +976,12 @@ export type SecurityCerebroContext = {
     resourceUri: string;
     resource: string;
     tools: string[];
+    resourceTemplates?: {
+      uriTemplate: string;
+      name?: string | null;
+      description?: string | null;
+      mimeType?: string | null;
+    }[];
   } | null;
   responseHints: string[];
 };
