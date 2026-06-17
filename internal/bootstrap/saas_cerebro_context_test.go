@@ -121,7 +121,9 @@ func TestEnrichSaasCerebroContextHydratesClaimsAndGraph(t *testing.T) {
 		t.Fatalf("mcp context = %#v", mcp)
 	}
 	tools := contextRecords(mcp["tools"])
-	if len(tools) != 4 || tools[1] != "cerebro.graph.neighborhood" {
+	if !contextRecordsContain(tools, "cerebro.findings.get") ||
+		!contextRecordsContain(tools, "cerebro.graph.neighborhood") ||
+		!contextRecordsContain(tools, "cerebro.findings.action.propose") {
 		t.Fatalf("mcp tools = %#v", tools)
 	}
 }
@@ -190,7 +192,9 @@ func TestEnrichSaasCerebroContextUpdatesMCPBeforeClaimHydration(t *testing.T) {
 		t.Fatalf("mcp context = %#v", mcp)
 	}
 	tools := contextRecords(mcp["tools"])
-	if len(tools) != 4 || tools[0] != "cerebro.findings.search" {
+	if !contextRecordsContain(tools, "cerebro.findings.get") ||
+		!contextRecordsContain(tools, "cerebro.graph.neighborhood") ||
+		!contextRecordsContain(tools, "cerebro.findings.action.propose") {
 		t.Fatalf("mcp tools = %#v", tools)
 	}
 }
@@ -211,7 +215,35 @@ func TestEnrichSaasCerebroContextUpdatesMCPForZeroFindingIncident(t *testing.T) 
 		t.Fatalf("mcp context = %#v", mcp)
 	}
 	tools := contextRecords(mcp["tools"])
-	if len(tools) != 4 || tools[0] != "cerebro.findings.search" {
+	if !contextRecordsContain(tools, "cerebro.findings.get") ||
+		!contextRecordsContain(tools, "cerebro.graph.neighborhood") ||
+		!contextRecordsContain(tools, "cerebro.findings.action.propose") {
+		t.Fatalf("mcp tools = %#v", tools)
+	}
+	if len(client.listRequests) != 0 || len(client.graphRoots) != 0 {
+		t.Fatalf("unexpected Cerebro calls: list=%#v graph=%#v", client.listRequests, client.graphRoots)
+	}
+}
+
+func TestRefreshSaasCerebroMCPContextUsesNativeCatalogWithoutClaimHydration(t *testing.T) {
+	client := &fakeSaasCerebroContextClient{}
+	app := (&App{}).
+		WithCerebroContextClient("runtime-a", client).
+		WithCerebroMCPServerURL("https://cerebro.example.com/api/v1/mcp")
+
+	encoded := app.refreshSaasCerebroMCPContext("org-a", "inc-list", saasCerebroContextJSON("org-a", "inc-list"))
+	contextPayload := decodeSaasCerebroContext(t, encoded)
+	if contextPayload["sourceRuntimeId"] != "runtime-a" {
+		t.Fatalf("context source runtime = %#v, want runtime-a", contextPayload["sourceRuntimeId"])
+	}
+	mcp := contextRecord(contextPayload["mcp"])
+	if mcp["server"] != "https://cerebro.example.com/api/v1/mcp" || mcp["resourceUri"] != "cerebro://aperio/org-a/incidents/inc-list" {
+		t.Fatalf("mcp context = %#v", mcp)
+	}
+	tools := contextRecords(mcp["tools"])
+	if !contextRecordsContain(tools, "cerebro.findings.get") ||
+		!contextRecordsContain(tools, "cerebro.graph.neighborhood") ||
+		!contextRecordsContain(tools, "cerebro.findings.action.propose") {
 		t.Fatalf("mcp tools = %#v", tools)
 	}
 	if len(client.listRequests) != 0 || len(client.graphRoots) != 0 {
@@ -234,6 +266,25 @@ func contextRecord(value any) map[string]any {
 }
 
 func contextRecords(value any) []any {
-	records, _ := value.([]any)
-	return records
+	switch records := value.(type) {
+	case []any:
+		return records
+	case []string:
+		values := make([]any, len(records))
+		for index, record := range records {
+			values[index] = record
+		}
+		return values
+	default:
+		return nil
+	}
+}
+
+func contextRecordsContain(values []any, target string) bool {
+	for _, value := range values {
+		if value == target {
+			return true
+		}
+	}
+	return false
 }

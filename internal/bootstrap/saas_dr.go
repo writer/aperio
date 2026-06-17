@@ -111,6 +111,7 @@ func (a *App) ListSaasIncidents(
 		response.PageInfo.NextCursor = rows[len(rows)-1].ID
 	}
 	for _, row := range rows {
+		row.CerebroContextJSON = a.refreshSaasCerebroMCPContext(organizationID, row.ID, row.CerebroContextJSON)
 		response.Data = append(response.Data, row.toProto())
 	}
 	return connect.NewResponse(response), nil

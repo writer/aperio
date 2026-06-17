@@ -87,6 +87,16 @@ func (a *App) enrichSaasCerebroContext(ctx context.Context, organizationID strin
 	return encodeCerebroContextMap(payload, base)
 }
 
+func (a *App) refreshSaasCerebroMCPContext(organizationID string, incidentID string, raw string) string {
+	base := normalizeCerebroContextJSON(raw)
+	payload := cerebroContextMap(base)
+	if a != nil && strings.TrimSpace(a.cerebroRuntimeID) != "" {
+		payload["sourceRuntimeId"] = strings.TrimSpace(a.cerebroRuntimeID)
+	}
+	payload["mcp"] = a.saasCerebroMCPContext(organizationID, incidentID)
+	return encodeCerebroContextMap(payload, base)
+}
+
 func (a *App) saasCerebroIncidentClaims(ctx context.Context, findings []findingRow) []cerebroclient.Claim {
 	claims := []cerebroclient.Claim{}
 	seenEvents := map[string]struct{}{}
@@ -415,9 +425,17 @@ func (a *App) saasCerebroMCPContext(organizationID string, incidentID string) ma
 
 func saasCerebroNativeMCPTools() []string {
 	return []string{
+		"cerebro.findings.list",
+		"cerebro.findings.get",
 		"cerebro.findings.search",
+		"cerebro.risk.summary",
+		"cerebro.risk.actions.list",
+		"cerebro.risk.actions.explain",
 		"cerebro.graph.neighborhood",
+		"cerebro.graph.impact",
+		"cerebro.graph.paths",
 		"cerebro.investigation.context",
+		"cerebro.findings.action.propose",
 		"cerebro.agent.preflight",
 	}
 }
