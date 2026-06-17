@@ -174,6 +174,7 @@ without Cerebro.
 | Variable | Purpose | Default |
 | --- | --- | --- |
 | `CEREBRO_BASE_URL` | Hosted Cerebro API origin, for example `https://cerebro.example.com` | unset |
+| `CEREBRO_MCP_URL` | Optional explicit Cerebro Streamable HTTP MCP endpoint shown in incident context | derived from `CEREBRO_BASE_URL` |
 | `CEREBRO_API_KEY` | Tenant-scoped Cerebro API key sent as `Authorization: Bearer` | unset |
 | `CEREBRO_TOKEN` | Backward-compatible fallback when `CEREBRO_API_KEY` is not set | unset |
 | `CEREBRO_TENANT_ID` | Tenant id sent as `X-Cerebro-Tenant` and stored on the source runtime | unset |

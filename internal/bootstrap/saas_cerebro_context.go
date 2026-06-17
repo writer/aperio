@@ -27,16 +27,25 @@ func (a *App) WithCerebroContextClient(runtimeID string, client saasCerebroConte
 	return a
 }
 
+func (a *App) WithCerebroMCPServerURL(serverURL string) *App {
+	a.cerebroMCPServerURL = strings.TrimSpace(serverURL)
+	return a
+}
+
 func (a *App) enrichSaasCerebroContext(ctx context.Context, organizationID string, incidentID string, raw string, findings []findingRow) string {
 	base := normalizeCerebroContextJSON(raw)
-	if a == nil || a.cerebroContextClient == nil || strings.TrimSpace(a.cerebroRuntimeID) == "" || len(findings) == 0 {
+	if a == nil || a.cerebroContextClient == nil || strings.TrimSpace(a.cerebroRuntimeID) == "" {
 		return base
 	}
 	payload := cerebroContextMap(base)
 	payload["source"] = "cerebro"
 	payload["sourceRuntimeId"] = a.cerebroRuntimeID
 	payload["findingContract"] = "cerebro.v1.Finding"
+	payload["mcp"] = a.saasCerebroMCPContext(organizationID, incidentID)
 
+	if len(findings) == 0 {
+		return encodeCerebroContextMap(payload, base)
+	}
 	claims := a.saasCerebroIncidentClaims(ctx, findings)
 	if len(claims) == 0 {
 		return encodeCerebroContextMap(payload, base)
@@ -74,12 +83,6 @@ func (a *App) enrichSaasCerebroContext(ctx context.Context, organizationID strin
 	payload["graphPaths"] = graphPaths
 	payload["responseHints"] = []string{
 		"Review Cerebro claims and graph paths before executing high-impact response actions.",
-	}
-	payload["mcp"] = map[string]any{
-		"server":      "aperio-a2a-broker",
-		"resourceUri": saasCerebroIncidentResourceURI(organizationID, incidentID),
-		"mimeType":    "application/vnd.aperio.cerebro.incident+json",
-		"tools":       saasCerebroMCPTools(),
 	}
 	return encodeCerebroContextMap(payload, base)
 }
@@ -350,4 +353,28 @@ func containsString(values []string, target string) bool {
 		}
 	}
 	return false
+}
+
+func (a *App) saasCerebroMCPContext(organizationID string, incidentID string) map[string]any {
+	server := "aperio-a2a-broker"
+	tools := saasCerebroMCPTools()
+	if a != nil && strings.TrimSpace(a.cerebroMCPServerURL) != "" {
+		server = strings.TrimSpace(a.cerebroMCPServerURL)
+		tools = saasCerebroNativeMCPTools()
+	}
+	return map[string]any{
+		"server":      server,
+		"resourceUri": saasCerebroIncidentResourceURI(organizationID, incidentID),
+		"mimeType":    "application/vnd.aperio.cerebro.incident+json",
+		"tools":       tools,
+	}
+}
+
+func saasCerebroNativeMCPTools() []string {
+	return []string{
+		"cerebro.findings.search",
+		"cerebro.graph.neighborhood",
+		"cerebro.investigation.context",
+		"cerebro.agent.preflight",
+	}
 }

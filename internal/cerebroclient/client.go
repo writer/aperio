@@ -27,6 +27,7 @@ const (
 // the server-side integration principal used for Cerebro HTTP and MCP calls.
 type Config struct {
 	BaseURL   string
+	MCPURL    string
 	APIKey    string
 	TenantID  string
 	RuntimeID string
@@ -37,12 +38,61 @@ type Config struct {
 func ConfigFromEnv() Config {
 	return Config{
 		BaseURL:   trimEnv("CEREBRO_BASE_URL"),
+		MCPURL:    trimEnv("CEREBRO_MCP_URL"),
 		APIKey:    firstEnv("CEREBRO_API_KEY", "CEREBRO_TOKEN"),
 		TenantID:  trimEnv("CEREBRO_TENANT_ID"),
 		RuntimeID: envDefault("CEREBRO_SOURCE_RUNTIME_ID", DefaultRuntimeID),
 		SourceID:  envDefault("CEREBRO_SOURCE_ID", DefaultSourceID),
 		Timeout:   durationEnv("CEREBRO_HTTP_TIMEOUT_SECONDS", defaultTimeout),
 	}
+}
+
+func (c Config) MCPServerURL() string {
+	if strings.TrimSpace(c.MCPURL) != "" {
+		mcpURL, err := parseBaseURL(c.MCPURL)
+		if err != nil {
+			return ""
+		}
+		return mcpURL.String()
+	}
+	baseURL, err := parseBaseURL(c.BaseURL)
+	if err != nil {
+		return ""
+	}
+	value := *baseURL
+	value.Path, value.RawPath = mcpPathFromBase(value.Path, value.EscapedPath())
+	value.RawQuery = ""
+	value.Fragment = ""
+	return value.String()
+}
+
+func mcpPathFromBase(path string, rawPath string) (string, string) {
+	path = strings.TrimRight(path, "/")
+	rawPath = strings.TrimRight(rawPath, "/")
+	suffix := "/api/v1/mcp"
+	if strings.HasSuffix(path, "/api") {
+		suffix = "/v1/mcp"
+	} else if hasVersionedAPISuffix(path) {
+		suffix = "/mcp"
+	}
+	return path + suffix, rawPath + suffix
+}
+
+func hasVersionedAPISuffix(path string) bool {
+	versionStart := strings.LastIndex(path, "/")
+	if versionStart < 0 || !strings.HasSuffix(path[:versionStart], "/api") {
+		return false
+	}
+	version := path[versionStart+1:]
+	if len(version) < 2 || version[0] != 'v' {
+		return false
+	}
+	for _, ch := range version[1:] {
+		if ch < '0' || ch > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 func (c Config) Enabled() bool {
