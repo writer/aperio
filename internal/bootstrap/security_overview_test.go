@@ -315,6 +315,12 @@ func TestSecurityOverviewCerebroContextHydratesClaimsAndGraph(t *testing.T) {
 	if proto.CerebroContext == nil || proto.CerebroContext.ClaimCount != 1 || proto.CerebroContext.Mcp == nil {
 		t.Fatalf("proto Cerebro context = %#v", proto.CerebroContext)
 	}
+	if got := len(proto.CerebroContext.Mcp.ResourceTemplates); got != 3 {
+		t.Fatalf("proto MCP resource templates = %d, want 3", got)
+	}
+	if proto.CerebroContext.Mcp.ResourceTemplates[2].UriTemplate != "cerebro://aperio/{organizationId}/security/overview" {
+		t.Fatalf("proto security resource template drifted: %#v", proto.CerebroContext.Mcp.ResourceTemplates[2])
+	}
 }
 
 func TestSecurityOverviewCerebroContextBoundsLookupAndReportsPendingOnReadFailure(t *testing.T) {

@@ -707,11 +707,31 @@ func securityCerebroMCPContextFromMap(data map[string]any) *aperiov1.SecurityCer
 		return nil
 	}
 	return &aperiov1.SecurityCerebroMCPContext{
-		Server:      stringFromAny(data["server"]),
-		ResourceUri: stringFromAny(data["resourceUri"]),
-		Resource:    stringFromAny(data["resource"]),
-		Tools:       stringSliceFromAny(data["tools"]),
+		Server:            stringFromAny(data["server"]),
+		ResourceUri:       stringFromAny(data["resourceUri"]),
+		Resource:          stringFromAny(data["resource"]),
+		Tools:             stringSliceFromAny(data["tools"]),
+		ResourceTemplates: cerebroMCPResourceTemplatesFromAny(data["resourceTemplates"]),
 	}
+}
+
+func cerebroMCPResourceTemplatesFromAny(value any) []*aperiov1.CerebroMCPResourceTemplate {
+	items := anyList(value)
+	out := make([]*aperiov1.CerebroMCPResourceTemplate, 0, len(items))
+	for _, item := range items {
+		data := asMap(item)
+		uriTemplate := stringFromAny(data["uriTemplate"])
+		if uriTemplate == "" {
+			continue
+		}
+		out = append(out, &aperiov1.CerebroMCPResourceTemplate{
+			UriTemplate: uriTemplate,
+			Name:        stringFromAny(data["name"]),
+			Description: stringFromAny(data["description"]),
+			MimeType:    stringFromAny(data["mimeType"]),
+		})
+	}
+	return out
 }
 
 func securityIdentitiesFromAny(value any) []*aperiov1.SecurityIdentity {
@@ -938,6 +958,12 @@ func anyList(value any) []any {
 	case []any:
 		return typed
 	case []map[string]any:
+		out := make([]any, 0, len(typed))
+		for _, item := range typed {
+			out = append(out, item)
+		}
+		return out
+	case []map[string]string:
 		out := make([]any, 0, len(typed))
 		for _, item := range typed {
 			out = append(out, item)
