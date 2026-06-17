@@ -735,6 +735,19 @@
       ]
     },
     {
+      "id": "workflow-release-automation",
+      "state": "validation-tooling",
+      "covers": [
+        "repo-file:.github/workflows/release.yml"
+      ],
+      "owner": "Public app image release automation",
+      "rationale": "The public release workflow builds, signs, and publishes the Aperio app image, then dispatches deployment intent to the private infra repository; it does not reintroduce TypeScript backend, worker, or MCP runtime ownership.",
+      "evidence": [
+        "workflow:.github/workflows/release.yml",
+        "validator:actionlint"
+      ]
+    },
+    {
       "id": "compatibility-routes-go-boundary",
       "state": "go-default",
       "covers": [
