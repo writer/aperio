@@ -3,7 +3,8 @@ import { ArrowUpRight, Cpu, Radar, ShieldCheck } from "lucide-react";
 import {
   CEREBRO_AUTH_INSIGHTS,
   CEREBRO_AUTH_PILLARS,
-  CEREBRO_MCP_RESOURCE
+  CEREBRO_MCP_RESOURCE,
+  type CerebroAuthInsight
 } from "../../lib/cerebro-auth";
 import { BrandLockup, BrandMark } from "../layout/brand-mark";
 
@@ -18,17 +19,22 @@ export function AuthLayout({
   description,
   children,
   footer,
-  showSessionMessaging = false
+  showSessionMessaging = false,
+  sessionInsights = CEREBRO_AUTH_INSIGHTS
 }: {
   title: React.ReactNode;
   description?: React.ReactNode;
   children: React.ReactNode;
   footer?: React.ReactNode;
   showSessionMessaging?: boolean;
+  sessionInsights?: readonly CerebroAuthInsight[];
 }) {
   return (
     <main className="relative grid min-h-screen bg-background lg:grid-cols-[1fr_minmax(0,520px)] lg:gap-0">
-      <BrandPanel showSessionMessaging={showSessionMessaging} />
+      <BrandPanel
+        showSessionMessaging={showSessionMessaging}
+        sessionInsights={sessionInsights}
+      />
       <section className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-6 py-10 lg:py-12">
         <div
           aria-hidden
@@ -53,13 +59,13 @@ export function AuthLayout({
               ) : null}
               {showSessionMessaging ? (
                 <dl className="mt-3 grid gap-1.5 text-[11px] lg:hidden">
-                  {CEREBRO_AUTH_INSIGHTS.map((insight) => (
+                  {sessionInsights.map((insight) => (
                     <div
                       key={insight.label}
                       className="flex items-center justify-between border-t border-border/70 pt-1.5 first:border-t-0 first:pt-0"
                     >
                       <dt className="text-muted-foreground">{insight.label}</dt>
-                      <dd className="font-mono text-foreground">
+                      <dd className="max-w-[60%] break-all text-right font-mono text-foreground">
                         {insight.value}
                       </dd>
                     </div>
@@ -81,9 +87,11 @@ export function AuthLayout({
 }
 
 function BrandPanel({
-  showSessionMessaging
+  showSessionMessaging,
+  sessionInsights
 }: {
   showSessionMessaging: boolean;
+  sessionInsights: readonly CerebroAuthInsight[];
 }) {
   return (
     <aside
@@ -145,7 +153,7 @@ function BrandPanel({
             />
           </div>
           <dl className="grid grid-cols-1 gap-2">
-            {CEREBRO_AUTH_INSIGHTS.map((insight) => (
+            {sessionInsights.map((insight) => (
               <div
                 key={insight.label}
                 className="flex items-center justify-between rounded-md border border-border/70 bg-background/40 px-3 py-2 text-sm backdrop-blur-sm"
@@ -162,7 +170,7 @@ function BrandPanel({
                   />
                   {insight.label}
                 </dt>
-                <dd className="font-mono text-sm text-foreground tabular-nums">
+                <dd className="max-w-[58%] break-all text-right font-mono text-sm text-foreground tabular-nums">
                   {insight.value}
                 </dd>
               </div>
