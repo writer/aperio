@@ -9,7 +9,7 @@ require (
 	github.com/go-pdf/fpdf v0.9.0
 	github.com/jackc/pgx/v5 v5.10.0
 	github.com/nats-io/nats.go v1.52.0
-	github.com/writer/cerebro/sdk/go/cerebroapi v0.0.0-20260617154319-9af94b29cb0e
+	github.com/writer/cerebro/sdk/go/cerebroapi v0.0.0-20260617165858-b79a38afb59c
 	golang.org/x/crypto v0.53.0
 	google.golang.org/protobuf v1.36.11
 )

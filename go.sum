@@ -30,8 +30,8 @@ github.com/stretchr/testify v1.3.0/go.mod h1:M5WIy9Dh21IEIfnGCwXGc5bZfKNJtfHm1UV
 github.com/stretchr/testify v1.7.0/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/h/Wwjteg=
 github.com/stretchr/testify v1.11.1 h1:7s2iGBzp5EwR7/aIZr8ao5+dra3wiQyKjjFuvgVKu7U=
 github.com/stretchr/testify v1.11.1/go.mod h1:wZwfW3scLgRK+23gO65QZefKpKQRnfz6sD981Nm4B6U=
-github.com/writer/cerebro/sdk/go/cerebroapi v0.0.0-20260617154319-9af94b29cb0e h1:+tNx/KKMbVRLnEbU5B+HzDUe5qh3NuDL7bBPkENx5F8=
-github.com/writer/cerebro/sdk/go/cerebroapi v0.0.0-20260617154319-9af94b29cb0e/go.mod h1:Pj6RePoAtQMzYIZuYdS02A0RZInNozjLDKmEig8JlZM=
+github.com/writer/cerebro/sdk/go/cerebroapi v0.0.0-20260617165858-b79a38afb59c h1:Q4lzmWx5TNGG6wVyXFkc50QYk55wfzr4CZeC10m6XsE=
+github.com/writer/cerebro/sdk/go/cerebroapi v0.0.0-20260617165858-b79a38afb59c/go.mod h1:Pj6RePoAtQMzYIZuYdS02A0RZInNozjLDKmEig8JlZM=
 golang.org/x/crypto v0.53.0 h1:QZ4Muo8THX6CizN2vPPd5fBGHyogrdK9fG4wLPFUsto=
 golang.org/x/crypto v0.53.0/go.mod h1:DNLU434OwVakk9PzuwV8w62mAJpRJL3vsgcfp4Qnsio=
 golang.org/x/sync v0.21.0 h1:HLII4xRRTtCRkxYp4HNFF0Js/Og6q2i++KXbg0gHCwM=
