@@ -568,7 +568,7 @@ func (a *App) compatRateLimit(
 	path string,
 	body map[string]any,
 ) error {
-	if method != http.MethodPost {
+	if method != http.MethodPost && !(method == http.MethodGet && path == securityOverviewRateLimitPath) {
 		return nil
 	}
 	max, window, ok := compatRateLimitPolicy(path)
@@ -672,6 +672,8 @@ func compatRateLimitPolicy(path string) (int, time.Duration, bool) {
 	case "/api/v1/auth/forgot-password", "/api/v1/auth/reset-password", "/api/v1/auth/invitations/accept":
 		return 10, 15 * time.Minute, true
 	case emailDomainHealthListRateLimitPath, emailDomainHealthGetRateLimitPath:
+		return 20, 10 * time.Minute, true
+	case securityOverviewRateLimitPath:
 		return 20, 10 * time.Minute, true
 	default:
 		if strings.HasPrefix(path, "/api/v1/integrations/") && strings.HasSuffix(path, "/force-sync") {

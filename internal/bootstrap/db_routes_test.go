@@ -2371,6 +2371,33 @@ func TestDBSecurityOverview(t *testing.T) {
 	}
 }
 
+func TestDBSecurityOverviewTypedAndCallApiRateLimitExhaustionAgree(t *testing.T) {
+	app, auth := newTestDBApp(t)
+	auth = seedOrgAdmin(t, app, auth.OrganizationID)
+	ctx := context.Background()
+
+	callHeader := seedSessionHeader(t, app, auth)
+	callHeader.Set("X-Forwarded-For", "198.51.100.93")
+	seedExhaustedRateLimitBucket(t, app, callHeader, http.MethodGet, securityOverviewRateLimitPath)
+	_, callErr := callCompatViaCallAPI(t, app, ctx, callHeader, http.MethodGet, securityOverviewRateLimitPath, "")
+	if code := connect.CodeOf(callErr); code != connect.CodeResourceExhausted {
+		t.Fatalf("CallApi security overview rate limit code = %v (%v), want CodeResourceExhausted", code, callErr)
+	}
+
+	typedHeader := seedSessionHeader(t, app, auth)
+	typedHeader.Set("X-Forwarded-For", "198.51.100.94")
+	seedExhaustedRateLimitBucket(t, app, typedHeader, http.MethodGet, securityOverviewRateLimitPath)
+	typedReq := connect.NewRequest(&aperiov1.GetSecurityOverviewRequest{})
+	copyCompatHeaders(typedReq.Header(), typedHeader)
+	_, typedErr := app.GetSecurityOverview(ctx, typedReq)
+	if code := connect.CodeOf(typedErr); code != connect.CodeResourceExhausted {
+		t.Fatalf("typed security overview rate limit code = %v (%v), want CodeResourceExhausted", code, typedErr)
+	}
+	if callErr.Error() != typedErr.Error() {
+		t.Fatalf("security overview rate limit error mismatch: CallApi=%q typed=%q", callErr.Error(), typedErr.Error())
+	}
+}
+
 func mustCall(t *testing.T, fn func() (any, error)) any {
 	t.Helper()
 	result, err := fn()

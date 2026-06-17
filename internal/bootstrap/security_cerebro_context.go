@@ -4,15 +4,18 @@ import (
 	"context"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/writer/aperio/internal/cerebroclient"
 )
 
 const (
-	maxSecurityCerebroClaimQueries = 12
-	maxSecurityCerebroClaims       = 120
-	maxSecurityCerebroGraphRoots   = 4
-	maxSecurityCerebroGraphLimit   = 10
+	securityOverviewRateLimitPath     = "/api/v1/security/overview"
+	securityCerebroContextReadTimeout = 6 * time.Second
+	maxSecurityCerebroClaimQueries    = 12
+	maxSecurityCerebroClaims          = 120
+	maxSecurityCerebroGraphRoots      = 4
+	maxSecurityCerebroGraphLimit      = 10
 )
 
 func (a *App) enrichSecurityOverviewCerebroContext(ctx context.Context, organizationID string, overview map[string]any, findings []overviewFinding) map[string]any {
@@ -40,7 +43,22 @@ func (a *App) enrichSecurityOverviewCerebroContext(ctx context.Context, organiza
 		"Use Cerebro claims and graph neighborhoods to validate high-blast-radius paths before response.",
 	}
 
-	claims := a.securityOverviewCerebroClaims(ctx, findings)
+	readCtx, cancel := context.WithTimeout(ctx, securityCerebroContextReadTimeout)
+	defer cancel()
+
+	claims, err := a.securityOverviewCerebroClaims(readCtx, findings)
+	if err != nil {
+		contextPayload["mode"] = "context-pending"
+		contextPayload["claimCount"] = 0
+		contextPayload["graphSignalCount"] = 0
+		contextPayload["entityCount"] = 0
+		contextPayload["graphPathCount"] = 0
+		contextPayload["responseHints"] = []string{
+			"Cerebro claim lookup is pending; retry after the runtime is reachable before treating the overview as unlinked.",
+		}
+		overview["cerebroContext"] = contextPayload
+		return overview
+	}
 	if len(claims) == 0 {
 		overview["cerebroContext"] = contextPayload
 		return overview
@@ -60,7 +78,7 @@ func (a *App) enrichSecurityOverviewCerebroContext(ctx context.Context, organiza
 	graphPaths := []map[string]any{}
 	graphPathCount := 0
 	for _, rootURN := range boundedStrings(findingRoots, maxSecurityCerebroGraphRoots) {
-		neighborhood, err := a.cerebroContextClient.GetEntityNeighborhood(ctx, rootURN, maxSecurityCerebroGraphLimit)
+		neighborhood, err := a.cerebroContextClient.GetEntityNeighborhood(readCtx, rootURN, maxSecurityCerebroGraphLimit)
 		if err != nil || neighborhood == nil {
 			continue
 		}
@@ -80,7 +98,7 @@ func (a *App) enrichSecurityOverviewCerebroContext(ctx context.Context, organiza
 	return overview
 }
 
-func (a *App) securityOverviewCerebroClaims(ctx context.Context, findings []overviewFinding) []cerebroclient.Claim {
+func (a *App) securityOverviewCerebroClaims(ctx context.Context, findings []overviewFinding) ([]cerebroclient.Claim, error) {
 	claims := []cerebroclient.Claim{}
 	seenEvents := map[string]struct{}{}
 	for _, finding := range findings {
@@ -99,14 +117,17 @@ func (a *App) securityOverviewCerebroClaims(ctx context.Context, findings []over
 			Limit:         50,
 		})
 		if err != nil || response == nil {
-			continue
+			if err == nil {
+				err = context.Canceled
+			}
+			return claims, err
 		}
 		claims = append(claims, response.Claims...)
 		if len(claims) >= maxSecurityCerebroClaims || len(seenEvents) >= maxSecurityCerebroClaimQueries {
 			break
 		}
 	}
-	return claims
+	return claims, nil
 }
 
 func (a *App) securityCerebroMCPContext(organizationID string) map[string]any {

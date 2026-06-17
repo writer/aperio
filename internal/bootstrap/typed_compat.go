@@ -306,6 +306,9 @@ func (a *App) GetSecurityOverview(ctx context.Context, req *connect.Request[aper
 	if err != nil {
 		return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("unauthorized"))
 	}
+	if err := a.compatRateLimit(ctx, req.Header(), req.Peer().Addr, http.MethodGet, securityOverviewRateLimitPath, typedRateLimitSubjectBody(auth)); err != nil {
+		return nil, err
+	}
 	result, err := a.compatSecurityOverview(ctx, auth)
 	if err != nil {
 		return nil, err

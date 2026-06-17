@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -299,6 +300,30 @@ func TestSecurityOverviewCerebroContextHydratesClaimsAndGraph(t *testing.T) {
 	proto := securityOverviewFromMap(overview)
 	if proto.CerebroContext == nil || proto.CerebroContext.ClaimCount != 1 || proto.CerebroContext.Mcp == nil {
 		t.Fatalf("proto Cerebro context = %#v", proto.CerebroContext)
+	}
+}
+
+func TestSecurityOverviewCerebroContextBoundsLookupAndReportsPendingOnReadFailure(t *testing.T) {
+	client := &fakeSaasCerebroContextClient{listErr: errors.New("cerebro unavailable")}
+	app := (&App{}).WithCerebroContextClient("runtime-a", client)
+
+	overview := app.enrichSecurityOverviewCerebroContext(context.Background(), "org-a", map[string]any{}, []overviewFinding{
+		{ID: "finding-1", SourceEventID: "evt-1"},
+	})
+
+	if !client.listDeadline {
+		t.Fatal("expected security overview Cerebro lookup to use a deadline-bound context")
+	}
+	contextPayload := overview["cerebroContext"].(map[string]any)
+	if contextPayload["mode"] != "context-pending" || contextPayload["sourceRuntimeId"] != "runtime-a" || contextPayload["claimCount"] != 0 {
+		t.Fatalf("unexpected pending Cerebro context: %#v", contextPayload)
+	}
+	if contextPayload["graphSignalCount"] != 0 || contextPayload["entityCount"] != 0 || contextPayload["graphPathCount"] != 0 {
+		t.Fatalf("pending Cerebro context should keep zero derived counts: %#v", contextPayload)
+	}
+	proto := securityOverviewFromMap(overview)
+	if proto.CerebroContext == nil || proto.CerebroContext.Mode != "context-pending" || proto.CerebroContext.ClaimCount != 0 {
+		t.Fatalf("proto pending Cerebro context = %#v", proto.CerebroContext)
 	}
 }
 
