@@ -21,10 +21,7 @@ func (a *App) ListDetectionPacks(
 	if _, err := a.authenticatedOrganization(ctx, req.Header()); err != nil {
 		return nil, err
 	}
-	providerFilter := ""
-	if req.Msg != nil {
-		providerFilter = req.Msg.Provider
-	}
+	providerFilter := req.Msg.Provider
 	out := &aperiov1.ListDetectionPacksResponse{}
 	for _, pack := range ingestionworker.DetectionPacks {
 		if providerFilter != "" && providerFilter != pack.Provider {
