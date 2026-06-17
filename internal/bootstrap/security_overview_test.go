@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"testing"
 	"time"
 
@@ -298,5 +299,66 @@ func TestSecurityOverviewCerebroContextHydratesClaimsAndGraph(t *testing.T) {
 	proto := securityOverviewFromMap(overview)
 	if proto.CerebroContext == nil || proto.CerebroContext.ClaimCount != 1 || proto.CerebroContext.Mcp == nil {
 		t.Fatalf("proto Cerebro context = %#v", proto.CerebroContext)
+	}
+}
+
+func TestSecurityOverviewCerebroContextReportsFullCountsBeyondDisplayCaps(t *testing.T) {
+	rootURN := "urn:cerebro:tenant-a:runtime:runtime-a:finding:finding-many"
+	claims := make([]cerebroclient.Claim, 0, 14)
+	neighbors := make([]cerebroclient.GraphEntity, 0, 14)
+	relations := make([]cerebroclient.GraphRelation, 0, 7)
+	for index := 0; index < 14; index++ {
+		assetURN := fmt.Sprintf("urn:cerebro:tenant-a:runtime:runtime-a:asset:drive-%02d", index)
+		claims = append(claims, cerebroclient.Claim{
+			SubjectURN:    rootURN,
+			SubjectRef:    cerebroclient.EntityRef{URN: rootURN, EntityType: "finding", Label: "Drive exposure"},
+			Predicate:     fmt.Sprintf("signal-%02d", index),
+			ObjectURN:     assetURN,
+			ObjectRef:     &cerebroclient.EntityRef{URN: assetURN, EntityType: "asset", Label: fmt.Sprintf("Drive %02d", index)},
+			ClaimType:     "relation",
+			Status:        "asserted",
+			SourceEventID: "evt-many",
+		})
+		neighbors = append(neighbors, cerebroclient.GraphEntity{URN: assetURN, EntityType: "asset", Label: fmt.Sprintf("Drive %02d", index)})
+		if index < 7 {
+			relations = append(relations, cerebroclient.GraphRelation{FromURN: rootURN, Relation: "exposes", ToURN: assetURN})
+		}
+	}
+	client := &fakeSaasCerebroContextClient{
+		claims: map[string][]cerebroclient.Claim{"evt-many": claims},
+		neighborhoods: map[string]*cerebroclient.EntityNeighborhood{
+			rootURN: {
+				Root:      &cerebroclient.GraphEntity{URN: rootURN, EntityType: "finding", Label: "Drive exposure"},
+				Neighbors: neighbors,
+				Relations: relations,
+			},
+		},
+	}
+	app := (&App{}).WithCerebroContextClient("runtime-a", client)
+
+	overview := app.enrichSecurityOverviewCerebroContext(context.Background(), "org-a", map[string]any{}, []overviewFinding{
+		{ID: "finding-many", SourceEventID: "evt-many"},
+	})
+	contextPayload := overview["cerebroContext"].(map[string]any)
+	if contextPayload["graphSignalCount"] != 14 || contextPayload["entityCount"] != 15 || contextPayload["graphPathCount"] != 7 {
+		t.Fatalf("expected full Cerebro counts beyond display caps, got %#v", contextPayload)
+	}
+}
+
+func TestSecurityOverviewCerebroMCPContextUsesBrokerIncidentListFallback(t *testing.T) {
+	client := &fakeSaasCerebroContextClient{}
+	app := (&App{}).WithCerebroContextClient("runtime-a", client)
+
+	overview := app.enrichSecurityOverviewCerebroContext(context.Background(), "org-a", map[string]any{}, []overviewFinding{
+		{ID: "finding-1", SourceEventID: "evt-1"},
+	})
+	contextPayload := overview["cerebroContext"].(map[string]any)
+	mcp := contextPayload["mcp"].(map[string]any)
+	if mcp["server"] != "aperio-a2a-broker" || mcp["resourceUri"] != "cerebro://aperio/org-a/incidents" {
+		t.Fatalf("unexpected fallback MCP context = %#v", mcp)
+	}
+	tools := mcp["tools"].([]string)
+	if len(tools) != 1 || tools[0] != "aperio.list_cerebro_incidents" {
+		t.Fatalf("fallback MCP tools = %#v", tools)
 	}
 }

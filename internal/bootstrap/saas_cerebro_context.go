@@ -186,6 +186,19 @@ func cerebroGraphSignals(claims []cerebroclient.Claim) []map[string]any {
 	return signals
 }
 
+func cerebroGraphSignalCount(claims []cerebroclient.Claim) int {
+	seen := map[string]struct{}{}
+	for _, claim := range claims {
+		evidence := firstString(claim.ObjectValue, claim.ObjectURN)
+		if evidence == "" || strings.TrimSpace(claim.Predicate) == "" || strings.TrimSpace(claim.SubjectURN) == "" {
+			continue
+		}
+		key := claim.Predicate + "\x00" + claim.SubjectURN + "\x00" + evidence
+		seen[key] = struct{}{}
+	}
+	return len(seen)
+}
+
 func cerebroGraphPathsFromNeighborhood(neighborhood *cerebroclient.EntityNeighborhood) []map[string]any {
 	if neighborhood == nil || neighborhood.Root == nil {
 		return nil
@@ -251,6 +264,29 @@ func cerebroGraphPathIDPart(value string) string {
 	return part
 }
 
+func cerebroGraphPathCountFromNeighborhood(neighborhood *cerebroclient.EntityNeighborhood) int {
+	if neighborhood == nil || neighborhood.Root == nil {
+		return 0
+	}
+	entityByURN := map[string]struct{}{
+		neighborhood.Root.URN: {},
+	}
+	for _, neighbor := range neighborhood.Neighbors {
+		entityByURN[neighbor.URN] = struct{}{}
+	}
+	count := 0
+	for _, relation := range neighborhood.Relations {
+		if _, ok := entityByURN[relation.FromURN]; !ok {
+			continue
+		}
+		if _, ok := entityByURN[relation.ToURN]; !ok {
+			continue
+		}
+		count++
+	}
+	return count
+}
+
 type cerebroEntityCollector struct {
 	order []string
 	seen  map[string]map[string]any
@@ -304,6 +340,13 @@ func (c *cerebroEntityCollector) items() []map[string]any {
 		}
 	}
 	return items
+}
+
+func (c *cerebroEntityCollector) count() int {
+	if c == nil {
+		return 0
+	}
+	return len(c.order)
 }
 
 func cerebroEntityMap(urn string, entityType string, label string) map[string]any {
