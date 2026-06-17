@@ -467,6 +467,23 @@ func TestTypedAuthSessionDropsCompatibilityToken(t *testing.T) {
 	}
 }
 
+func TestSecurityAnalystAuthContextKeepsGRCInventoryScope(t *testing.T) {
+	context := compatAuthContextForSession(
+		compatSessionUser{
+			Email: "analyst@example.com",
+			Role:  "SECURITY_ANALYST",
+		},
+		compatSessionOrg{
+			ID:   "org_1",
+			Slug: "example",
+		},
+	)
+
+	if !stringSliceContains(context.CerebroScopes, compatCerebroGRCInventoryScope) {
+		t.Fatalf("expected security analyst GRC scope, got %#v", context.CerebroScopes)
+	}
+}
+
 func stringSliceContains(values []string, target string) bool {
 	for _, value := range values {
 		if value == target {
