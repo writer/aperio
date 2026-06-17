@@ -104,7 +104,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
           >
             <div className="flex items-center gap-2 rounded-md border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
-              Checking workspace session…
+              Checking Cerebro-bound session…
             </div>
           </main>
         ) : showShell ? (

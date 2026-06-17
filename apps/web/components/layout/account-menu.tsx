@@ -6,6 +6,11 @@ import { useAuth } from "../auth/auth-shell";
 import { Avatar, AvatarFallback } from "../ui/avatar";
 import { Button } from "../ui/button";
 import {
+  CEREBRO_API_RESOURCE,
+  formatCerebroScope,
+  formatCerebroTransport
+} from "../../lib/cerebro-auth";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -21,10 +26,6 @@ function initialsOf(input?: string | null) {
   const first = parts[0]?.[0] ?? "";
   const second = parts[1]?.[0] ?? "";
   return (first + second).toUpperCase() || "?";
-}
-
-function compactScope(scope: string) {
-  return scope.replace(/^cerebro\./, "").replaceAll(".", " / ");
 }
 
 function compactList(values: string[]) {
@@ -126,13 +127,13 @@ export function AccountMenu({
                 <div className="grid grid-cols-[96px_minmax(0,1fr)] gap-2">
                   <dt className="text-muted-foreground">Resource</dt>
                   <dd className="truncate font-mono text-foreground">
-                    {authContext.cerebroResource || "cerebro-api"}
+                    {authContext.cerebroResource || CEREBRO_API_RESOURCE}
                   </dd>
                 </div>
                 <div className="grid grid-cols-[96px_minmax(0,1fr)] gap-2">
                   <dt className="text-muted-foreground">Transport</dt>
                   <dd className="truncate font-mono text-foreground">
-                    {authContext.tokenTransport}
+                    {formatCerebroTransport(authContext.tokenTransport)}
                   </dd>
                 </div>
                 <div className="grid grid-cols-[96px_minmax(0,1fr)] gap-2">
@@ -158,7 +159,7 @@ export function AccountMenu({
                     title={scope}
                     className="max-w-full truncate rounded border border-border/70 bg-muted/40 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground"
                   >
-                    {compactScope(scope)}
+                    {formatCerebroScope(scope)}
                   </span>
                 ))}
               </div>

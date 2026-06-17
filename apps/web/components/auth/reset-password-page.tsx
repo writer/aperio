@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useId, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { resetPassword } from "../../lib/api";
+import { CEREBRO_HUMAN_AUTH_MODE } from "../../lib/cerebro-auth";
 import { useAuth } from "./auth-shell";
 import { AuthLayout } from "./auth-layout";
 import { Button } from "../ui/button";
@@ -46,7 +47,7 @@ export function ResetPasswordPage() {
   return (
     <AuthLayout
       title="Set a new password"
-      description="Your token is single-use and expires automatically."
+      description={`Your token is single-use; the next session is reissued as ${CEREBRO_HUMAN_AUTH_MODE}.`}
       footer={
         <Link
           href="/login"

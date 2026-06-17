@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useId, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { acceptInvite } from "../../lib/api";
+import { CEREBRO_API_RESOURCE } from "../../lib/cerebro-auth";
 import { useAuth } from "./auth-shell";
 import { AuthLayout } from "./auth-layout";
 import { Button } from "../ui/button";
@@ -47,7 +48,7 @@ export function AcceptInvitePage() {
   return (
     <AuthLayout
       title="Accept invite"
-      description="Finish creating your account in this workspace."
+      description={`Finish creating your tenant principal before Aperio issues a scoped ${CEREBRO_API_RESOURCE} session.`}
       footer={
         <Link
           href="/login"
