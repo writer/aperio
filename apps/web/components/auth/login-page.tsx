@@ -4,6 +4,10 @@ import Link from "next/link";
 import { useId, useState } from "react";
 import { useRouter } from "next/navigation";
 import { login } from "../../lib/api";
+import {
+  CEREBRO_API_RESOURCE,
+  CEREBRO_HUMAN_AUTH_MODE
+} from "../../lib/cerebro-auth";
 import { useAuth } from "./auth-shell";
 import { AuthLayout } from "./auth-layout";
 import { Button } from "../ui/button";
@@ -48,7 +52,7 @@ export function LoginPage() {
   return (
     <AuthLayout
       title="Sign in"
-      description="Use workspace credentials to bind this browser session to a tenant, principal, and scoped Cerebro action set."
+      description={`Use workspace credentials to bind this browser session to ${CEREBRO_API_RESOURCE} as ${CEREBRO_HUMAN_AUTH_MODE}.`}
       showSessionMessaging
       footer={
         <>
