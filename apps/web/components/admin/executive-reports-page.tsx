@@ -58,7 +58,7 @@ const TEMPLATE_OPTIONS: {
     value: "EXECUTIVE_SUMMARY",
     label: "Executive summary",
     description:
-      "Cross-vendor posture summary with KPIs, MTTR trends, and recommendations for CISOs and the board."
+      "Cross-vendor SaaS Detection & Response summary with KPIs, MTTR trends, and recommendations for CISOs and the board."
   },
   {
     value: "GOOGLE_WORKSPACE_ASSESSMENT",
@@ -185,7 +185,7 @@ export function ExecutiveReportsPage() {
       <PageHeader
         eyebrow="Admin"
         title="Executive reports"
-        description="Generate digestible CISO and board-ready posture summaries with trends, narratives, and recommendations. Download as PDF for distribution."
+        description="Generate digestible CISO and board-ready SaaS Detection & Response summaries with trends, narratives, and recommendations. Download as PDF for distribution."
         actions={
           <>
             <Button
@@ -231,7 +231,7 @@ export function ExecutiveReportsPage() {
               <FileText className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
               <p className="text-sm font-medium text-foreground">No reports yet</p>
               <p className="mt-1 text-xs text-muted-foreground">
-                Generate your first executive report to capture current posture state and trends.
+                Generate your first executive report to capture current SaaS Detection & Response state and trends.
               </p>
               <Button
                 className="mt-4"

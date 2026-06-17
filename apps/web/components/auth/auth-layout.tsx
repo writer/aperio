@@ -3,15 +3,15 @@ import { ArrowUpRight, Cpu, Radar, ShieldCheck } from "lucide-react";
 import { BrandLockup, BrandMark } from "../layout/brand-mark";
 
 const INSIGHTS: { label: string; value: string; tone: "signal" | "critical" | "neutral" }[] = [
-  { label: "Posture drift detected", value: "12 min ago", tone: "critical" },
+  { label: "SaaS incident opened", value: "12 min ago", tone: "critical" },
   { label: "Identities under watch", value: "1,284", tone: "signal" },
   { label: "Events ingested today", value: "9.4M", tone: "neutral" }
 ];
 
 const PILLARS = [
-  { icon: Radar, label: "Continuous discovery" },
-  { icon: ShieldCheck, label: "Policy-graded findings" },
-  { icon: Cpu, label: "Runtime evidence" }
+  { icon: Radar, label: "Continuous SaaS detection" },
+  { icon: ShieldCheck, label: "Approval-gated response" },
+  { icon: Cpu, label: "Cerebro-grounded evidence" }
 ];
 
 export function AuthLayout({
@@ -82,15 +82,15 @@ function BrandPanel() {
       <div className="relative max-w-md space-y-7">
         <span className="inline-flex items-center gap-2 rounded-full border border-signal/40 bg-signal/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.2em] text-signal">
           <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-signal" />
-          Posture intelligence
+          SaaS Detection & Response
         </span>
         <h2 className="text-balance text-3xl font-semibold leading-[1.15] tracking-tight text-foreground sm:text-4xl">
           The control room for your{" "}
           <span className="text-signal">SaaS attack surface.</span>
         </h2>
         <p className="max-w-sm text-sm leading-relaxed text-muted-foreground">
-          One tenant-scoped view across every connected app, identity, and
-          OAuth grant — graded, owned, remediable.
+          Cerebro-grounded detections, human-gated response, and a replayable
+          incident timeline across every connected SaaS app.
         </p>
 
         <ul className="grid grid-cols-1 gap-2.5">
