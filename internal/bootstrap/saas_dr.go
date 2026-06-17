@@ -1379,6 +1379,8 @@ func saasCerebroMCPTools() []string {
 	return []string{
 		"aperio.list_cerebro_incidents",
 		"aperio.get_cerebro_incident_context",
+		"aperio.list_cerebro_findings",
+		"aperio.get_cerebro_finding_context",
 		"aperio.propose_cerebro_response",
 	}
 }

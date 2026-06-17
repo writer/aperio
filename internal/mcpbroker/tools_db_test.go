@@ -377,6 +377,73 @@ func TestDBBackedCerebroIncidentToolsExposeGraphContextAndGateResponses(t *testi
 	}
 }
 
+func TestDBBackedCerebroFindingToolsExposeContextAndTenantBoundaries(t *testing.T) {
+	db := openMCPToolTestDB(t)
+	orgID := seedMCPToolOrganization(t, db, "MCP Cerebro Finding Org")
+	otherOrgID := seedMCPToolOrganization(t, db, "MCP Cerebro Finding Other Org")
+	_, findingID := seedMCPFinding(t, db, orgID, "finding-resource")
+	_, otherFindingID := seedMCPFinding(t, db, otherOrgID, "finding-resource-other")
+	incidentID := seedMCPCerebroIncident(t, db, orgID, findingID, "finding-resource")
+	_ = seedMCPCerebroIncident(t, db, otherOrgID, otherFindingID, "finding-resource-other")
+	service := newAuthenticatedTestToolService(t, db)
+
+	before := mcpSideEffectCount(t, db, orgID)
+	list := callMCPToolFrame(t, service, "cerebro-finding-list", "aperio.list_cerebro_findings", map[string]any{
+		"organizationId": orgID,
+		"status":         "OPEN",
+		"severity":       "HIGH",
+		"provider":       "SLACK",
+		"limit":          10,
+	})
+	resources := list["resources"].([]any)
+	if len(resources) != 1 {
+		t.Fatalf("list_cerebro_findings resources = %#v, want one tenant-local finding", resources)
+	}
+	resource := resources[0].(map[string]any)
+	if resource["id"] != findingID || resource["title"] == "" {
+		t.Fatalf("list_cerebro_findings resource drifted: %#v", resource)
+	}
+	if got := resource["resource"].(map[string]any)["uri"]; got != cerebroFindingResourceURI(orgID, findingID) {
+		t.Fatalf("finding resource uri = %v, want %s", got, cerebroFindingResourceURI(orgID, findingID))
+	}
+	cerebro := resource["cerebro"].(map[string]any)
+	if cerebro["source"] != "local-projection" || cerebro["mode"] != "not-configured" || cerebro["findingContract"] != "cerebro.v1.Finding" || cerebro["sourceEventId"] == nil {
+		t.Fatalf("finding Cerebro summary drifted: %#v", cerebro)
+	}
+
+	detail := callMCPToolFrame(t, service, "cerebro-finding-get", "aperio.get_cerebro_finding_context", map[string]any{
+		"organizationId": orgID,
+		"findingId":      findingID,
+	})
+	if detail["server"] != ServerName {
+		t.Fatalf("get_cerebro_finding_context server = %#v", detail["server"])
+	}
+	if detail["resource"].(map[string]any)["mimeType"] != cerebroFindingMimeType {
+		t.Fatalf("detail finding resource drifted: %#v", detail["resource"])
+	}
+	finding := detail["finding"].(map[string]any)
+	context := finding["cerebroContext"].(map[string]any)
+	if context["source"] != "local-projection" || context["findingContract"] != "cerebro.v1.Finding" {
+		t.Fatalf("detail finding Cerebro context drifted: %#v", context)
+	}
+	mcp := context["mcp"].(map[string]any)
+	if mcp["resourceUri"] != cerebroFindingResourceURI(orgID, findingID) || mcp["mimeType"] != cerebroFindingMimeType {
+		t.Fatalf("detail finding MCP context drifted: %#v", mcp)
+	}
+	incidents := detail["incidents"].([]any)
+	if len(incidents) != 1 || incidents[0].(map[string]any)["id"] != incidentID {
+		t.Fatalf("detail finding incidents drifted: %#v", incidents)
+	}
+
+	expectMCPToolErrorFrame(t, service, "cerebro-finding-cross-get", "aperio.get_cerebro_finding_context", map[string]any{
+		"organizationId": orgID,
+		"findingId":      otherFindingID,
+	})
+	if after := mcpSideEffectCount(t, db, orgID); after != before {
+		t.Fatalf("finding MCP read tools changed side-effect count from %d to %d", before, after)
+	}
+}
+
 func TestMCPSharedSecretAndTenantBoundariesRejectBeforeSideEffectsAndDoNotPersistSecrets(t *testing.T) {
 	db := openMCPToolTestDB(t)
 	orgID := seedMCPToolOrganization(t, db, "MCP Secret Org")
@@ -819,6 +886,13 @@ func seedMCPFinding(t *testing.T, db *sql.DB, orgID string, suffix string) (stri
 	t.Helper()
 	integrationID := prefixedID("int")
 	findingID := prefixedID("fnd")
+	evidenceJSON, err := json.Marshal(map[string]any{
+		"subject":       "A123",
+		"sourceEventId": "evt-" + suffix,
+	})
+	if err != nil {
+		t.Fatalf("encode MCP finding evidence: %v", err)
+	}
 	if _, err := db.ExecContext(context.Background(), `
 		INSERT INTO integration_connections (
 			id, organization_id, provider, display_name, external_account_id, scopes, disabled_checks,
@@ -839,9 +913,9 @@ func seedMCPFinding(t *testing.T, db *sql.DB, orgID string, suffix string) (stri
 		VALUES (
 			$1, $2, $3, $4, 'Seeded MCP finding', 'Seeded for MCP proposal tests',
 			'HIGH'::"Severity", 'OPEN'::"FindingStatus", 70, ARRAY['Review manually']::text[],
-			'{"subject":"A123"}'::jsonb, NOW()
+			$5::jsonb, NOW()
 		)
-	`, findingID, orgID, integrationID, "mcp-"+suffix+"-"+strings.ToLower(randomID())); err != nil {
+	`, findingID, orgID, integrationID, "mcp-"+suffix+"-"+strings.ToLower(randomID()), string(evidenceJSON)); err != nil {
 		t.Fatalf("seed MCP finding: %v", err)
 	}
 	return integrationID, findingID
