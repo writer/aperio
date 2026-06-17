@@ -2,6 +2,7 @@ package bootstrap
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/writer/aperio/internal/cerebroclient"
@@ -27,6 +28,35 @@ func TestFindingCerebroContextReportsLocalProjectionWhenNotConfigured(t *testing
 	proto := finding.toProto()
 	if proto.CerebroContext == nil || proto.CerebroContext.FindingContract != "cerebro.v1.Finding" {
 		t.Fatalf("proto Cerebro context = %#v", proto.CerebroContext)
+	}
+}
+
+func TestFindingCerebroContextReportsPendingOnReadFailure(t *testing.T) {
+	client := &fakeSaasCerebroContextClient{listErr: errors.New("cerebro unavailable")}
+	app := (&App{}).WithCerebroContextClient("runtime-a", client)
+	finding := findingRow{
+		ID:       "finding-1",
+		Evidence: map[string]any{"sourceEventId": "evt-1"},
+	}
+
+	app.enrichFindingCerebroContext(context.Background(), "org-a", &finding)
+
+	contextPayload := finding.CerebroContext
+	if contextPayload == nil {
+		t.Fatal("expected Cerebro context")
+	}
+	if contextPayload.Mode != "context-pending" || contextPayload.SourceRuntimeId != "runtime-a" || contextPayload.ClaimCount != 0 {
+		t.Fatalf("unexpected pending Cerebro context: %#v", contextPayload)
+	}
+	if len(contextPayload.ClaimSummaries) != 0 || len(contextPayload.GraphSignals) != 0 || len(contextPayload.Entities) != 0 || len(contextPayload.GraphPaths) != 0 {
+		t.Fatalf("pending Cerebro context should keep derived collections empty: %#v", contextPayload)
+	}
+	if len(client.listRequests) != 1 || client.listRequests[0].SourceEventID != "evt-1" {
+		t.Fatalf("list requests = %#v", client.listRequests)
+	}
+	proto := finding.toProto()
+	if proto.CerebroContext == nil || proto.CerebroContext.Mode != "context-pending" || proto.CerebroContext.ClaimCount != 0 {
+		t.Fatalf("proto pending Cerebro context = %#v", proto.CerebroContext)
 	}
 }
 

@@ -49,7 +49,20 @@ func (a *App) enrichFindingCerebroContext(ctx context.Context, organizationID st
 		return
 	}
 
-	claims := a.findingCerebroClaims(ctx, sourceEventID)
+	claims, err := a.findingCerebroClaims(ctx, sourceEventID)
+	if err != nil {
+		contextPayload.Mode = "context-pending"
+		contextPayload.ClaimCount = 0
+		contextPayload.ClaimSummaries = nil
+		contextPayload.GraphSignals = nil
+		contextPayload.Entities = nil
+		contextPayload.GraphPaths = nil
+		contextPayload.ResponseHints = []string{
+			"Cerebro claim lookup is pending; retry after the runtime is reachable before treating this finding as unlinked.",
+		}
+		finding.CerebroContext = contextPayload
+		return
+	}
 	if len(claims) == 0 {
 		finding.CerebroContext = contextPayload
 		return
@@ -89,9 +102,9 @@ func (a *App) enrichFindingCerebroContext(ctx context.Context, organizationID st
 	finding.CerebroContext = contextPayload
 }
 
-func (a *App) findingCerebroClaims(ctx context.Context, sourceEventID string) []cerebroclient.Claim {
+func (a *App) findingCerebroClaims(ctx context.Context, sourceEventID string) ([]cerebroclient.Claim, error) {
 	if a == nil || a.cerebroContextClient == nil {
-		return nil
+		return nil, nil
 	}
 	response, err := a.cerebroContextClient.ListClaims(ctx, cerebroclient.ListClaimsRequest{
 		RuntimeID:     a.cerebroRuntimeID,
@@ -100,9 +113,12 @@ func (a *App) findingCerebroClaims(ctx context.Context, sourceEventID string) []
 		Limit:         maxFindingCerebroClaims,
 	})
 	if err != nil || response == nil {
-		return nil
+		if err == nil {
+			err = context.Canceled
+		}
+		return nil, err
 	}
-	return response.Claims
+	return response.Claims, nil
 }
 
 func (a *App) findingCerebroMCPContext(organizationID string, findingID string) *aperiov1.CerebroMCPContext {
