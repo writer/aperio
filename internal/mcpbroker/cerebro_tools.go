@@ -249,9 +249,10 @@ func (s *ToolService) getCerebroIncidentContext(ctx context.Context, input map[s
 		"timeline":        timeline,
 		"responseActions": actions,
 		"mcp": map[string]any{
-			"resourceUri": cerebroIncidentResourceURI(organizationID, incident.ID),
-			"mimeType":    cerebroIncidentMimeType,
-			"tools":       cerebroMCPToolNames(),
+			"resourceUri":       cerebroIncidentResourceURI(organizationID, incident.ID),
+			"mimeType":          cerebroIncidentMimeType,
+			"tools":             cerebroMCPToolNames(),
+			"resourceTemplates": ApprovedResourceTemplates(),
 		},
 	}, nil
 }
@@ -278,9 +279,10 @@ func (s *ToolService) getCerebroFindingContext(ctx context.Context, input map[st
 		"incidents":       incidents,
 		"responseActions": actions,
 		"mcp": map[string]any{
-			"resourceUri": cerebroFindingResourceURI(organizationID, finding.ID),
-			"mimeType":    cerebroFindingMimeType,
-			"tools":       cerebroMCPToolNames(),
+			"resourceUri":       cerebroFindingResourceURI(organizationID, finding.ID),
+			"mimeType":          cerebroFindingMimeType,
+			"tools":             cerebroMCPToolNames(),
+			"resourceTemplates": ApprovedResourceTemplates(),
 		},
 	}, nil
 }
@@ -883,9 +885,10 @@ func (s *ToolService) getCerebroSecurityOverviewContext(ctx context.Context, inp
 
 	resourceURI := cerebroSecurityOverviewResourceURI(organizationID)
 	mcp := map[string]any{
-		"resourceUri": resourceURI,
-		"mimeType":    cerebroSecurityOverviewMimeType,
-		"tools":       cerebroMCPToolNames(),
+		"resourceUri":       resourceURI,
+		"mimeType":          cerebroSecurityOverviewMimeType,
+		"tools":             cerebroMCPToolNames(),
+		"resourceTemplates": ApprovedResourceTemplates(),
 	}
 	return map[string]any{
 		"server": ServerName,
@@ -1074,9 +1077,10 @@ func cerebroFindingSummary(evidence any) map[string]any {
 func cerebroFindingContext(organizationID string, row cerebroFindingRow, evidence any) map[string]any {
 	context := cerebroFindingSummary(evidence)
 	context["mcp"] = map[string]any{
-		"resourceUri": cerebroFindingResourceURI(organizationID, row.ID),
-		"mimeType":    cerebroFindingMimeType,
-		"tools":       cerebroMCPToolNames(),
+		"resourceUri":       cerebroFindingResourceURI(organizationID, row.ID),
+		"mimeType":          cerebroFindingMimeType,
+		"tools":             cerebroMCPToolNames(),
+		"resourceTemplates": ApprovedResourceTemplates(),
 	}
 	context["responseHints"] = []string{
 		"Use linked incident context and Cerebro response proposals before resolving or accepting this finding.",
