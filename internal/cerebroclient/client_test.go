@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	cerebrov1 "github.com/writer/aperio/gen/cerebro/v1"
 )
 
 func TestConfigFromEnvDefaultsAndTrims(t *testing.T) {
@@ -217,6 +219,59 @@ func TestWriteClaimsSendsReplaceExistingAndParsesCounts(t *testing.T) {
 	}
 	if response.ClaimsWritten != 1 || response.ClaimsRetracted != 2 {
 		t.Fatalf("response = %#v", response)
+	}
+}
+
+func TestWriteProtoClaimsUsesCanonicalCerebroClaims(t *testing.T) {
+	var seenBody WriteClaimsRequest
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.EscapedPath() != "/source-runtimes/runtime%2Fproto/claims" {
+			t.Fatalf("path = %s", r.URL.EscapedPath())
+		}
+		if err := json.NewDecoder(r.Body).Decode(&seenBody); err != nil {
+			t.Fatalf("decode request body: %v", err)
+		}
+		_ = json.NewEncoder(w).Encode(WriteClaimsResponse{ClaimsWritten: 1})
+	}))
+	defer server.Close()
+
+	client, err := New(Config{
+		BaseURL:  server.URL,
+		APIKey:   "secret-key",
+		TenantID: "tenant-a",
+	}, WithHTTPClient(server.Client()))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	response, err := client.WriteProtoClaims(context.Background(), WriteProtoClaimsRequest{
+		RuntimeID:       "runtime/proto",
+		ReplaceExisting: true,
+		Claims: []*cerebrov1.Claim{{
+			SubjectUrn: "urn:cerebro:tenant-a:runtime:runtime-a:finding:f-1",
+			SubjectRef: &cerebrov1.EntityRef{
+				Urn:        "urn:cerebro:tenant-a:runtime:runtime-a:finding:f-1",
+				EntityType: "finding",
+				Label:      "Finding",
+			},
+			Predicate: "exists",
+			ClaimType: "entity",
+			Status:    "asserted",
+			Attributes: map[string]string{
+				"source": "proto",
+			},
+		}},
+	})
+	if err != nil {
+		t.Fatalf("WriteProtoClaims() error = %v", err)
+	}
+	if response.ClaimsWritten != 1 {
+		t.Fatalf("response = %#v", response)
+	}
+	if !seenBody.ReplaceExisting || len(seenBody.Claims) != 1 {
+		t.Fatalf("seen body = %#v", seenBody)
+	}
+	if seenBody.Claims[0].SubjectRef.EntityType != "finding" || seenBody.Claims[0].Attributes["source"] != "proto" {
+		t.Fatalf("seen claim = %#v", seenBody.Claims[0])
 	}
 }
 

@@ -9,12 +9,12 @@ import (
 )
 
 type recordingWriter struct {
-	requests []cerebroclient.WriteClaimsRequest
+	requests []cerebroclient.WriteProtoClaimsRequest
 	response *cerebroclient.WriteClaimsResponse
 	err      error
 }
 
-func (w *recordingWriter) WriteClaims(_ context.Context, request cerebroclient.WriteClaimsRequest) (*cerebroclient.WriteClaimsResponse, error) {
+func (w *recordingWriter) WriteProtoClaims(_ context.Context, request cerebroclient.WriteProtoClaimsRequest) (*cerebroclient.WriteClaimsResponse, error) {
 	w.requests = append(w.requests, request)
 	if w.err != nil {
 		return nil, w.err
@@ -71,10 +71,13 @@ func TestFanoutFindingWritesTenantScopedClaims(t *testing.T) {
 	if len(request.Claims) != result.ClaimCount {
 		t.Fatalf("request claim count = %d, result = %d", len(request.Claims), result.ClaimCount)
 	}
-	if got := request.Claims[0].SubjectURN; got != "urn:cerebro:cerebro-tenant:runtime:runtime-a:finding:dedupe-1" {
+	if got := string(request.Claims[0].ProtoReflect().Descriptor().FullName()); got != "cerebro.v1.Claim" {
+		t.Fatalf("claim descriptor = %q", got)
+	}
+	if got := request.Claims[0].GetSubjectUrn(); got != "urn:cerebro:cerebro-tenant:runtime:runtime-a:finding:dedupe-1" {
 		t.Fatalf("SubjectURN = %q", got)
 	}
-	if got := request.Claims[0].Attributes["aperio_schema"]; got != "aperio/finding/v1" {
+	if got := request.Claims[0].GetAttributes()["aperio_schema"]; got != "aperio/finding/v1" {
 		t.Fatalf("aperio_schema = %q", got)
 	}
 }

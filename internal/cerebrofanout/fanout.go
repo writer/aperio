@@ -10,7 +10,7 @@ import (
 )
 
 type ClaimWriter interface {
-	WriteClaims(context.Context, cerebroclient.WriteClaimsRequest) (*cerebroclient.WriteClaimsResponse, error)
+	WriteProtoClaims(context.Context, cerebroclient.WriteProtoClaimsRequest) (*cerebroclient.WriteClaimsResponse, error)
 }
 
 type Service struct {
@@ -80,9 +80,10 @@ func (s *Service) FanoutFinding(ctx context.Context, payload FindingPayload) (Re
 		return result, err
 	}
 	result.ClaimCount = len(claims)
-	response, err := s.writer.WriteClaims(ctx, cerebroclient.WriteClaimsRequest{
+	protoClaims := cerebroclient.ClaimsToProto(claims)
+	response, err := s.writer.WriteProtoClaims(ctx, cerebroclient.WriteProtoClaimsRequest{
 		RuntimeID: s.runtimeID,
-		Claims:    claims,
+		Claims:    protoClaims,
 	})
 	if err != nil {
 		return result, err
