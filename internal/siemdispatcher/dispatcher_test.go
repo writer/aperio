@@ -699,7 +699,7 @@ func TestCerebroClaimsRequestContractMatchesLocalCaptureFixture(t *testing.T) {
 		t.Fatalf("claim body count = %d, want %d", len(body.Claims), fixture.Expected.ClaimCount)
 	}
 	findingExists := body.Claims[0]
-	if findingExists.SubjectURN != fixture.Expected.FindingURN || findingExists.SourceEvent != fixture.Expected.SourceEvent {
+	if findingExists.SubjectURN != fixture.Expected.FindingURN || findingExists.SourceEventID != fixture.Expected.SourceEvent {
 		t.Fatalf("finding existence claim = %#v", findingExists)
 	}
 	if findingExists.Attributes["ruleId"] != "github.public_repository_created" || findingExists.Attributes["sourceEventId"] != fixture.Expected.SourceEvent {

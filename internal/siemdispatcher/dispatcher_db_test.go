@@ -1095,8 +1095,8 @@ func TestProcessCerebroClaimsDeliveryCapturesRequestsAndPublishesAfterFinalizati
 	if requestBody.RuntimeID != "runtime-db" || len(requestBody.Claims) == 0 {
 		t.Fatalf("claim request body = %#v", requestBody)
 	}
-	if requestBody.Claims[0].SourceEvent != "evt_cerebro_db" {
-		t.Fatalf("claim source_event_id = %q", requestBody.Claims[0].SourceEvent)
+	if requestBody.Claims[0].SourceEventID != "evt_cerebro_db" {
+		t.Fatalf("claim source_event_id = %q", requestBody.Claims[0].SourceEventID)
 	}
 	status, attempts, leaseOwner, deliveredAt, _, lastError := siemDeliveryState(t, db, deliveryID)
 	if status != "DELIVERED" || attempts != 1 || leaseOwner.Valid || !deliveredAt.Valid || lastError.Valid {
@@ -1116,7 +1116,7 @@ func TestProcessCerebroClaimsDeliveryCapturesRequestsAndPublishesAfterFinalizati
 	if event.Status != "delivered" || event.Error != "" || event.RuntimeID != "runtime-db" || event.FindingID != "fnd_cerebro_db" || event.DedupeKey != "dedupe_cerebro_db" {
 		t.Fatalf("unexpected fanout event: %#v", event)
 	}
-	if len(event.Claims) != len(requestBody.Claims) || event.Claims[0].SourceEvent != "evt_cerebro_db" {
+	if len(event.Claims) != len(requestBody.Claims) || event.Claims[0].SourceEventID != "evt_cerebro_db" {
 		t.Fatalf("fanout claims = %#v", event.Claims)
 	}
 }

@@ -21,6 +21,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/writer/aperio/internal/cerebroclaims"
+	"github.com/writer/aperio/internal/cerebroclient"
 	"github.com/writer/aperio/internal/runtimeutil"
 	"github.com/writer/aperio/internal/telemetry"
 )
@@ -105,6 +107,9 @@ type destination struct {
 	Index          sql.NullString
 	EncryptedToken sql.NullString
 }
+
+type cerebroEntityRef = cerebroclient.EntityRef
+type cerebroClaim = cerebroclient.Claim
 
 type sendResult struct {
 	CerebroClaims    []cerebroClaim
@@ -820,164 +825,20 @@ func blockWebhookRedirect(*http.Request, []*http.Request) error {
 	return http.ErrUseLastResponse
 }
 
-type cerebroEntityRef struct {
-	URN        string `json:"urn"`
-	EntityType string `json:"entity_type"`
-	Label      string `json:"label"`
-}
-
-type cerebroClaim struct {
-	ID          string            `json:"id,omitempty"`
-	SubjectURN  string            `json:"subject_urn"`
-	SubjectRef  cerebroEntityRef  `json:"subject_ref"`
-	Predicate   string            `json:"predicate"`
-	ObjectURN   string            `json:"object_urn,omitempty"`
-	ObjectRef   *cerebroEntityRef `json:"object_ref,omitempty"`
-	ObjectValue string            `json:"object_value,omitempty"`
-	ClaimType   string            `json:"claim_type"`
-	Status      string            `json:"status"`
-	SourceEvent string            `json:"source_event_id,omitempty"`
-	ObservedAt  string            `json:"observed_at"`
-	Attributes  map[string]string `json:"attributes,omitempty"`
-}
-
 func buildCerebroClaims(dest destination, payload Payload) ([]cerebroClaim, error) {
-	if !dest.Index.Valid || strings.TrimSpace(dest.Index.String) == "" {
-		return nil, errors.New("Cerebro source runtime ID is not configured")
-	}
-	runtimeID := strings.TrimSpace(dest.Index.String)
-	provider := firstString(payload.Record["provider"])
-	if provider == "" {
-		provider = "APERIO"
-	}
-	title := firstString(payload.Record["title"])
-	if title == "" {
-		title = payload.Kind + " from Aperio"
-	}
-	findingID := firstString(payload.Record["dedupeKey"], payload.Record["sourceEventId"])
-	if findingID == "" {
-		sum := hmac.New(sha256.New, []byte(dest.OrganizationID))
-		encoded, _ := json.Marshal(payload.Record)
-		_, _ = sum.Write(encoded)
-		findingID = hex.EncodeToString(sum.Sum(nil))
-	}
-	targetLabel := firstString(payload.Record["target"])
-	if targetLabel == "" {
-		targetLabel = title
-	}
-	integrationID := firstString(payload.Record["integrationId"])
-	if integrationID == "" {
-		integrationID = "aperio"
-	}
-	finding := cerebroRef(dest.OrganizationID, runtimeID, "finding", findingID, title)
-	target := cerebroRef(dest.OrganizationID, runtimeID, "asset", provider+":"+targetLabel, targetLabel)
-	integration := cerebroRef(dest.OrganizationID, runtimeID, "integration", integrationID, provider)
-	attributes := map[string]string{
-		"aperio_schema": schemaVersion(payload.Kind),
-		"aperio_kind":   payload.Kind,
-	}
-	for _, key := range []string{"ruleId", "dedupeKey", "sourceEventId", "source", "eventType"} {
-		if value := firstString(payload.Record[key]); value != "" {
-			attributes[key] = value
-		}
-	}
-	claims := []cerebroClaim{
-		existsClaim(finding, payload, attributes),
-		existsClaim(target, payload, map[string]string{"provider": provider}),
-		existsClaim(integration, payload, map[string]string{"provider": provider}),
-		relationClaim(finding, "affects", target, payload),
-		relationClaim(finding, "observed_by", integration, payload),
-		attributeClaim(finding, "title", title, payload),
-		attributeClaim(finding, "provider", provider, payload),
-	}
-	for _, key := range []string{"severity", "riskScore", "status", "ruleId"} {
-		if value := firstString(payload.Record[key]); value != "" {
-			claims = append(claims, attributeClaim(finding, key, value, payload))
-		}
-	}
-	if description := firstString(payload.Record["description"]); description != "" {
-		claims = append(claims, attributeClaim(finding, "description", description, payload))
-	}
-	return claims, nil
+	return cerebroclaims.Build(cerebroclaims.BuildInput{
+		OrganizationID: dest.OrganizationID,
+		RuntimeID:      strings.TrimSpace(dest.Index.String),
+		Payload: cerebroclaims.Payload{
+			Kind:       payload.Kind,
+			OccurredAt: payload.OccurredAt,
+			Record:     payload.Record,
+		},
+	})
 }
 
 func cerebroRef(organizationID, runtimeID, entityType, externalID, label string) cerebroEntityRef {
-	encodedExternalID := encodeURIComponentExternalID(externalID)
-	return cerebroEntityRef{
-		URN:        strings.Join([]string{"urn", "cerebro", organizationID, "runtime", runtimeID, entityType, encodedExternalID}, ":"),
-		EntityType: entityType,
-		Label:      label,
-	}
-}
-
-func encodeURIComponentExternalID(value string) string {
-	const upperHex = "0123456789ABCDEF"
-	var builder strings.Builder
-	for index := 0; index < len(value); index++ {
-		character := value[index]
-		if (character >= 'A' && character <= 'Z') ||
-			(character >= 'a' && character <= 'z') ||
-			(character >= '0' && character <= '9') ||
-			character == '-' ||
-			character == '_' ||
-			character == '.' ||
-			character == '!' ||
-			character == '~' ||
-			character == '*' ||
-			character == '\'' ||
-			character == '(' ||
-			character == ')' {
-			builder.WriteByte(character)
-			continue
-		}
-		if character == ' ' {
-			builder.WriteByte('-')
-			continue
-		}
-		builder.WriteByte('%')
-		builder.WriteByte(upperHex[character>>4])
-		builder.WriteByte(upperHex[character&0x0f])
-	}
-	return builder.String()
-}
-
-func claimBase(payload Payload, attributes map[string]string) cerebroClaim {
-	return cerebroClaim{
-		Status:      "asserted",
-		SourceEvent: firstString(payload.Record["sourceEventId"]),
-		ObservedAt:  payload.OccurredAt,
-		Attributes:  attributes,
-	}
-}
-
-func existsClaim(subject cerebroEntityRef, payload Payload, attributes map[string]string) cerebroClaim {
-	claim := claimBase(payload, attributes)
-	claim.SubjectURN = subject.URN
-	claim.SubjectRef = subject
-	claim.Predicate = "exists"
-	claim.ClaimType = "existence"
-	return claim
-}
-
-func attributeClaim(subject cerebroEntityRef, predicate string, value string, payload Payload) cerebroClaim {
-	claim := claimBase(payload, nil)
-	claim.SubjectURN = subject.URN
-	claim.SubjectRef = subject
-	claim.Predicate = predicate
-	claim.ObjectValue = value
-	claim.ClaimType = "attribute"
-	return claim
-}
-
-func relationClaim(subject cerebroEntityRef, predicate string, object cerebroEntityRef, payload Payload) cerebroClaim {
-	claim := claimBase(payload, nil)
-	claim.SubjectURN = subject.URN
-	claim.SubjectRef = subject
-	claim.Predicate = predicate
-	claim.ObjectURN = object.URN
-	claim.ObjectRef = &object
-	claim.ClaimType = "relation"
-	return claim
+	return cerebroclaims.Ref(organizationID, runtimeID, entityType, externalID, label)
 }
 
 func safeWebhookTransport() http.RoundTripper {
