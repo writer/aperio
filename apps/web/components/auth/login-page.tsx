@@ -1,18 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useId, useState } from "react";
+import { useId, useState } from "react";
 import { useRouter } from "next/navigation";
 import { login } from "../../lib/api";
 import {
   CEREBRO_API_RESOURCE,
-  CEREBRO_AUTH_INSIGHTS,
-  CEREBRO_HUMAN_AUTH_MODE,
-  loadCerebroAuthInsights,
-  type CerebroAuthInsight
+  CEREBRO_HUMAN_AUTH_MODE
 } from "../../lib/cerebro-auth";
 import { useAuth } from "./auth-shell";
 import { AuthLayout } from "./auth-layout";
+import { useCerebroAuthInsights } from "./use-cerebro-auth-insights";
 import { Button } from "../ui/button";
 import { Field, FormBanner, Input } from "../ui/form";
 
@@ -25,25 +23,12 @@ export function LoginPage() {
   const [totpCode, setTotpCode] = useState("");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
-  const [sessionInsights, setSessionInsights] =
-    useState<readonly CerebroAuthInsight[]>(CEREBRO_AUTH_INSIGHTS);
+  const sessionInsights = useCerebroAuthInsights();
 
   const slugId = useId();
   const emailId = useId();
   const passwordId = useId();
   const totpId = useId();
-
-  useEffect(() => {
-    let active = true;
-    void loadCerebroAuthInsights().then((insights) => {
-      if (active) {
-        setSessionInsights(insights);
-      }
-    });
-    return () => {
-      active = false;
-    };
-  }, []);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
