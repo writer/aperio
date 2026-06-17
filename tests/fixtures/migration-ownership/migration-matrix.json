@@ -722,12 +722,14 @@
       "id": "workflow-droid-automation",
       "state": "validation-tooling",
       "covers": [
+        "repo-file:.github/workflows/droid-create.yml",
         "repo-file:.github/workflows/droid.yml",
         "repo-file:.github/workflows/droid-review.yml"
       ],
       "owner": "Droid automation workflows",
       "rationale": "Droid automation is repository process automation and is not a backend migration ownership surface.",
       "evidence": [
+        "workflow:.github/workflows/droid-create.yml",
         "workflow:.github/workflows/droid.yml",
         "workflow:.github/workflows/droid-review.yml"
       ]
