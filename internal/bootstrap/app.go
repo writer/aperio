@@ -441,7 +441,9 @@ func (a *App) GetFinding(
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, errors.New("finding unavailable"))
 	}
-	a.enrichFindingCerebroContext(ctx, organizationID, &finding)
+	enrichCtx, cancel := context.WithTimeout(ctx, 6*time.Second)
+	defer cancel()
+	a.enrichFindingCerebroContext(enrichCtx, organizationID, &finding)
 	return connect.NewResponse(&aperiov1.GetFindingResponse{Data: finding.toProto()}), nil
 }
 
