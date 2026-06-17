@@ -176,6 +176,130 @@ func TestWriteClaimsSendsReplaceExistingAndParsesCounts(t *testing.T) {
 	}
 }
 
+func TestListClaimsSendsFiltersAndParsesClaims(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			t.Fatalf("method = %s, want GET", r.Method)
+		}
+		if r.URL.EscapedPath() != "/api/source-runtimes/runtime%2F1/claims" {
+			t.Fatalf("path = %s", r.URL.EscapedPath())
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer secret-key" {
+			t.Fatalf("Authorization = %q", got)
+		}
+		if got := r.Header.Get("X-Cerebro-Tenant"); got != "tenant-a" {
+			t.Fatalf("X-Cerebro-Tenant = %q", got)
+		}
+		query := r.URL.Query()
+		if query.Get("subject_urn") != "urn:cerebro:tenant-a:runtime:runtime-1:finding:f-1" ||
+			query.Get("predicate") != "severity" ||
+			query.Get("claim_type") != "attribute" ||
+			query.Get("status") != "asserted" ||
+			query.Get("source_event_id") != "evt-1" ||
+			query.Get("limit") != "25" {
+			t.Fatalf("query = %#v", query)
+		}
+		_ = json.NewEncoder(w).Encode(ListClaimsResponse{
+			Claims: []Claim{{
+				ID:            "claim-1",
+				SubjectURN:    "urn:cerebro:tenant-a:runtime:runtime-1:finding:f-1",
+				Predicate:     "severity",
+				ObjectValue:   "HIGH",
+				ClaimType:     "attribute",
+				Status:        "asserted",
+				SourceEventID: "evt-1",
+				ObservedAt:    "2026-06-16T12:00:00Z",
+				ValidFrom:     "2026-06-16T12:00:00Z",
+				Attributes:    map[string]string{"ruleId": "github.public_repository_created"},
+			}},
+		})
+	}))
+	defer server.Close()
+
+	client, err := New(Config{
+		BaseURL:  server.URL + "/api",
+		APIKey:   "secret-key",
+		TenantID: "tenant-a",
+	}, WithHTTPClient(server.Client()))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	response, err := client.ListClaims(context.Background(), ListClaimsRequest{
+		RuntimeID:     "runtime/1",
+		SubjectURN:    " urn:cerebro:tenant-a:runtime:runtime-1:finding:f-1 ",
+		Predicate:     "severity",
+		ClaimType:     "attribute",
+		Status:        "asserted",
+		SourceEventID: "evt-1",
+		Limit:         25,
+	})
+	if err != nil {
+		t.Fatalf("ListClaims() error = %v", err)
+	}
+	if len(response.Claims) != 1 {
+		t.Fatalf("claims = %d, want 1", len(response.Claims))
+	}
+	claim := response.Claims[0]
+	if claim.ID != "claim-1" || claim.ObjectValue != "HIGH" || claim.ValidFrom == "" || claim.Attributes["ruleId"] != "github.public_repository_created" {
+		t.Fatalf("claim = %#v", claim)
+	}
+}
+
+func TestGetEntityNeighborhoodSendsGraphQueryAndParsesResponse(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			t.Fatalf("method = %s, want GET", r.Method)
+		}
+		if r.URL.EscapedPath() != "/api/platform/graph/neighborhood" {
+			t.Fatalf("path = %s", r.URL.EscapedPath())
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer secret-key" {
+			t.Fatalf("Authorization = %q", got)
+		}
+		query := r.URL.Query()
+		if query.Get("root_urn") != "urn:cerebro:tenant-a:runtime:runtime-1:finding:f-1" || query.Get("limit") != "10" {
+			t.Fatalf("query = %#v", query)
+		}
+		_ = json.NewEncoder(w).Encode(EntityNeighborhood{
+			Root: &GraphEntity{
+				URN:        "urn:cerebro:tenant-a:runtime:runtime-1:finding:f-1",
+				EntityType: "finding",
+				Label:      "Public repository created",
+			},
+			Neighbors: []GraphEntity{{
+				URN:        "urn:cerebro:tenant-a:runtime:runtime-1:asset:repo",
+				EntityType: "asset",
+				Label:      "writer/aperio",
+			}},
+			Relations: []GraphRelation{{
+				FromURN:  "urn:cerebro:tenant-a:runtime:runtime-1:finding:f-1",
+				Relation: "affects",
+				ToURN:    "urn:cerebro:tenant-a:runtime:runtime-1:asset:repo",
+			}},
+		})
+	}))
+	defer server.Close()
+
+	client, err := New(Config{
+		BaseURL:  server.URL + "/api",
+		APIKey:   "secret-key",
+		TenantID: "tenant-a",
+	}, WithHTTPClient(server.Client()))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	response, err := client.GetEntityNeighborhood(context.Background(), " urn:cerebro:tenant-a:runtime:runtime-1:finding:f-1 ", 10)
+	if err != nil {
+		t.Fatalf("GetEntityNeighborhood() error = %v", err)
+	}
+	if response.Root == nil || response.Root.EntityType != "finding" || len(response.Neighbors) != 1 || len(response.Relations) != 1 {
+		t.Fatalf("neighborhood = %#v", response)
+	}
+	if response.Relations[0].Relation != "affects" {
+		t.Fatalf("relation = %#v", response.Relations[0])
+	}
+}
+
 func TestHTTPErrorDoesNotExposeRequestCredential(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "tenant mismatch", http.StatusForbidden)

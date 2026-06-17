@@ -30,6 +30,23 @@ type Claim struct {
 	Attributes    map[string]string `json:"attributes,omitempty"`
 }
 
+type ListClaimsRequest struct {
+	RuntimeID     string
+	ClaimID       string
+	SubjectURN    string
+	Predicate     string
+	ObjectURN     string
+	ObjectValue   string
+	ClaimType     string
+	Status        string
+	SourceEventID string
+	Limit         uint32
+}
+
+type ListClaimsResponse struct {
+	Claims []Claim `json:"claims"`
+}
+
 type WriteClaimsRequest struct {
 	RuntimeID       string  `json:"runtime_id"`
 	Claims          []Claim `json:"claims"`
@@ -45,4 +62,22 @@ type WriteClaimsResponse struct {
 
 type sourceRuntimeResponse struct {
 	Runtime *SourceRuntime `json:"runtime"`
+}
+
+type GraphEntity struct {
+	URN        string `json:"urn"`
+	EntityType string `json:"entity_type"`
+	Label      string `json:"label"`
+}
+
+type GraphRelation struct {
+	FromURN  string `json:"from_urn"`
+	Relation string `json:"relation"`
+	ToURN    string `json:"to_urn"`
+}
+
+type EntityNeighborhood struct {
+	Root      *GraphEntity    `json:"root,omitempty"`
+	Neighbors []GraphEntity   `json:"neighbors,omitempty"`
+	Relations []GraphRelation `json:"relations,omitempty"`
 }

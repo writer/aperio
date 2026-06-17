@@ -152,6 +152,30 @@ func (c *Client) EnsureDefaultRuntime(ctx context.Context, config Config) (*Sour
 	return c.PutSourceRuntime(ctx, config.DefaultRuntime())
 }
 
+func (c *Client) ListClaims(ctx context.Context, request ListClaimsRequest) (*ListClaimsResponse, error) {
+	request.RuntimeID = strings.TrimSpace(request.RuntimeID)
+	if request.RuntimeID == "" {
+		return nil, errors.New("cerebro runtime id is required")
+	}
+	query := url.Values{}
+	addQuery(query, "claim_id", request.ClaimID)
+	addQuery(query, "subject_urn", request.SubjectURN)
+	addQuery(query, "predicate", request.Predicate)
+	addQuery(query, "object_urn", request.ObjectURN)
+	addQuery(query, "object_value", request.ObjectValue)
+	addQuery(query, "claim_type", request.ClaimType)
+	addQuery(query, "status", request.Status)
+	addQuery(query, "source_event_id", request.SourceEventID)
+	if request.Limit > 0 {
+		query.Set("limit", strconv.FormatUint(uint64(request.Limit), 10))
+	}
+	var response ListClaimsResponse
+	if err := c.doJSON(ctx, http.MethodGet, withQuery(c.runtimeURL(request.RuntimeID, "claims"), query), nil, &response); err != nil {
+		return nil, err
+	}
+	return &response, nil
+}
+
 func (c *Client) WriteClaims(ctx context.Context, request WriteClaimsRequest) (*WriteClaimsResponse, error) {
 	request.RuntimeID = strings.TrimSpace(request.RuntimeID)
 	if request.RuntimeID == "" {
@@ -162,6 +186,22 @@ func (c *Client) WriteClaims(ctx context.Context, request WriteClaimsRequest) (*
 	}
 	var response WriteClaimsResponse
 	if err := c.doJSON(ctx, http.MethodPost, c.runtimeURL(request.RuntimeID, "claims"), request, &response); err != nil {
+		return nil, err
+	}
+	return &response, nil
+}
+
+func (c *Client) GetEntityNeighborhood(ctx context.Context, rootURN string, limit uint32) (*EntityNeighborhood, error) {
+	rootURN = strings.TrimSpace(rootURN)
+	if rootURN == "" {
+		return nil, errors.New("cerebro graph root urn is required")
+	}
+	query := url.Values{"root_urn": []string{rootURN}}
+	if limit > 0 {
+		query.Set("limit", strconv.FormatUint(uint64(limit), 10))
+	}
+	var response EntityNeighborhood
+	if err := c.doJSON(ctx, http.MethodGet, withQuery(c.urlFor("platform", "graph", "neighborhood"), query), nil, &response); err != nil {
 		return nil, err
 	}
 	return &response, nil
@@ -224,6 +264,24 @@ func (c *Client) urlFor(segments ...string) string {
 	value.RawQuery = ""
 	value.Fragment = ""
 	return value.String()
+}
+
+func addQuery(query url.Values, key string, value string) {
+	if trimmed := strings.TrimSpace(value); trimmed != "" {
+		query.Set(key, trimmed)
+	}
+}
+
+func withQuery(endpoint string, query url.Values) string {
+	if len(query) == 0 {
+		return endpoint
+	}
+	parsed, err := url.Parse(endpoint)
+	if err != nil {
+		return endpoint
+	}
+	parsed.RawQuery = query.Encode()
+	return parsed.String()
 }
 
 func parseBaseURL(raw string) (*url.URL, error) {
