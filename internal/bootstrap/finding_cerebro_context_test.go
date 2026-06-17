@@ -118,6 +118,9 @@ func TestFindingCerebroContextHydratesClaimsAndGraph(t *testing.T) {
 	if contextPayload.Mcp == nil || contextPayload.Mcp.Server != "https://cerebro.example.com/api/v1/mcp" || contextPayload.Mcp.ResourceUri != "cerebro://aperio/org-a/findings/finding-1" {
 		t.Fatalf("unexpected Cerebro MCP context: %#v", contextPayload.Mcp)
 	}
+	if !containsString(contextPayload.Mcp.Tools, "cerebro.findings.get") || !containsString(contextPayload.Mcp.Tools, "cerebro.findings.action.propose") {
+		t.Fatalf("finding Cerebro MCP tools = %#v", contextPayload.Mcp.Tools)
+	}
 	if len(client.listRequests) != 1 || client.listRequests[0].SourceEventID != "evt-1" || client.listRequests[0].RuntimeID != "runtime-a" {
 		t.Fatalf("list requests = %#v", client.listRequests)
 	}

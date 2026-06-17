@@ -172,6 +172,42 @@ var approvedTools = []Tool{
 		),
 	},
 	{
+		Name:        "aperio.list_cerebro_findings",
+		Description: "List Cerebro-backed finding MCP resources for a tenant.",
+		InputSchema: objectSchema(
+			[]string{"organizationId"},
+			map[string]any{
+				"organizationId": stringSchema(1, 0),
+				"authToken":      stringSchema(1, 0),
+				"status": map[string]any{
+					"type": "string",
+					"enum": []any{"OPEN", "RESOLVED", "MUTED", "ALL"},
+				},
+				"severity": map[string]any{
+					"type": "string",
+					"enum": []any{"CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"},
+				},
+				"provider": map[string]any{
+					"type": "string",
+					"enum": []any{"GITHUB", "SLACK", "GOOGLE_WORKSPACE", "ONE_PASSWORD", "OKTA", "MICROSOFT_365", "ATLASSIAN", "SALESFORCE"},
+				},
+				"limit": integerSchemaWithDefault(1, 100, 25),
+			},
+		),
+	},
+	{
+		Name:        "aperio.get_cerebro_finding_context",
+		Description: "Fetch one finding as a Cerebro MCP graph-context resource with evidence, incident links, and response actions.",
+		InputSchema: objectSchema(
+			[]string{"organizationId", "findingId"},
+			map[string]any{
+				"organizationId": stringSchema(1, 0),
+				"authToken":      stringSchema(1, 0),
+				"findingId":      stringSchema(1, 0),
+			},
+		),
+	},
+	{
 		Name:        "aperio.propose_cerebro_response",
 		Description: "Create a human-gated SaaS incident response action from Cerebro MCP graph context.",
 		InputSchema: objectSchema(

@@ -111,6 +111,7 @@ func (a *App) ListSaasIncidents(
 		response.PageInfo.NextCursor = rows[len(rows)-1].ID
 	}
 	for _, row := range rows {
+		row.CerebroContextJSON = a.refreshSaasCerebroMCPContext(organizationID, row.ID, row.CerebroContextJSON)
 		response.Data = append(response.Data, row.toProto())
 	}
 	return connect.NewResponse(response), nil
@@ -1379,6 +1380,8 @@ func saasCerebroMCPTools() []string {
 	return []string{
 		"aperio.list_cerebro_incidents",
 		"aperio.get_cerebro_incident_context",
+		"aperio.list_cerebro_findings",
+		"aperio.get_cerebro_finding_context",
 		"aperio.propose_cerebro_response",
 	}
 }
