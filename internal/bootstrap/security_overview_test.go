@@ -245,8 +245,11 @@ func TestSecurityOverviewCerebroContextReportsLocalProjectionWhenNotConfigured(t
 	if contextPayload["findingContract"] != "cerebro.v1.Finding" {
 		t.Fatalf("finding contract = %#v", contextPayload["findingContract"])
 	}
+	if contextPayload["claimCount"] != 0 || contextPayload["graphSignalCount"] != 0 || contextPayload["entityCount"] != 0 || contextPayload["graphPathCount"] != 0 {
+		t.Fatalf("expected zero Cerebro counts in local context: %#v", contextPayload)
+	}
 	proto := securityOverviewFromMap(overview)
-	if proto.CerebroContext == nil || proto.CerebroContext.Mode != "not-configured" {
+	if proto.CerebroContext == nil || proto.CerebroContext.Mode != "not-configured" || proto.CerebroContext.ClaimCount != 0 || proto.CerebroContext.GraphSignalCount != 0 || proto.CerebroContext.EntityCount != 0 || proto.CerebroContext.GraphPathCount != 0 {
 		t.Fatalf("proto Cerebro context = %#v", proto.CerebroContext)
 	}
 }

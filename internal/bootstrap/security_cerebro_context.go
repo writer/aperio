@@ -23,9 +23,13 @@ func (a *App) enrichSecurityOverviewCerebroContext(ctx context.Context, organiza
 		overview = map[string]any{}
 	}
 	contextPayload := map[string]any{
-		"source":          "local-projection",
-		"mode":            "not-configured",
-		"findingContract": "cerebro.v1.Finding",
+		"source":           "local-projection",
+		"mode":             "not-configured",
+		"findingContract":  "cerebro.v1.Finding",
+		"claimCount":       0,
+		"graphSignalCount": 0,
+		"entityCount":      0,
+		"graphPathCount":   0,
 		"responseHints": []string{
 			"Configure Cerebro runtime access to link security graph rows to source-runtime claims.",
 		},
