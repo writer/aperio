@@ -106,7 +106,7 @@ func (a *App) findingCerebroClaims(ctx context.Context, sourceEventID string) ([
 	if a == nil || a.cerebroContextClient == nil {
 		return nil, nil
 	}
-	response, err := a.cerebroContextClient.ListClaims(ctx, cerebroclient.ListClaimsRequest{
+	response, err := a.cerebroContextClient.ListProtoClaims(ctx, cerebroclient.ListClaimsRequest{
 		RuntimeID:     a.cerebroRuntimeID,
 		Status:        "asserted",
 		SourceEventID: strings.TrimSpace(sourceEventID),
@@ -118,7 +118,7 @@ func (a *App) findingCerebroClaims(ctx context.Context, sourceEventID string) ([
 		}
 		return nil, err
 	}
-	return response.Claims, nil
+	return cerebroclient.ClaimsFromProto(response.Claims), nil
 }
 
 func (a *App) findingCerebroMCPContext(organizationID string, findingID string) *aperiov1.CerebroMCPContext {

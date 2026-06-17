@@ -15,6 +15,23 @@ type WriteProtoClaimsRequest struct {
 	ReplaceExisting bool
 }
 
+type ListProtoClaimsResponse struct {
+	Claims []*cerebrov1.Claim
+}
+
+func (c *Client) ListProtoClaims(ctx context.Context, request ListClaimsRequest) (*ListProtoClaimsResponse, error) {
+	response, err := c.ListClaims(ctx, request)
+	if err != nil {
+		return nil, err
+	}
+	if response == nil {
+		return &ListProtoClaimsResponse{}, nil
+	}
+	return &ListProtoClaimsResponse{
+		Claims: ClaimsToProto(response.Claims),
+	}, nil
+}
+
 func (c *Client) WriteProtoClaims(ctx context.Context, request WriteProtoClaimsRequest) (*WriteClaimsResponse, error) {
 	return c.WriteClaims(ctx, WriteClaimsRequest{
 		RuntimeID:       request.RuntimeID,

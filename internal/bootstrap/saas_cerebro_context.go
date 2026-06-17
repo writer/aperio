@@ -17,7 +17,7 @@ const (
 )
 
 type saasCerebroContextClient interface {
-	ListClaims(context.Context, cerebroclient.ListClaimsRequest) (*cerebroclient.ListClaimsResponse, error)
+	ListProtoClaims(context.Context, cerebroclient.ListClaimsRequest) (*cerebroclient.ListProtoClaimsResponse, error)
 	GetEntityNeighborhood(context.Context, string, uint32) (*cerebroclient.EntityNeighborhood, error)
 }
 
@@ -109,7 +109,7 @@ func (a *App) saasCerebroIncidentClaims(ctx context.Context, findings []findingR
 			continue
 		}
 		seenEvents[sourceEventID] = struct{}{}
-		response, err := a.cerebroContextClient.ListClaims(ctx, cerebroclient.ListClaimsRequest{
+		response, err := a.cerebroContextClient.ListProtoClaims(ctx, cerebroclient.ListClaimsRequest{
 			RuntimeID:     a.cerebroRuntimeID,
 			Status:        "asserted",
 			SourceEventID: sourceEventID,
@@ -118,7 +118,7 @@ func (a *App) saasCerebroIncidentClaims(ctx context.Context, findings []findingR
 		if err != nil || response == nil {
 			continue
 		}
-		claims = append(claims, response.Claims...)
+		claims = append(claims, cerebroclient.ClaimsFromProto(response.Claims)...)
 		if len(claims) >= maxSaasCerebroClaims || len(seenEvents) >= maxSaasCerebroClaimQueries {
 			break
 		}
