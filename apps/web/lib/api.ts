@@ -79,6 +79,25 @@ export type FindingsFilters = {
   cursor?: string;
 };
 
+export type SaasIncidentStatus =
+  import("@aperio/connect/client").ConnectSaasIncidentStatus;
+export type SaasResponseActionKind =
+  import("@aperio/connect/client").ConnectSaasResponseActionKind;
+export type SaasResponseActionStatus =
+  import("@aperio/connect/client").ConnectSaasResponseActionStatus;
+export type SaasIncident =
+  import("@aperio/connect/client").ConnectSaasIncident;
+export type SaasIncidentDetail =
+  import("@aperio/connect/client").ConnectSaasIncidentDetail;
+export type SaasIncidentTimelineEvent =
+  import("@aperio/connect/client").ConnectSaasIncidentTimelineEvent;
+export type SaasResponseAction =
+  import("@aperio/connect/client").ConnectSaasResponseAction;
+export type SaasIncidentMetrics =
+  import("@aperio/connect/client").ConnectSaasIncidentMetrics;
+export type SaasIncidentsFilters =
+  import("@aperio/connect/client").ConnectSaasIncidentsFilters;
+
 export type ConnectorField = {
   key: string;
   label: string;
@@ -662,6 +681,69 @@ export async function remediateFinding(
 ) {
   return aperioConnectClient.remediateFinding(findingId, payload) as Promise<{
     data: RemediationResult;
+  }>;
+}
+
+export async function fetchSaasIncidents(filters?: SaasIncidentsFilters) {
+  return aperioConnectClient.listSaasIncidents(filters) as Promise<{
+    data: SaasIncident[];
+    pageInfo: { total: number; nextCursor: string | null };
+    metrics: SaasIncidentMetrics;
+  }>;
+}
+
+export async function fetchSaasIncident(id: string) {
+  return aperioConnectClient.getSaasIncident(id) as Promise<{
+    data: SaasIncidentDetail;
+  }>;
+}
+
+export async function createSaasIncident(payload: {
+  title: string;
+  summary?: string;
+  severity: Finding["severity"];
+  findingIds?: string[];
+  ownerTeam?: string;
+  assigneeUserId?: string;
+}) {
+  return aperioConnectClient.createSaasIncident(payload) as Promise<{
+    data: SaasIncidentDetail;
+  }>;
+}
+
+export async function updateSaasIncidentStatus(
+  id: string,
+  payload: { status: SaasIncidentStatus; note?: string }
+) {
+  return aperioConnectClient.updateSaasIncidentStatus(id, payload) as Promise<{
+    data: SaasIncident;
+  }>;
+}
+
+export async function proposeSaasResponseAction(payload: {
+  incidentId: string;
+  findingId?: string;
+  action: SaasResponseActionKind;
+  provider?: Provider;
+  targetType: string;
+  targetIdentifier: string;
+  rationale: string;
+  approvalRequired?: boolean;
+}) {
+  return aperioConnectClient.proposeSaasResponseAction(payload) as Promise<{
+    data: SaasResponseAction;
+  }>;
+}
+
+export async function approveSaasResponseAction(id: string, note?: string) {
+  return aperioConnectClient.approveSaasResponseAction(id, note) as Promise<{
+    data: SaasResponseAction;
+  }>;
+}
+
+export async function executeSaasResponseAction(id: string, note?: string) {
+  return aperioConnectClient.executeSaasResponseAction(id, note) as Promise<{
+    data: SaasResponseAction;
   }>;
 }
 

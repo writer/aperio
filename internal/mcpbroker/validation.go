@@ -11,11 +11,15 @@ import (
 )
 
 var (
-	agentKinds    = stringSet("MCP_BROKER", "SSPM_SCANNER", "SIEM_DISPATCHER", "REMEDIATION_PLANNER", "HUMAN_REVIEW", "CUSTOM")
-	agentStatuses = stringSet("ACTIVE", "PAUSED", "ERROR")
-	taskStatuses  = stringSet("QUEUED", "RUNNING", "WAITING_FOR_APPROVAL", "SUCCEEDED", "FAILED", "CANCELLED")
-	messageRoles  = stringSet("SYSTEM", "AGENT", "USER", "TOOL")
-	siemKinds     = stringSet("finding", "event", "audit_log")
+	agentKinds       = stringSet("MCP_BROKER", "SSPM_SCANNER", "SIEM_DISPATCHER", "REMEDIATION_PLANNER", "HUMAN_REVIEW", "CUSTOM")
+	agentStatuses    = stringSet("ACTIVE", "PAUSED", "ERROR")
+	taskStatuses     = stringSet("QUEUED", "RUNNING", "WAITING_FOR_APPROVAL", "SUCCEEDED", "FAILED", "CANCELLED")
+	messageRoles     = stringSet("SYSTEM", "AGENT", "USER", "TOOL")
+	siemKinds        = stringSet("finding", "event", "audit_log")
+	incidentStatuses = stringSet("OPEN", "INVESTIGATING", "CONTAINED", "RESOLVED", "ALL")
+	severities       = stringSet("CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO")
+	saasProviders    = stringSet("GITHUB", "SLACK", "GOOGLE_WORKSPACE", "ONE_PASSWORD", "OKTA", "MICROSOFT_365", "ATLASSIAN", "SALESFORCE")
+	saasActions      = stringSet("REVOKE_OAUTH_GRANT", "SUSPEND_USER", "RESET_MFA", "REVOKE_SESSION", "REMOVE_EXTERNAL_SHARE", "DISABLE_FORWARDING", "REMOVE_ADMIN_ROLE", "QUARANTINE_APP", "OPEN_TICKET", "NOTIFY_SECOPS")
 )
 
 func ValidateToolArguments(name string, args any, now time.Time) (map[string]any, error) {
@@ -39,6 +43,12 @@ func ValidateToolArguments(name string, args any, now time.Time) (map[string]any
 		return validateProposal(input)
 	case "aperio.enqueue_siem_payload":
 		return validateEnqueueSIEMPayload(input, now)
+	case "aperio.list_cerebro_incidents":
+		return validateListCerebroIncidents(input)
+	case "aperio.get_cerebro_incident_context":
+		return validateGetCerebroIncidentContext(input)
+	case "aperio.propose_cerebro_response":
+		return validateProposeCerebroResponse(input)
 	default:
 		return nil, fmt.Errorf("Unknown tool: %s", name)
 	}
@@ -237,6 +247,98 @@ func validateEnqueueSIEMPayload(input map[string]any, now time.Time) (map[string
 	return out, nil
 }
 
+func validateListCerebroIncidents(input map[string]any) (map[string]any, error) {
+	allowed := stringSet("organizationId", "authToken", "status", "severity", "limit")
+	if err := rejectUnknown(input, allowed); err != nil {
+		return nil, err
+	}
+	out, err := scopedFields(input)
+	if err != nil {
+		return nil, err
+	}
+	if value, ok, err := optionalEnumNoDefault(input, "status", incidentStatuses); err != nil {
+		return nil, err
+	} else if ok {
+		out["status"] = value
+	}
+	if value, ok, err := optionalEnumNoDefault(input, "severity", severities); err != nil {
+		return nil, err
+	} else if ok {
+		out["severity"] = value
+	}
+	limit, err := optionalIntDefault(input, "limit", 1, 100, 25)
+	if err != nil {
+		return nil, err
+	}
+	out["limit"] = limit
+	return out, nil
+}
+
+func validateGetCerebroIncidentContext(input map[string]any) (map[string]any, error) {
+	allowed := stringSet("organizationId", "authToken", "incidentId")
+	if err := rejectUnknown(input, allowed); err != nil {
+		return nil, err
+	}
+	out, err := scopedFields(input)
+	if err != nil {
+		return nil, err
+	}
+	if out["incidentId"], err = requiredString(input, "incidentId", 1, 0); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func validateProposeCerebroResponse(input map[string]any) (map[string]any, error) {
+	allowed := stringSet("organizationId", "authToken", "incidentId", "findingId", "taskId", "proposedByAgentKey", "action", "provider", "targetType", "targetIdentifier", "rationale", "approvalRequired")
+	if err := rejectUnknown(input, allowed); err != nil {
+		return nil, err
+	}
+	out, err := scopedFields(input)
+	if err != nil {
+		return nil, err
+	}
+	if out["incidentId"], err = requiredString(input, "incidentId", 1, 0); err != nil {
+		return nil, err
+	}
+	for _, field := range []struct {
+		name string
+		min  int
+		max  int
+	}{
+		{"findingId", 1, 0},
+		{"taskId", 1, 0},
+		{"proposedByAgentKey", 2, 120},
+	} {
+		if value, ok, err := optionalString(input, field.name, field.min, field.max); err != nil {
+			return nil, err
+		} else if ok {
+			out[field.name] = value
+		}
+	}
+	if out["action"], err = requiredEnum(input, "action", saasActions); err != nil {
+		return nil, err
+	}
+	if value, ok, err := optionalEnumNoDefault(input, "provider", saasProviders); err != nil {
+		return nil, err
+	} else if ok {
+		out["provider"] = value
+	}
+	if out["targetType"], err = requiredString(input, "targetType", 1, 120); err != nil {
+		return nil, err
+	}
+	if out["targetIdentifier"], err = requiredString(input, "targetIdentifier", 1, 255); err != nil {
+		return nil, err
+	}
+	if out["rationale"], err = requiredString(input, "rationale", 2, 4000); err != nil {
+		return nil, err
+	}
+	if out["approvalRequired"], err = optionalBoolDefault(input, "approvalRequired", true); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func objectArgument(args any) (map[string]any, error) {
 	if args == nil {
 		return map[string]any{}, nil
@@ -358,6 +460,17 @@ func optionalEnum(input map[string]any, field string, allowed map[string]struct{
 	return value, nil
 }
 
+func requiredEnum(input map[string]any, field string, allowed map[string]struct{}) (string, error) {
+	value, err := requiredString(input, field, 1, 0)
+	if err != nil {
+		return "", err
+	}
+	if _, valid := allowed[value]; !valid {
+		return "", fmt.Errorf("%s must be one of the approved values", field)
+	}
+	return value, nil
+}
+
 func optionalEnumNoDefault(input map[string]any, field string, allowed map[string]struct{}) (string, bool, error) {
 	value, ok, err := optionalString(input, field, 1, 0)
 	if err != nil || !ok {
@@ -367,6 +480,49 @@ func optionalEnumNoDefault(input map[string]any, field string, allowed map[strin
 		return "", false, fmt.Errorf("%s must be one of the approved values", field)
 	}
 	return value, true, nil
+}
+
+func optionalBoolDefault(input map[string]any, field string, fallback bool) (bool, error) {
+	value, ok := input[field]
+	if !ok {
+		return fallback, nil
+	}
+	typed, ok := value.(bool)
+	if !ok {
+		return false, fmt.Errorf("%s must be a boolean", field)
+	}
+	return typed, nil
+}
+
+func optionalIntDefault(input map[string]any, field string, minimum int, maximum int, fallback int) (int, error) {
+	value, ok := input[field]
+	if !ok {
+		return fallback, nil
+	}
+	var parsed int
+	switch typed := value.(type) {
+	case int:
+		parsed = typed
+	case int64:
+		parsed = int(typed)
+	case float64:
+		if typed != float64(int(typed)) {
+			return 0, fmt.Errorf("%s must be an integer", field)
+		}
+		parsed = int(typed)
+	case json.Number:
+		intValue, err := typed.Int64()
+		if err != nil {
+			return 0, fmt.Errorf("%s must be an integer", field)
+		}
+		parsed = int(intValue)
+	default:
+		return 0, fmt.Errorf("%s must be an integer", field)
+	}
+	if parsed < minimum || parsed > maximum {
+		return 0, fmt.Errorf("%s must be between %d and %d", field, minimum, maximum)
+	}
+	return parsed, nil
 }
 
 func optionalStringArray(input map[string]any, field string) ([]string, error) {

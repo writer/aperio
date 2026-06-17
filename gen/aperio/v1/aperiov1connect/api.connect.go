@@ -86,6 +86,27 @@ const (
 	// AperioServiceRemediateFindingProcedure is the fully-qualified name of the AperioService's
 	// RemediateFinding RPC.
 	AperioServiceRemediateFindingProcedure = "/aperio.v1.AperioService/RemediateFinding"
+	// AperioServiceListSaasIncidentsProcedure is the fully-qualified name of the AperioService's
+	// ListSaasIncidents RPC.
+	AperioServiceListSaasIncidentsProcedure = "/aperio.v1.AperioService/ListSaasIncidents"
+	// AperioServiceGetSaasIncidentProcedure is the fully-qualified name of the AperioService's
+	// GetSaasIncident RPC.
+	AperioServiceGetSaasIncidentProcedure = "/aperio.v1.AperioService/GetSaasIncident"
+	// AperioServiceCreateSaasIncidentProcedure is the fully-qualified name of the AperioService's
+	// CreateSaasIncident RPC.
+	AperioServiceCreateSaasIncidentProcedure = "/aperio.v1.AperioService/CreateSaasIncident"
+	// AperioServiceUpdateSaasIncidentStatusProcedure is the fully-qualified name of the AperioService's
+	// UpdateSaasIncidentStatus RPC.
+	AperioServiceUpdateSaasIncidentStatusProcedure = "/aperio.v1.AperioService/UpdateSaasIncidentStatus"
+	// AperioServiceProposeSaasResponseActionProcedure is the fully-qualified name of the
+	// AperioService's ProposeSaasResponseAction RPC.
+	AperioServiceProposeSaasResponseActionProcedure = "/aperio.v1.AperioService/ProposeSaasResponseAction"
+	// AperioServiceApproveSaasResponseActionProcedure is the fully-qualified name of the
+	// AperioService's ApproveSaasResponseAction RPC.
+	AperioServiceApproveSaasResponseActionProcedure = "/aperio.v1.AperioService/ApproveSaasResponseAction"
+	// AperioServiceExecuteSaasResponseActionProcedure is the fully-qualified name of the
+	// AperioService's ExecuteSaasResponseAction RPC.
+	AperioServiceExecuteSaasResponseActionProcedure = "/aperio.v1.AperioService/ExecuteSaasResponseAction"
 	// AperioServiceListConnectorCatalogProcedure is the fully-qualified name of the AperioService's
 	// ListConnectorCatalog RPC.
 	AperioServiceListConnectorCatalogProcedure = "/aperio.v1.AperioService/ListConnectorCatalog"
@@ -262,6 +283,13 @@ type AperioServiceClient interface {
 	GetFinding(context.Context, *connect.Request[v1.GetFindingRequest]) (*connect.Response[v1.GetFindingResponse], error)
 	UpdateFindingStatus(context.Context, *connect.Request[v1.UpdateFindingStatusRequest]) (*connect.Response[v1.UpdateFindingStatusResponse], error)
 	RemediateFinding(context.Context, *connect.Request[v1.RemediateFindingRequest]) (*connect.Response[v1.RemediateFindingResponse], error)
+	ListSaasIncidents(context.Context, *connect.Request[v1.ListSaasIncidentsRequest]) (*connect.Response[v1.ListSaasIncidentsResponse], error)
+	GetSaasIncident(context.Context, *connect.Request[v1.GetSaasIncidentRequest]) (*connect.Response[v1.GetSaasIncidentResponse], error)
+	CreateSaasIncident(context.Context, *connect.Request[v1.CreateSaasIncidentRequest]) (*connect.Response[v1.CreateSaasIncidentResponse], error)
+	UpdateSaasIncidentStatus(context.Context, *connect.Request[v1.UpdateSaasIncidentStatusRequest]) (*connect.Response[v1.UpdateSaasIncidentStatusResponse], error)
+	ProposeSaasResponseAction(context.Context, *connect.Request[v1.ProposeSaasResponseActionRequest]) (*connect.Response[v1.ProposeSaasResponseActionResponse], error)
+	ApproveSaasResponseAction(context.Context, *connect.Request[v1.ApproveSaasResponseActionRequest]) (*connect.Response[v1.ApproveSaasResponseActionResponse], error)
+	ExecuteSaasResponseAction(context.Context, *connect.Request[v1.ExecuteSaasResponseActionRequest]) (*connect.Response[v1.ExecuteSaasResponseActionResponse], error)
 	ListConnectorCatalog(context.Context, *connect.Request[v1.ListConnectorCatalogRequest]) (*connect.Response[v1.ListConnectorCatalogResponse], error)
 	ListIntegrations(context.Context, *connect.Request[v1.ListIntegrationsRequest]) (*connect.Response[v1.ListIntegrationsResponse], error)
 	CreateIntegration(context.Context, *connect.Request[v1.CreateIntegrationRequest]) (*connect.Response[v1.CreateIntegrationResponse], error)
@@ -438,6 +466,48 @@ func NewAperioServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			httpClient,
 			baseURL+AperioServiceRemediateFindingProcedure,
 			connect.WithSchema(aperioServiceMethods.ByName("RemediateFinding")),
+			connect.WithClientOptions(opts...),
+		),
+		listSaasIncidents: connect.NewClient[v1.ListSaasIncidentsRequest, v1.ListSaasIncidentsResponse](
+			httpClient,
+			baseURL+AperioServiceListSaasIncidentsProcedure,
+			connect.WithSchema(aperioServiceMethods.ByName("ListSaasIncidents")),
+			connect.WithClientOptions(opts...),
+		),
+		getSaasIncident: connect.NewClient[v1.GetSaasIncidentRequest, v1.GetSaasIncidentResponse](
+			httpClient,
+			baseURL+AperioServiceGetSaasIncidentProcedure,
+			connect.WithSchema(aperioServiceMethods.ByName("GetSaasIncident")),
+			connect.WithClientOptions(opts...),
+		),
+		createSaasIncident: connect.NewClient[v1.CreateSaasIncidentRequest, v1.CreateSaasIncidentResponse](
+			httpClient,
+			baseURL+AperioServiceCreateSaasIncidentProcedure,
+			connect.WithSchema(aperioServiceMethods.ByName("CreateSaasIncident")),
+			connect.WithClientOptions(opts...),
+		),
+		updateSaasIncidentStatus: connect.NewClient[v1.UpdateSaasIncidentStatusRequest, v1.UpdateSaasIncidentStatusResponse](
+			httpClient,
+			baseURL+AperioServiceUpdateSaasIncidentStatusProcedure,
+			connect.WithSchema(aperioServiceMethods.ByName("UpdateSaasIncidentStatus")),
+			connect.WithClientOptions(opts...),
+		),
+		proposeSaasResponseAction: connect.NewClient[v1.ProposeSaasResponseActionRequest, v1.ProposeSaasResponseActionResponse](
+			httpClient,
+			baseURL+AperioServiceProposeSaasResponseActionProcedure,
+			connect.WithSchema(aperioServiceMethods.ByName("ProposeSaasResponseAction")),
+			connect.WithClientOptions(opts...),
+		),
+		approveSaasResponseAction: connect.NewClient[v1.ApproveSaasResponseActionRequest, v1.ApproveSaasResponseActionResponse](
+			httpClient,
+			baseURL+AperioServiceApproveSaasResponseActionProcedure,
+			connect.WithSchema(aperioServiceMethods.ByName("ApproveSaasResponseAction")),
+			connect.WithClientOptions(opts...),
+		),
+		executeSaasResponseAction: connect.NewClient[v1.ExecuteSaasResponseActionRequest, v1.ExecuteSaasResponseActionResponse](
+			httpClient,
+			baseURL+AperioServiceExecuteSaasResponseActionProcedure,
+			connect.WithSchema(aperioServiceMethods.ByName("ExecuteSaasResponseAction")),
 			connect.WithClientOptions(opts...),
 		),
 		listConnectorCatalog: connect.NewClient[v1.ListConnectorCatalogRequest, v1.ListConnectorCatalogResponse](
@@ -770,6 +840,13 @@ type aperioServiceClient struct {
 	getFinding                            *connect.Client[v1.GetFindingRequest, v1.GetFindingResponse]
 	updateFindingStatus                   *connect.Client[v1.UpdateFindingStatusRequest, v1.UpdateFindingStatusResponse]
 	remediateFinding                      *connect.Client[v1.RemediateFindingRequest, v1.RemediateFindingResponse]
+	listSaasIncidents                     *connect.Client[v1.ListSaasIncidentsRequest, v1.ListSaasIncidentsResponse]
+	getSaasIncident                       *connect.Client[v1.GetSaasIncidentRequest, v1.GetSaasIncidentResponse]
+	createSaasIncident                    *connect.Client[v1.CreateSaasIncidentRequest, v1.CreateSaasIncidentResponse]
+	updateSaasIncidentStatus              *connect.Client[v1.UpdateSaasIncidentStatusRequest, v1.UpdateSaasIncidentStatusResponse]
+	proposeSaasResponseAction             *connect.Client[v1.ProposeSaasResponseActionRequest, v1.ProposeSaasResponseActionResponse]
+	approveSaasResponseAction             *connect.Client[v1.ApproveSaasResponseActionRequest, v1.ApproveSaasResponseActionResponse]
+	executeSaasResponseAction             *connect.Client[v1.ExecuteSaasResponseActionRequest, v1.ExecuteSaasResponseActionResponse]
 	listConnectorCatalog                  *connect.Client[v1.ListConnectorCatalogRequest, v1.ListConnectorCatalogResponse]
 	listIntegrations                      *connect.Client[v1.ListIntegrationsRequest, v1.ListIntegrationsResponse]
 	createIntegration                     *connect.Client[v1.CreateIntegrationRequest, v1.CreateIntegrationResponse]
@@ -916,6 +993,41 @@ func (c *aperioServiceClient) UpdateFindingStatus(ctx context.Context, req *conn
 // RemediateFinding calls aperio.v1.AperioService.RemediateFinding.
 func (c *aperioServiceClient) RemediateFinding(ctx context.Context, req *connect.Request[v1.RemediateFindingRequest]) (*connect.Response[v1.RemediateFindingResponse], error) {
 	return c.remediateFinding.CallUnary(ctx, req)
+}
+
+// ListSaasIncidents calls aperio.v1.AperioService.ListSaasIncidents.
+func (c *aperioServiceClient) ListSaasIncidents(ctx context.Context, req *connect.Request[v1.ListSaasIncidentsRequest]) (*connect.Response[v1.ListSaasIncidentsResponse], error) {
+	return c.listSaasIncidents.CallUnary(ctx, req)
+}
+
+// GetSaasIncident calls aperio.v1.AperioService.GetSaasIncident.
+func (c *aperioServiceClient) GetSaasIncident(ctx context.Context, req *connect.Request[v1.GetSaasIncidentRequest]) (*connect.Response[v1.GetSaasIncidentResponse], error) {
+	return c.getSaasIncident.CallUnary(ctx, req)
+}
+
+// CreateSaasIncident calls aperio.v1.AperioService.CreateSaasIncident.
+func (c *aperioServiceClient) CreateSaasIncident(ctx context.Context, req *connect.Request[v1.CreateSaasIncidentRequest]) (*connect.Response[v1.CreateSaasIncidentResponse], error) {
+	return c.createSaasIncident.CallUnary(ctx, req)
+}
+
+// UpdateSaasIncidentStatus calls aperio.v1.AperioService.UpdateSaasIncidentStatus.
+func (c *aperioServiceClient) UpdateSaasIncidentStatus(ctx context.Context, req *connect.Request[v1.UpdateSaasIncidentStatusRequest]) (*connect.Response[v1.UpdateSaasIncidentStatusResponse], error) {
+	return c.updateSaasIncidentStatus.CallUnary(ctx, req)
+}
+
+// ProposeSaasResponseAction calls aperio.v1.AperioService.ProposeSaasResponseAction.
+func (c *aperioServiceClient) ProposeSaasResponseAction(ctx context.Context, req *connect.Request[v1.ProposeSaasResponseActionRequest]) (*connect.Response[v1.ProposeSaasResponseActionResponse], error) {
+	return c.proposeSaasResponseAction.CallUnary(ctx, req)
+}
+
+// ApproveSaasResponseAction calls aperio.v1.AperioService.ApproveSaasResponseAction.
+func (c *aperioServiceClient) ApproveSaasResponseAction(ctx context.Context, req *connect.Request[v1.ApproveSaasResponseActionRequest]) (*connect.Response[v1.ApproveSaasResponseActionResponse], error) {
+	return c.approveSaasResponseAction.CallUnary(ctx, req)
+}
+
+// ExecuteSaasResponseAction calls aperio.v1.AperioService.ExecuteSaasResponseAction.
+func (c *aperioServiceClient) ExecuteSaasResponseAction(ctx context.Context, req *connect.Request[v1.ExecuteSaasResponseActionRequest]) (*connect.Response[v1.ExecuteSaasResponseActionResponse], error) {
+	return c.executeSaasResponseAction.CallUnary(ctx, req)
 }
 
 // ListConnectorCatalog calls aperio.v1.AperioService.ListConnectorCatalog.
@@ -1196,6 +1308,13 @@ type AperioServiceHandler interface {
 	GetFinding(context.Context, *connect.Request[v1.GetFindingRequest]) (*connect.Response[v1.GetFindingResponse], error)
 	UpdateFindingStatus(context.Context, *connect.Request[v1.UpdateFindingStatusRequest]) (*connect.Response[v1.UpdateFindingStatusResponse], error)
 	RemediateFinding(context.Context, *connect.Request[v1.RemediateFindingRequest]) (*connect.Response[v1.RemediateFindingResponse], error)
+	ListSaasIncidents(context.Context, *connect.Request[v1.ListSaasIncidentsRequest]) (*connect.Response[v1.ListSaasIncidentsResponse], error)
+	GetSaasIncident(context.Context, *connect.Request[v1.GetSaasIncidentRequest]) (*connect.Response[v1.GetSaasIncidentResponse], error)
+	CreateSaasIncident(context.Context, *connect.Request[v1.CreateSaasIncidentRequest]) (*connect.Response[v1.CreateSaasIncidentResponse], error)
+	UpdateSaasIncidentStatus(context.Context, *connect.Request[v1.UpdateSaasIncidentStatusRequest]) (*connect.Response[v1.UpdateSaasIncidentStatusResponse], error)
+	ProposeSaasResponseAction(context.Context, *connect.Request[v1.ProposeSaasResponseActionRequest]) (*connect.Response[v1.ProposeSaasResponseActionResponse], error)
+	ApproveSaasResponseAction(context.Context, *connect.Request[v1.ApproveSaasResponseActionRequest]) (*connect.Response[v1.ApproveSaasResponseActionResponse], error)
+	ExecuteSaasResponseAction(context.Context, *connect.Request[v1.ExecuteSaasResponseActionRequest]) (*connect.Response[v1.ExecuteSaasResponseActionResponse], error)
 	ListConnectorCatalog(context.Context, *connect.Request[v1.ListConnectorCatalogRequest]) (*connect.Response[v1.ListConnectorCatalogResponse], error)
 	ListIntegrations(context.Context, *connect.Request[v1.ListIntegrationsRequest]) (*connect.Response[v1.ListIntegrationsResponse], error)
 	CreateIntegration(context.Context, *connect.Request[v1.CreateIntegrationRequest]) (*connect.Response[v1.CreateIntegrationResponse], error)
@@ -1368,6 +1487,48 @@ func NewAperioServiceHandler(svc AperioServiceHandler, opts ...connect.HandlerOp
 		AperioServiceRemediateFindingProcedure,
 		svc.RemediateFinding,
 		connect.WithSchema(aperioServiceMethods.ByName("RemediateFinding")),
+		connect.WithHandlerOptions(opts...),
+	)
+	aperioServiceListSaasIncidentsHandler := connect.NewUnaryHandler(
+		AperioServiceListSaasIncidentsProcedure,
+		svc.ListSaasIncidents,
+		connect.WithSchema(aperioServiceMethods.ByName("ListSaasIncidents")),
+		connect.WithHandlerOptions(opts...),
+	)
+	aperioServiceGetSaasIncidentHandler := connect.NewUnaryHandler(
+		AperioServiceGetSaasIncidentProcedure,
+		svc.GetSaasIncident,
+		connect.WithSchema(aperioServiceMethods.ByName("GetSaasIncident")),
+		connect.WithHandlerOptions(opts...),
+	)
+	aperioServiceCreateSaasIncidentHandler := connect.NewUnaryHandler(
+		AperioServiceCreateSaasIncidentProcedure,
+		svc.CreateSaasIncident,
+		connect.WithSchema(aperioServiceMethods.ByName("CreateSaasIncident")),
+		connect.WithHandlerOptions(opts...),
+	)
+	aperioServiceUpdateSaasIncidentStatusHandler := connect.NewUnaryHandler(
+		AperioServiceUpdateSaasIncidentStatusProcedure,
+		svc.UpdateSaasIncidentStatus,
+		connect.WithSchema(aperioServiceMethods.ByName("UpdateSaasIncidentStatus")),
+		connect.WithHandlerOptions(opts...),
+	)
+	aperioServiceProposeSaasResponseActionHandler := connect.NewUnaryHandler(
+		AperioServiceProposeSaasResponseActionProcedure,
+		svc.ProposeSaasResponseAction,
+		connect.WithSchema(aperioServiceMethods.ByName("ProposeSaasResponseAction")),
+		connect.WithHandlerOptions(opts...),
+	)
+	aperioServiceApproveSaasResponseActionHandler := connect.NewUnaryHandler(
+		AperioServiceApproveSaasResponseActionProcedure,
+		svc.ApproveSaasResponseAction,
+		connect.WithSchema(aperioServiceMethods.ByName("ApproveSaasResponseAction")),
+		connect.WithHandlerOptions(opts...),
+	)
+	aperioServiceExecuteSaasResponseActionHandler := connect.NewUnaryHandler(
+		AperioServiceExecuteSaasResponseActionProcedure,
+		svc.ExecuteSaasResponseAction,
+		connect.WithSchema(aperioServiceMethods.ByName("ExecuteSaasResponseAction")),
 		connect.WithHandlerOptions(opts...),
 	)
 	aperioServiceListConnectorCatalogHandler := connect.NewUnaryHandler(
@@ -1716,6 +1877,20 @@ func NewAperioServiceHandler(svc AperioServiceHandler, opts ...connect.HandlerOp
 			aperioServiceUpdateFindingStatusHandler.ServeHTTP(w, r)
 		case AperioServiceRemediateFindingProcedure:
 			aperioServiceRemediateFindingHandler.ServeHTTP(w, r)
+		case AperioServiceListSaasIncidentsProcedure:
+			aperioServiceListSaasIncidentsHandler.ServeHTTP(w, r)
+		case AperioServiceGetSaasIncidentProcedure:
+			aperioServiceGetSaasIncidentHandler.ServeHTTP(w, r)
+		case AperioServiceCreateSaasIncidentProcedure:
+			aperioServiceCreateSaasIncidentHandler.ServeHTTP(w, r)
+		case AperioServiceUpdateSaasIncidentStatusProcedure:
+			aperioServiceUpdateSaasIncidentStatusHandler.ServeHTTP(w, r)
+		case AperioServiceProposeSaasResponseActionProcedure:
+			aperioServiceProposeSaasResponseActionHandler.ServeHTTP(w, r)
+		case AperioServiceApproveSaasResponseActionProcedure:
+			aperioServiceApproveSaasResponseActionHandler.ServeHTTP(w, r)
+		case AperioServiceExecuteSaasResponseActionProcedure:
+			aperioServiceExecuteSaasResponseActionHandler.ServeHTTP(w, r)
 		case AperioServiceListConnectorCatalogProcedure:
 			aperioServiceListConnectorCatalogHandler.ServeHTTP(w, r)
 		case AperioServiceListIntegrationsProcedure:
@@ -1901,6 +2076,34 @@ func (UnimplementedAperioServiceHandler) UpdateFindingStatus(context.Context, *c
 
 func (UnimplementedAperioServiceHandler) RemediateFinding(context.Context, *connect.Request[v1.RemediateFindingRequest]) (*connect.Response[v1.RemediateFindingResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("aperio.v1.AperioService.RemediateFinding is not implemented"))
+}
+
+func (UnimplementedAperioServiceHandler) ListSaasIncidents(context.Context, *connect.Request[v1.ListSaasIncidentsRequest]) (*connect.Response[v1.ListSaasIncidentsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("aperio.v1.AperioService.ListSaasIncidents is not implemented"))
+}
+
+func (UnimplementedAperioServiceHandler) GetSaasIncident(context.Context, *connect.Request[v1.GetSaasIncidentRequest]) (*connect.Response[v1.GetSaasIncidentResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("aperio.v1.AperioService.GetSaasIncident is not implemented"))
+}
+
+func (UnimplementedAperioServiceHandler) CreateSaasIncident(context.Context, *connect.Request[v1.CreateSaasIncidentRequest]) (*connect.Response[v1.CreateSaasIncidentResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("aperio.v1.AperioService.CreateSaasIncident is not implemented"))
+}
+
+func (UnimplementedAperioServiceHandler) UpdateSaasIncidentStatus(context.Context, *connect.Request[v1.UpdateSaasIncidentStatusRequest]) (*connect.Response[v1.UpdateSaasIncidentStatusResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("aperio.v1.AperioService.UpdateSaasIncidentStatus is not implemented"))
+}
+
+func (UnimplementedAperioServiceHandler) ProposeSaasResponseAction(context.Context, *connect.Request[v1.ProposeSaasResponseActionRequest]) (*connect.Response[v1.ProposeSaasResponseActionResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("aperio.v1.AperioService.ProposeSaasResponseAction is not implemented"))
+}
+
+func (UnimplementedAperioServiceHandler) ApproveSaasResponseAction(context.Context, *connect.Request[v1.ApproveSaasResponseActionRequest]) (*connect.Response[v1.ApproveSaasResponseActionResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("aperio.v1.AperioService.ApproveSaasResponseAction is not implemented"))
+}
+
+func (UnimplementedAperioServiceHandler) ExecuteSaasResponseAction(context.Context, *connect.Request[v1.ExecuteSaasResponseActionRequest]) (*connect.Response[v1.ExecuteSaasResponseActionResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("aperio.v1.AperioService.ExecuteSaasResponseAction is not implemented"))
 }
 
 func (UnimplementedAperioServiceHandler) ListConnectorCatalog(context.Context, *connect.Request[v1.ListConnectorCatalogRequest]) (*connect.Response[v1.ListConnectorCatalogResponse], error) {

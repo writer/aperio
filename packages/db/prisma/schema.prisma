@@ -49,6 +49,44 @@ enum FindingStatus {
   MUTED
 }
 
+enum SaasIncidentStatus {
+  OPEN
+  INVESTIGATING
+  CONTAINED
+  RESOLVED
+}
+
+enum SaasIncidentTimelineKind {
+  DETECTION
+  CEREBRO_CONTEXT
+  INVESTIGATION
+  RESPONSE_ACTION
+  STATUS_CHANGE
+  NOTE
+}
+
+enum SaasResponseActionKind {
+  REVOKE_OAUTH_GRANT
+  SUSPEND_USER
+  RESET_MFA
+  REVOKE_SESSION
+  REMOVE_EXTERNAL_SHARE
+  DISABLE_FORWARDING
+  REMOVE_ADMIN_ROLE
+  QUARANTINE_APP
+  OPEN_TICKET
+  NOTIFY_SECOPS
+}
+
+enum SaasResponseActionStatus {
+  PROPOSED
+  APPROVED
+  EXECUTING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+}
+
 enum EventProcessingStatus {
   RECEIVED
   PROCESSED
@@ -243,6 +281,10 @@ model Organization {
   executiveReports  ExecutiveReport[]
   oauthClients      IntegrationOAuthClient[]
   customFindingRules CustomFindingRule[]
+  saasIncidents      SaasIncident[]
+  saasIncidentFindings SaasIncidentFinding[]
+  saasIncidentTimelineEvents SaasIncidentTimelineEvent[]
+  saasResponseActions SaasResponseAction[]
 
   @@map("organizations")
 }
@@ -317,6 +359,11 @@ model User {
   authEmailDeliveries AuthEmailDelivery[]
   sessions        UserSession[]
   createdIntegrationOauthClients IntegrationOAuthClient[] @relation("IntegrationOAuthClientCreatedBy")
+  assignedSaasIncidents SaasIncident[] @relation("SaasIncidentAssignee")
+  proposedSaasResponseActions SaasResponseAction[] @relation("SaasResponseActionProposedBy")
+  approvedSaasResponseActions SaasResponseAction[] @relation("SaasResponseActionApprovedBy")
+  executedSaasResponseActions SaasResponseAction[] @relation("SaasResponseActionExecutedBy")
+  linkedSaasIncidentFindings SaasIncidentFinding[] @relation("SaasIncidentFindingLinkedBy")
 
   @@unique([organizationId, email])
   @@index([organizationId])
@@ -567,6 +614,9 @@ model SecurityFinding {
   asset             SecurityAsset?         @relation("FindingAsset", fields: [assetId], references: [id], onDelete: SetNull)
   agentProposals    AgentProposal[]
   riskExceptions    RiskException[]
+  incidentLinks     SaasIncidentFinding[]
+  incidentTimelineEvents SaasIncidentTimelineEvent[]
+  responseActions   SaasResponseAction[]
 
   @@unique([organizationId, dedupeKey])
   @@index([organizationId])
@@ -576,6 +626,116 @@ model SecurityFinding {
   @@index([organizationId, assetId])
   @@index([tags], type: Gin)
   @@map("security_findings")
+}
+
+model SaasIncident {
+  id              String             @id @default(cuid())
+  organizationId  String             @map("organization_id")
+  title           String             @db.VarChar(220)
+  summary         String             @db.Text
+  severity        Severity
+  status          SaasIncidentStatus @default(OPEN)
+  confidenceScore Int                @default(50) @map("confidence_score")
+  ownerTeam       String?            @map("owner_team") @db.VarChar(160)
+  assigneeUserId  String?            @map("assignee_user_id")
+  firstDetectedAt DateTime           @default(now()) @map("first_detected_at")
+  lastActivityAt  DateTime           @default(now()) @map("last_activity_at")
+  slaDueAt        DateTime?          @map("sla_due_at")
+  resolvedAt      DateTime?          @map("resolved_at")
+  cerebroContext  Json               @default("{}") @map("cerebro_context")
+  createdAt       DateTime           @default(now()) @map("created_at")
+  updatedAt       DateTime           @updatedAt @map("updated_at")
+  organization    Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  assignee        User?              @relation("SaasIncidentAssignee", fields: [assigneeUserId], references: [id], onDelete: SetNull)
+  findings        SaasIncidentFinding[]
+  timelineEvents  SaasIncidentTimelineEvent[]
+  responseActions SaasResponseAction[]
+
+  @@index([organizationId, status, severity])
+  @@index([organizationId, lastActivityAt])
+  @@index([organizationId, assigneeUserId])
+  @@map("saas_incidents")
+}
+
+model SaasIncidentFinding {
+  id              String          @id @default(cuid())
+  organizationId  String          @map("organization_id")
+  incidentId      String          @map("incident_id")
+  findingId       String          @map("finding_id")
+  linkedByUserId  String?         @map("linked_by_user_id")
+  createdAt       DateTime        @default(now()) @map("created_at")
+  organization    Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  incident        SaasIncident    @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  finding         SecurityFinding @relation(fields: [findingId], references: [id], onDelete: Cascade)
+  linkedBy        User?           @relation("SaasIncidentFindingLinkedBy", fields: [linkedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([incidentId, findingId])
+  @@index([organizationId, incidentId])
+  @@index([organizationId, findingId])
+  @@index([organizationId, linkedByUserId])
+  @@map("saas_incident_findings")
+}
+
+model SaasIncidentTimelineEvent {
+  id               String                   @id @default(cuid())
+  organizationId   String                   @map("organization_id")
+  incidentId       String                   @map("incident_id")
+  findingId        String?                  @map("finding_id")
+  responseActionId String?                  @map("response_action_id")
+  kind             SaasIncidentTimelineKind
+  title            String                   @db.VarChar(220)
+  description      String                   @db.Text
+  actor            String?                  @db.VarChar(255)
+  source           String                   @default("APERIO") @db.VarChar(120)
+  evidence         Json                     @default("{}")
+  occurredAt       DateTime                 @default(now()) @map("occurred_at")
+  createdAt        DateTime                 @default(now()) @map("created_at")
+  organization     Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  incident         SaasIncident             @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  finding          SecurityFinding?         @relation(fields: [findingId], references: [id], onDelete: SetNull)
+  responseAction   SaasResponseAction?      @relation(fields: [responseActionId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, incidentId, occurredAt])
+  @@index([organizationId, findingId])
+  @@index([organizationId, responseActionId])
+  @@map("saas_incident_timeline_events")
+}
+
+model SaasResponseAction {
+  id                String                   @id @default(cuid())
+  organizationId    String                   @map("organization_id")
+  incidentId        String                   @map("incident_id")
+  findingId         String?                  @map("finding_id")
+  action            SaasResponseActionKind
+  provider          SaaSProvider?
+  targetType        String                   @map("target_type") @db.VarChar(120)
+  targetIdentifier  String                   @map("target_identifier") @db.VarChar(255)
+  status            SaasResponseActionStatus @default(PROPOSED)
+  approvalRequired  Boolean                  @default(true) @map("approval_required")
+  rationale         String                   @db.Text
+  proposedByUserId  String?                  @map("proposed_by_user_id")
+  approvedByUserId  String?                  @map("approved_by_user_id")
+  approvedAt        DateTime?                @map("approved_at")
+  executedByUserId  String?                  @map("executed_by_user_id")
+  executedAt        DateTime?                @map("executed_at")
+  errorMessage      String?                  @map("error_message") @db.VarChar(1000)
+  result            Json                     @default("{}")
+  createdAt         DateTime                 @default(now()) @map("created_at")
+  updatedAt         DateTime                 @updatedAt @map("updated_at")
+  organization      Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  incident          SaasIncident             @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  finding           SecurityFinding?         @relation(fields: [findingId], references: [id], onDelete: SetNull)
+  proposedBy        User?                    @relation("SaasResponseActionProposedBy", fields: [proposedByUserId], references: [id], onDelete: SetNull)
+  approvedBy        User?                    @relation("SaasResponseActionApprovedBy", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+  executedBy        User?                    @relation("SaasResponseActionExecutedBy", fields: [executedByUserId], references: [id], onDelete: SetNull)
+  timelineEvents    SaasIncidentTimelineEvent[]
+
+  @@index([organizationId, incidentId, status])
+  @@index([organizationId, findingId])
+  @@index([organizationId, status, createdAt])
+  @@index([organizationId, proposedByUserId])
+  @@index([organizationId, executedByUserId])
+  @@map("saas_response_actions")
 }
 
 model SecurityAsset {
