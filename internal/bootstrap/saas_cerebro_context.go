@@ -90,6 +90,9 @@ func (a *App) enrichSaasCerebroContext(ctx context.Context, organizationID strin
 func (a *App) refreshSaasCerebroMCPContext(organizationID string, incidentID string, raw string) string {
 	base := normalizeCerebroContextJSON(raw)
 	payload := cerebroContextMap(base)
+	if a != nil && strings.TrimSpace(a.cerebroRuntimeID) != "" {
+		payload["sourceRuntimeId"] = strings.TrimSpace(a.cerebroRuntimeID)
+	}
 	payload["mcp"] = a.saasCerebroMCPContext(organizationID, incidentID)
 	return encodeCerebroContextMap(payload, base)
 }

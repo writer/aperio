@@ -233,6 +233,9 @@ func TestRefreshSaasCerebroMCPContextUsesNativeCatalogWithoutClaimHydration(t *t
 
 	encoded := app.refreshSaasCerebroMCPContext("org-a", "inc-list", saasCerebroContextJSON("org-a", "inc-list"))
 	contextPayload := decodeSaasCerebroContext(t, encoded)
+	if contextPayload["sourceRuntimeId"] != "runtime-a" {
+		t.Fatalf("context source runtime = %#v, want runtime-a", contextPayload["sourceRuntimeId"])
+	}
 	mcp := contextRecord(contextPayload["mcp"])
 	if mcp["server"] != "https://cerebro.example.com/api/v1/mcp" || mcp["resourceUri"] != "cerebro://aperio/org-a/incidents/inc-list" {
 		t.Fatalf("mcp context = %#v", mcp)
