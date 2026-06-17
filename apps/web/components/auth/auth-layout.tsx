@@ -22,16 +22,18 @@ export function AuthLayout({
   title,
   description,
   children,
-  footer
+  footer,
+  showSessionMessaging = false
 }: {
   title: React.ReactNode;
   description?: React.ReactNode;
   children: React.ReactNode;
   footer?: React.ReactNode;
+  showSessionMessaging?: boolean;
 }) {
   return (
     <main className="relative grid min-h-screen bg-background lg:grid-cols-[1fr_minmax(0,520px)] lg:gap-0">
-      <BrandPanel />
+      <BrandPanel showSessionMessaging={showSessionMessaging} />
       <section className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-6 py-10 lg:py-12">
         <div
           aria-hidden
@@ -68,7 +70,11 @@ export function AuthLayout({
   );
 }
 
-function BrandPanel() {
+function BrandPanel({
+  showSessionMessaging
+}: {
+  showSessionMessaging: boolean;
+}) {
   return (
     <aside
       aria-hidden
@@ -94,63 +100,69 @@ function BrandPanel() {
           A tenant-bound console for your{" "}
           <span className="text-signal">SaaS attack surface.</span>
         </h2>
-        <p className="max-w-sm text-sm leading-relaxed text-muted-foreground">
-          Every session carries the tenant, principal, and scoped action set
-          Aperio uses when it reaches Cerebro.
-        </p>
-
-        <ul className="grid grid-cols-1 gap-2.5">
-          {PILLARS.map(({ icon: Icon, label }) => (
-            <li
-              key={label}
-              className="flex items-center gap-2.5 rounded-md border border-border/70 bg-background/40 px-3 py-2 text-sm text-muted-foreground backdrop-blur-sm"
-            >
-              <Icon className="h-4 w-4 text-signal" aria-hidden />
-              <span className="text-foreground/90">{label}</span>
-            </li>
-          ))}
-        </ul>
-      </div>
-
-      <div className="relative">
-        <div className="mb-3 flex items-center justify-between">
-          <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
-            Session contract
+        {showSessionMessaging ? (
+          <p className="max-w-sm text-sm leading-relaxed text-muted-foreground">
+            Every session carries the tenant, principal, and scoped action set
+            Aperio uses when it reaches Cerebro.
           </p>
-          <ArrowUpRight
-            className="h-3.5 w-3.5 text-muted-foreground"
-            aria-hidden
-          />
-        </div>
-        <dl className="grid grid-cols-1 gap-2">
-          {INSIGHTS.map((insight) => (
-            <div
-              key={insight.label}
-              className="flex items-center justify-between rounded-md border border-border/70 bg-background/40 px-3 py-2 text-sm backdrop-blur-sm"
-            >
-              <dt className="flex items-center gap-2 text-muted-foreground">
-                <span
-                  className={
-                    insight.tone === "critical"
-                      ? "h-1.5 w-1.5 rounded-full bg-critical critical-pulse"
-                      : insight.tone === "signal"
-                        ? "h-1.5 w-1.5 rounded-full bg-signal"
-                        : "h-1.5 w-1.5 rounded-full bg-muted-foreground/60"
-                  }
-                />
-                {insight.label}
-              </dt>
-              <dd className="font-mono text-sm text-foreground tabular-nums">
-                {insight.value}
-              </dd>
-            </div>
-          ))}
-        </dl>
-        <p className="mt-4 max-w-sm text-xs text-muted-foreground">
-          Sign-in keeps human workspace access separate from Cerebro service
-          credentials and MCP capability tokens.
-        </p>
+        ) : null}
+
+        {showSessionMessaging ? (
+          <ul className="grid grid-cols-1 gap-2.5">
+            {PILLARS.map(({ icon: Icon, label }) => (
+              <li
+                key={label}
+                className="flex items-center gap-2.5 rounded-md border border-border/70 bg-background/40 px-3 py-2 text-sm text-muted-foreground backdrop-blur-sm"
+              >
+                <Icon className="h-4 w-4 text-signal" aria-hidden />
+                <span className="text-foreground/90">{label}</span>
+              </li>
+            ))}
+          </ul>
+        ) : null}
       </div>
+
+      {showSessionMessaging ? (
+        <div className="relative">
+          <div className="mb-3 flex items-center justify-between">
+            <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
+              Session contract
+            </p>
+            <ArrowUpRight
+              className="h-3.5 w-3.5 text-muted-foreground"
+              aria-hidden
+            />
+          </div>
+          <dl className="grid grid-cols-1 gap-2">
+            {INSIGHTS.map((insight) => (
+              <div
+                key={insight.label}
+                className="flex items-center justify-between rounded-md border border-border/70 bg-background/40 px-3 py-2 text-sm backdrop-blur-sm"
+              >
+                <dt className="flex items-center gap-2 text-muted-foreground">
+                  <span
+                    className={
+                      insight.tone === "critical"
+                        ? "h-1.5 w-1.5 rounded-full bg-critical critical-pulse"
+                        : insight.tone === "signal"
+                          ? "h-1.5 w-1.5 rounded-full bg-signal"
+                          : "h-1.5 w-1.5 rounded-full bg-muted-foreground/60"
+                    }
+                  />
+                  {insight.label}
+                </dt>
+                <dd className="font-mono text-sm text-foreground tabular-nums">
+                  {insight.value}
+                </dd>
+              </div>
+            ))}
+          </dl>
+          <p className="mt-4 max-w-sm text-xs text-muted-foreground">
+            Sign-in keeps human workspace access separate from Cerebro service
+            credentials and MCP capability tokens.
+          </p>
+        </div>
+      ) : null}
 
       <BrandMark
         aria-hidden

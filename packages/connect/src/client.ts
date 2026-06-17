@@ -1006,6 +1006,7 @@ const CEREBRO_SCOPES_BY_ROLE: Record<ConnectTenantRole, string[]> = {
     CEREBRO_READ_SCOPE,
     "cerebro.finding_candidates.promote",
     "cerebro.findings.write",
+    "cerebro.grc.inventory.write",
     "cerebro.runtime_response.write"
   ],
   VIEWER: [CEREBRO_READ_SCOPE]
