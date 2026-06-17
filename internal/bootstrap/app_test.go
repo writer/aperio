@@ -436,6 +436,23 @@ func TestTypedAuthSessionDropsCompatibilityToken(t *testing.T) {
 	if session.AuthContext.TokenTransport != "http_only_cookie" || session.AuthContext.CerebroResource != "cerebro-api" {
 		t.Fatalf("unexpected auth context transport/resource: %#v", session.AuthContext)
 	}
+	if session.AuthContext.CerebroMcpResource != "cerebro-mcp" {
+		t.Fatalf("unexpected MCP resource: %#v", session.AuthContext)
+	}
+	if session.AuthContext.CerebroMcpResourceMetadataPath != "" {
+		t.Fatalf("MCP resource metadata path should not be advertised without mounted discovery routes: %#v", session.AuthContext)
+	}
+	if session.AuthContext.CerebroOauthAuthorizationServerMetadataPath != "" {
+		t.Fatalf("OAuth authorization server metadata path should not be advertised without mounted discovery routes: %#v", session.AuthContext)
+	}
+	for _, grantType := range []string{"authorization_code", "refresh_token", "client_credentials"} {
+		if !stringSliceContains(session.AuthContext.CerebroMcpGrantTypes, grantType) {
+			t.Fatalf("expected MCP grant type %s, got %#v", grantType, session.AuthContext.CerebroMcpGrantTypes)
+		}
+	}
+	if !stringSliceContains(session.AuthContext.CerebroMcpBearerMethods, "header") {
+		t.Fatalf("expected MCP bearer method header, got %#v", session.AuthContext.CerebroMcpBearerMethods)
+	}
 	if !stringSliceContains(session.AuthContext.AllowedTenants, "org_1") {
 		t.Fatalf("expected allowed tenant org_1, got %#v", session.AuthContext.AllowedTenants)
 	}

@@ -130,6 +130,18 @@ test("frontend auth session types do not expose bearer tokens", () => {
   assert.match(exportedTypeBlock(webApi, "AuthContext"), /\bauthMode\s*:/);
   assert.match(exportedTypeBlock(webApi, "AuthContext"), /\ballowedTenants\s*:/);
   assert.match(exportedTypeBlock(webApi, "AuthContext"), /\bgroups\s*:/);
+  assert.match(
+    exportedTypeBlock(webApi, "AuthContext"),
+    /\bcerebroMcpResource\s*:/
+  );
+  assert.match(
+    exportedTypeBlock(webApi, "AuthContext"),
+    /\bcerebroMcpResourceMetadataPath\s*:/
+  );
+  assert.match(
+    exportedTypeBlock(webApi, "AuthContext"),
+    /\bcerebroOauthAuthorizationServerMetadataPath\s*:/
+  );
 });
 
 test("frontend auth surfaces share Cerebro auth vocabulary", () => {
@@ -147,6 +159,14 @@ test("frontend auth surfaces share Cerebro auth vocabulary", () => {
   assert.match(authModel, /CEREBRO_MCP_RESOURCE\s*=\s*"cerebro-mcp"/);
   assert.match(
     authModel,
+    /CEREBRO_MCP_RESOURCE_METADATA_PATH\s*=\s*\n\s*"\/\.well-known\/oauth-protected-resource\/api\/v1\/mcp"/
+  );
+  assert.match(
+    authModel,
+    /CEREBRO_OAUTH_AUTHORIZATION_SERVER_METADATA_PATH\s*=\s*\n\s*"\/\.well-known\/oauth-authorization-server"/
+  );
+  assert.match(
+    authModel,
     /CEREBRO_HUMAN_AUTH_MODE\s*=\s*"human_workspace_session"/
   );
   assert.match(
@@ -160,6 +180,17 @@ test("frontend auth surfaces share Cerebro auth vocabulary", () => {
     authModel,
     /formatCerebroTransport\(CEREBRO_SESSION_TRANSPORT\)/
   );
+  assert.match(accountMenu, /cerebroMcpResourceMetadataPath/);
+  assert.match(
+    accountMenu,
+    /cerebroOauthAuthorizationServerMetadataPath/
+  );
+  assert.doesNotMatch(accountMenu, /CEREBRO_MCP_RESOURCE_METADATA_PATH/);
+  assert.doesNotMatch(
+    accountMenu,
+    /CEREBRO_OAUTH_AUTHORIZATION_SERVER_METADATA_PATH/
+  );
+  assert.match(accountMenu, /cerebroMcpGrantTypes/);
   assert.match(authLayout, /CEREBRO_AUTH_INSIGHTS/);
   assert.match(authLayout, /CEREBRO_MCP_RESOURCE/);
   assert.match(loginPage, /CEREBRO_HUMAN_AUTH_MODE/);
@@ -196,7 +227,10 @@ test("frontend sources do not expose the CallApi compatibility bridge", () => {
   );
 
   for (const relativePath of browserSources) {
-    const source = readRepoFile(relativePath);
+    const source = readRepoFile(relativePath).replaceAll(
+      "/.well-known/oauth-protected-resource/api/v1/mcp",
+      ""
+    );
     assert.doesNotMatch(
       source,
       /\bcallApi\b|\/api\/v1\//,

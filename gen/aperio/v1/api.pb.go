@@ -1475,19 +1475,24 @@ func (x *AuthOrganization) GetSlug() string {
 }
 
 type AuthContext struct {
-	state           protoimpl.MessageState `protogen:"open.v1"`
-	Principal       string                 `protobuf:"bytes,1,opt,name=principal,proto3" json:"principal,omitempty"`
-	TenantId        string                 `protobuf:"bytes,2,opt,name=tenant_id,json=tenantId,proto3" json:"tenant_id,omitempty"`
-	TenantSlug      string                 `protobuf:"bytes,3,opt,name=tenant_slug,json=tenantSlug,proto3" json:"tenant_slug,omitempty"`
-	CredentialKind  string                 `protobuf:"bytes,4,opt,name=credential_kind,json=credentialKind,proto3" json:"credential_kind,omitempty"`
-	AuthMode        string                 `protobuf:"bytes,5,opt,name=auth_mode,json=authMode,proto3" json:"auth_mode,omitempty"`
-	TokenTransport  string                 `protobuf:"bytes,6,opt,name=token_transport,json=tokenTransport,proto3" json:"token_transport,omitempty"`
-	CerebroResource string                 `protobuf:"bytes,7,opt,name=cerebro_resource,json=cerebroResource,proto3" json:"cerebro_resource,omitempty"`
-	AllowedTenants  []string               `protobuf:"bytes,8,rep,name=allowed_tenants,json=allowedTenants,proto3" json:"allowed_tenants,omitempty"`
-	CerebroScopes   []string               `protobuf:"bytes,9,rep,name=cerebro_scopes,json=cerebroScopes,proto3" json:"cerebro_scopes,omitempty"`
-	Groups          []string               `protobuf:"bytes,10,rep,name=groups,proto3" json:"groups,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	state                                       protoimpl.MessageState `protogen:"open.v1"`
+	Principal                                   string                 `protobuf:"bytes,1,opt,name=principal,proto3" json:"principal,omitempty"`
+	TenantId                                    string                 `protobuf:"bytes,2,opt,name=tenant_id,json=tenantId,proto3" json:"tenant_id,omitempty"`
+	TenantSlug                                  string                 `protobuf:"bytes,3,opt,name=tenant_slug,json=tenantSlug,proto3" json:"tenant_slug,omitempty"`
+	CredentialKind                              string                 `protobuf:"bytes,4,opt,name=credential_kind,json=credentialKind,proto3" json:"credential_kind,omitempty"`
+	AuthMode                                    string                 `protobuf:"bytes,5,opt,name=auth_mode,json=authMode,proto3" json:"auth_mode,omitempty"`
+	TokenTransport                              string                 `protobuf:"bytes,6,opt,name=token_transport,json=tokenTransport,proto3" json:"token_transport,omitempty"`
+	CerebroResource                             string                 `protobuf:"bytes,7,opt,name=cerebro_resource,json=cerebroResource,proto3" json:"cerebro_resource,omitempty"`
+	AllowedTenants                              []string               `protobuf:"bytes,8,rep,name=allowed_tenants,json=allowedTenants,proto3" json:"allowed_tenants,omitempty"`
+	CerebroScopes                               []string               `protobuf:"bytes,9,rep,name=cerebro_scopes,json=cerebroScopes,proto3" json:"cerebro_scopes,omitempty"`
+	Groups                                      []string               `protobuf:"bytes,10,rep,name=groups,proto3" json:"groups,omitempty"`
+	CerebroMcpResource                          string                 `protobuf:"bytes,11,opt,name=cerebro_mcp_resource,json=cerebroMcpResource,proto3" json:"cerebro_mcp_resource,omitempty"`
+	CerebroMcpResourceMetadataPath              string                 `protobuf:"bytes,12,opt,name=cerebro_mcp_resource_metadata_path,json=cerebroMcpResourceMetadataPath,proto3" json:"cerebro_mcp_resource_metadata_path,omitempty"`
+	CerebroOauthAuthorizationServerMetadataPath string                 `protobuf:"bytes,13,opt,name=cerebro_oauth_authorization_server_metadata_path,json=cerebroOauthAuthorizationServerMetadataPath,proto3" json:"cerebro_oauth_authorization_server_metadata_path,omitempty"`
+	CerebroMcpGrantTypes                        []string               `protobuf:"bytes,14,rep,name=cerebro_mcp_grant_types,json=cerebroMcpGrantTypes,proto3" json:"cerebro_mcp_grant_types,omitempty"`
+	CerebroMcpBearerMethods                     []string               `protobuf:"bytes,15,rep,name=cerebro_mcp_bearer_methods,json=cerebroMcpBearerMethods,proto3" json:"cerebro_mcp_bearer_methods,omitempty"`
+	unknownFields                               protoimpl.UnknownFields
+	sizeCache                                   protoimpl.SizeCache
 }
 
 func (x *AuthContext) Reset() {
@@ -1586,6 +1591,41 @@ func (x *AuthContext) GetCerebroScopes() []string {
 func (x *AuthContext) GetGroups() []string {
 	if x != nil {
 		return x.Groups
+	}
+	return nil
+}
+
+func (x *AuthContext) GetCerebroMcpResource() string {
+	if x != nil {
+		return x.CerebroMcpResource
+	}
+	return ""
+}
+
+func (x *AuthContext) GetCerebroMcpResourceMetadataPath() string {
+	if x != nil {
+		return x.CerebroMcpResourceMetadataPath
+	}
+	return ""
+}
+
+func (x *AuthContext) GetCerebroOauthAuthorizationServerMetadataPath() string {
+	if x != nil {
+		return x.CerebroOauthAuthorizationServerMetadataPath
+	}
+	return ""
+}
+
+func (x *AuthContext) GetCerebroMcpGrantTypes() []string {
+	if x != nil {
+		return x.CerebroMcpGrantTypes
+	}
+	return nil
+}
+
+func (x *AuthContext) GetCerebroMcpBearerMethods() []string {
+	if x != nil {
+		return x.CerebroMcpBearerMethods
 	}
 	return nil
 }
@@ -15481,7 +15521,7 @@ const file_aperio_v1_api_proto_rawDesc = "" +
 	"\x10AuthOrganization\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x12\n" +
-	"\x04slug\x18\x03 \x01(\tR\x04slug\"\xeb\x02\n" +
+	"\x04slug\x18\x03 \x01(\tR\x04slug\"\xc4\x05\n" +
 	"\vAuthContext\x12\x1c\n" +
 	"\tprincipal\x18\x01 \x01(\tR\tprincipal\x12\x1b\n" +
 	"\ttenant_id\x18\x02 \x01(\tR\btenantId\x12\x1f\n" +
@@ -15494,7 +15534,12 @@ const file_aperio_v1_api_proto_rawDesc = "" +
 	"\x0fallowed_tenants\x18\b \x03(\tR\x0eallowedTenants\x12%\n" +
 	"\x0ecerebro_scopes\x18\t \x03(\tR\rcerebroScopes\x12\x16\n" +
 	"\x06groups\x18\n" +
-	" \x03(\tR\x06groups\"{\n" +
+	" \x03(\tR\x06groups\x120\n" +
+	"\x14cerebro_mcp_resource\x18\v \x01(\tR\x12cerebroMcpResource\x12J\n" +
+	"\"cerebro_mcp_resource_metadata_path\x18\f \x01(\tR\x1ecerebroMcpResourceMetadataPath\x12e\n" +
+	"0cerebro_oauth_authorization_server_metadata_path\x18\r \x01(\tR+cerebroOauthAuthorizationServerMetadataPath\x125\n" +
+	"\x17cerebro_mcp_grant_types\x18\x0e \x03(\tR\x14cerebroMcpGrantTypes\x12;\n" +
+	"\x1acerebro_mcp_bearer_methods\x18\x0f \x03(\tR\x17cerebroMcpBearerMethods\"{\n" +
 	"\x13WorkspaceMembership\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x12\n" +
