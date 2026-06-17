@@ -672,6 +672,7 @@ model SaasIncidentFinding {
   @@unique([incidentId, findingId])
   @@index([organizationId, incidentId])
   @@index([organizationId, findingId])
+  @@index([organizationId, linkedByUserId])
   @@map("saas_incident_findings")
 }
 
@@ -732,6 +733,8 @@ model SaasResponseAction {
   @@index([organizationId, incidentId, status])
   @@index([organizationId, findingId])
   @@index([organizationId, status, createdAt])
+  @@index([organizationId, proposedByUserId])
+  @@index([organizationId, executedByUserId])
   @@map("saas_response_actions")
 }
 
