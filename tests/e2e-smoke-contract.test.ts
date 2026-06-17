@@ -103,6 +103,33 @@ test("smoke harness exports the canonical localhost route matrix and report sect
     smoke.CANONICAL_ROUTES.some((route: { url: string }) => route.url.includes("127.0.0.1:3000")),
     false
   );
+  assert.equal(
+    smoke.isOAuthWellKnownMetadataRequest(
+      "http://localhost:3000/.well-known/oauth-protected-resource/api/v1/mcp"
+    ),
+    true
+  );
+  assert.equal(
+    smoke.isDirectProductApiV1BrowserRequest(
+      "http://localhost:3000/.well-known/oauth-protected-resource/api/v1/mcp",
+      "Fetch"
+    ),
+    false
+  );
+  assert.equal(
+    smoke.isDirectProductApiV1BrowserRequest(
+      "http://localhost:3000/api/v1/admin/reports/report-a/html",
+      "Fetch"
+    ),
+    true
+  );
+  assert.equal(
+    smoke.isDirectProductApiV1BrowserRequest(
+      "http://localhost:3000/api/v1/admin/reports/report-a/html",
+      "Document"
+    ),
+    false
+  );
 
   const report = smoke.createInitialReport();
   for (const section of smoke.REQUIRED_REPORT_SECTIONS) {
