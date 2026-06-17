@@ -41,6 +41,8 @@ type App struct {
 	eventBus              *aperioEventBus
 	remediationHTTPClient remediationHTTPDoer
 	slackAPIBaseURL       string
+	cerebroContextClient  saasCerebroContextClient
+	cerebroRuntimeID      string
 }
 
 // dashboardMetrics mirrors the existing web dashboard response shape. Keeping
