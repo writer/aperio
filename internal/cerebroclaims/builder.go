@@ -11,6 +11,7 @@ import (
 
 	cerebrov1 "github.com/writer/aperio/gen/cerebro/v1"
 	"github.com/writer/aperio/internal/cerebroclient"
+	sdkclaims "github.com/writer/cerebro/sdk/go/cerebroapi/claims"
 )
 
 type Payload struct {
@@ -75,21 +76,21 @@ func Build(input BuildInput) ([]cerebroclient.Claim, error) {
 		}
 	}
 	claims := []cerebroclient.Claim{
-		existsClaim(finding, input.Payload, attributes),
-		existsClaim(target, input.Payload, map[string]string{"provider": provider}),
-		existsClaim(integration, input.Payload, map[string]string{"provider": provider}),
-		relationClaim(finding, "affects", target, input.Payload),
-		relationClaim(finding, "observed_by", integration, input.Payload),
-		attributeClaim(finding, "title", title, input.Payload),
-		attributeClaim(finding, "provider", provider, input.Payload),
+		sdkclaims.Exists(finding, claimSource(input.Payload, attributes)),
+		sdkclaims.Exists(target, claimSource(input.Payload, map[string]string{"provider": provider})),
+		sdkclaims.Exists(integration, claimSource(input.Payload, map[string]string{"provider": provider})),
+		sdkclaims.Relation(finding, "affects", target, claimSource(input.Payload, nil)),
+		sdkclaims.Relation(finding, "observed_by", integration, claimSource(input.Payload, nil)),
+		sdkclaims.Attribute(finding, "title", title, claimSource(input.Payload, nil)),
+		sdkclaims.Attribute(finding, "provider", provider, claimSource(input.Payload, nil)),
 	}
 	for _, key := range []string{"severity", "riskScore", "status", "ruleId"} {
 		if value := firstString(input.Payload.Record[key]); value != "" {
-			claims = append(claims, attributeClaim(finding, key, value, input.Payload))
+			claims = append(claims, sdkclaims.Attribute(finding, key, value, claimSource(input.Payload, nil)))
 		}
 	}
 	if description := firstString(input.Payload.Record["description"]); description != "" {
-		claims = append(claims, attributeClaim(finding, "description", description, input.Payload))
+		claims = append(claims, sdkclaims.Attribute(finding, "description", description, claimSource(input.Payload, nil)))
 	}
 	return claims, nil
 }
@@ -142,43 +143,12 @@ func EncodeExternalID(value string) string {
 	return builder.String()
 }
 
-func claimBase(payload Payload, attributes map[string]string) cerebroclient.Claim {
-	return cerebroclient.Claim{
-		Status:        "asserted",
+func claimSource(payload Payload, attributes map[string]string) sdkclaims.Source {
+	return sdkclaims.Source{
 		SourceEventID: firstString(payload.Record["sourceEventId"]),
 		ObservedAt:    payload.OccurredAt,
 		Attributes:    attributes,
 	}
-}
-
-func existsClaim(subject cerebroclient.EntityRef, payload Payload, attributes map[string]string) cerebroclient.Claim {
-	claim := claimBase(payload, attributes)
-	claim.SubjectURN = subject.URN
-	claim.SubjectRef = subject
-	claim.Predicate = "exists"
-	claim.ClaimType = "existence"
-	return claim
-}
-
-func attributeClaim(subject cerebroclient.EntityRef, predicate string, value string, payload Payload) cerebroclient.Claim {
-	claim := claimBase(payload, nil)
-	claim.SubjectURN = subject.URN
-	claim.SubjectRef = subject
-	claim.Predicate = predicate
-	claim.ObjectValue = value
-	claim.ClaimType = "attribute"
-	return claim
-}
-
-func relationClaim(subject cerebroclient.EntityRef, predicate string, object cerebroclient.EntityRef, payload Payload) cerebroclient.Claim {
-	claim := claimBase(payload, nil)
-	claim.SubjectURN = subject.URN
-	claim.SubjectRef = subject
-	claim.Predicate = predicate
-	claim.ObjectURN = object.URN
-	claim.ObjectRef = &object
-	claim.ClaimType = "relation"
-	return claim
 }
 
 func firstString(values ...any) string {
