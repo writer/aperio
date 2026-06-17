@@ -203,6 +203,7 @@ message AuthSession {
   string token = 1;
   AuthUser user = 2;
   AuthOrganization organization = 3;
+  AuthContext auth_context = 4;
 }
 
 message AuthUser {
@@ -217,6 +218,19 @@ message AuthOrganization {
   string id = 1;
   string name = 2;
   string slug = 3;
+}
+
+message AuthContext {
+  string principal = 1;
+  string tenant_id = 2;
+  string tenant_slug = 3;
+  string credential_kind = 4;
+  string auth_mode = 5;
+  string token_transport = 6;
+  string cerebro_resource = 7;
+  repeated string allowed_tenants = 8;
+  repeated string cerebro_scopes = 9;
+  repeated string groups = 10;
 }
 
 message WorkspaceMembership {

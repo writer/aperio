@@ -6,9 +6,13 @@ export type AuthContext = {
   principal: string;
   tenantId: string;
   tenantSlug: string;
-  credentialKind: "human_workspace_session";
-  tokenTransport: "http_only_cookie";
+  credentialKind: "human_workspace_session" | string;
+  authMode: "human_workspace_session" | string;
+  tokenTransport: "http_only_cookie" | string;
+  cerebroResource: string;
+  allowedTenants: string[];
   cerebroScopes: string[];
+  groups: string[];
 };
 
 export type AuthSession = {
