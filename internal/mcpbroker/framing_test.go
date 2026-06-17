@@ -34,11 +34,21 @@ func TestServerLifecycleAndErrorFrames(t *testing.T) {
 	if serverInfo["name"] != ServerName {
 		t.Fatalf("serverInfo = %#v", serverInfo)
 	}
-	if _, ok := initialize["capabilities"].(map[string]any)["tools"]; !ok {
-		t.Fatalf("initialize capabilities missing tools: %#v", initialize)
+	if serverInfo["title"] != ServerTitle {
+		t.Fatalf("serverInfo missing title: %#v", serverInfo)
 	}
-	if _, ok := initialize["capabilities"].(map[string]any)["resources"]; !ok {
+	capabilities := initialize["capabilities"].(map[string]any)
+	tools, ok := capabilities["tools"].(map[string]any)
+	if !ok || tools["listChanged"] != false {
+		t.Fatalf("initialize tools capability drifted: %#v", initialize)
+	}
+	resources, ok := capabilities["resources"].(map[string]any)
+	if !ok || resources["subscribe"] != false || resources["listChanged"] != false {
 		t.Fatalf("initialize capabilities missing resources: %#v", initialize)
+	}
+	prompts, ok := capabilities["prompts"].(map[string]any)
+	if !ok || prompts["listChanged"] != false {
+		t.Fatalf("initialize prompts capability drifted: %#v", initialize)
 	}
 
 	if result := frames[1]["result"].(map[string]any); len(result) != 0 || frames[1]["id"] != "ping-1" {
