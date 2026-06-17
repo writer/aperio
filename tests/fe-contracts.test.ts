@@ -291,3 +291,32 @@ test("typed auth sessions do not copy compatibility bearer tokens", () => {
     "typed auth responses should rely on Set-Cookie and omit bearer tokens"
   );
 });
+
+test("Cerebro MCP resource templates stay visible in frontend context panels", () => {
+  const proto = readRepoFile("proto/aperio/v1/api.proto");
+  const connectClient = readRepoFile("packages/connect/src/client.ts");
+  const component = readRepoFile(
+    "apps/web/components/cerebro/mcp-resource-template-list.tsx"
+  );
+  const securityPage = readRepoFile("apps/web/components/security/security-page.tsx");
+  const findingPage = readRepoFile(
+    "apps/web/components/findings/finding-detail-page.tsx"
+  );
+  const incidentPage = readRepoFile(
+    "apps/web/components/incidents/incident-detail-page.tsx"
+  );
+
+  assert.match(
+    proto,
+    /repeated CerebroMCPResourceTemplate resource_templates = 5;/
+  );
+  assert.match(connectClient, /cerebroMCPResourceTemplatesFromProto/);
+  assert.doesNotMatch(connectClient, /resourceTemplates:\s*\[\]/);
+  assert.match(component, /MCP resource templates/);
+  assert.match(component, /template\.uriTemplate/);
+
+  for (const source of [securityPage, findingPage, incidentPage]) {
+    assert.match(source, /CerebroMCPResourceTemplateList/);
+    assert.match(source, /resourceTemplates/);
+  }
+});

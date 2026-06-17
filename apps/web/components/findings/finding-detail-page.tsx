@@ -19,6 +19,7 @@ import {
   type Finding,
   type FindingCerebroContext
 } from "../../lib/api";
+import { CerebroMCPResourceTemplateList } from "../cerebro/mcp-resource-template-list";
 import { useToast } from "../ui/toast";
 import { PageHeader } from "../layout/page-header";
 import { Badge, SeverityBadge } from "../ui/badge";
@@ -350,6 +351,10 @@ function FindingCerebroContextCard({
             </div>
           </section>
         ) : null}
+
+        <CerebroMCPResourceTemplateList
+          templates={context.mcp?.resourceTemplates}
+        />
 
         {context.claimSummaries.length ? (
           <section className="space-y-2">

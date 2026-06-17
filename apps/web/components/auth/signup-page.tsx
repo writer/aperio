@@ -7,6 +7,7 @@ import { signup } from "../../lib/api";
 import { CEREBRO_API_RESOURCE } from "../../lib/cerebro-auth";
 import { useAuth } from "./auth-shell";
 import { AuthLayout } from "./auth-layout";
+import { useCerebroAuthInsights } from "./use-cerebro-auth-insights";
 import { Button } from "../ui/button";
 import { Field, FormBanner, Input } from "../ui/form";
 
@@ -32,6 +33,7 @@ export function SignupPage() {
   const [password, setPassword] = useState("");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+  const sessionInsights = useCerebroAuthInsights();
 
   const nameId = useId();
   const slugId = useId();
@@ -67,6 +69,8 @@ export function SignupPage() {
     <AuthLayout
       title="Create a workspace"
       description={`Provision a tenant, owner principal, and role model for ${CEREBRO_API_RESOURCE} sessions.`}
+      showSessionMessaging
+      sessionInsights={sessionInsights}
       footer={
         <>
           Already have one?{" "}
