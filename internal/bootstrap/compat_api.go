@@ -2928,21 +2928,19 @@ const (
 
 func compatAuthContextForSession(user compatSessionUser, org compatSessionOrg) compatSessionAuthContext {
 	return compatSessionAuthContext{
-		Principal:                      strings.TrimSpace(user.Email),
-		TenantID:                       strings.TrimSpace(org.ID),
-		TenantSlug:                     strings.TrimSpace(org.Slug),
-		CredentialKind:                 "human_workspace_session",
-		AuthMode:                       "human_workspace_session",
-		TokenTransport:                 "http_only_cookie",
-		CerebroResource:                compatCerebroAPIResource,
-		AllowedTenants:                 compactStrings(org.ID),
-		CerebroScopes:                  compatCerebroScopesForRole(user.Role),
-		Groups:                         compatCerebroGroupsForRole(user.Role),
-		CerebroMCPResource:             compatCerebroMCPResource,
-		CerebroMCPResourceMetadataPath: compatCerebroMCPResourceMetadataPath,
-		CerebroOAuthAuthorizationServerMetadataPath: compatCerebroOAuthAuthorizationServerMetadataPath,
-		CerebroMCPGrantTypes:                        compatCerebroMCPGrantTypes(),
-		CerebroMCPBearerMethods:                     compatCerebroMCPBearerMethods(),
+		Principal:               strings.TrimSpace(user.Email),
+		TenantID:                strings.TrimSpace(org.ID),
+		TenantSlug:              strings.TrimSpace(org.Slug),
+		CredentialKind:          "human_workspace_session",
+		AuthMode:                "human_workspace_session",
+		TokenTransport:          "http_only_cookie",
+		CerebroResource:         compatCerebroAPIResource,
+		AllowedTenants:          compactStrings(org.ID),
+		CerebroScopes:           compatCerebroScopesForRole(user.Role),
+		Groups:                  compatCerebroGroupsForRole(user.Role),
+		CerebroMCPResource:      compatCerebroMCPResource,
+		CerebroMCPGrantTypes:    compatCerebroMCPGrantTypes(),
+		CerebroMCPBearerMethods: compatCerebroMCPBearerMethods(),
 	}
 }
 
