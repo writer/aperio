@@ -64,6 +64,9 @@ export type LoginPayload = {
   totpCode?: string;
 };
 
+export type FindingCerebroContext =
+  import("@aperio/connect/client").ConnectFindingCerebroContext;
+
 export type Finding = {
   id: string;
   assetId?: string | null;
@@ -82,6 +85,7 @@ export type Finding = {
     provider: Provider;
     displayName: string;
   };
+  cerebroContext?: FindingCerebroContext | null;
 };
 
 export type FindingsFilters = {
