@@ -27,9 +27,13 @@ func (a *App) handleOAuthProtectedResourceMetadata(w http.ResponseWriter, r *htt
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
-	issuer := a.cerebroOAuthIssuer(r)
+	issuer, resource, ok := a.cerebroOAuthDiscoveryConfig()
+	if !ok {
+		writeError(w, http.StatusNotFound, "Cerebro OAuth discovery is not configured")
+		return
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"resource":                 a.cerebroMCPResourceURL(issuer),
+		"resource":                 resource,
 		"authorization_servers":    []string{issuer},
 		"bearer_methods_supported": compatCerebroMCPBearerMethods(),
 		"scopes_supported":         []string{compatCerebroReadScope},
@@ -42,7 +46,11 @@ func (a *App) handleOAuthAuthorizationServerMetadata(w http.ResponseWriter, r *h
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
-	issuer := a.cerebroOAuthIssuer(r)
+	issuer, _, ok := a.cerebroOAuthDiscoveryConfig()
+	if !ok {
+		writeError(w, http.StatusNotFound, "Cerebro OAuth discovery is not configured")
+		return
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"issuer":                                issuer,
 		"authorization_endpoint":                issuer + oauthAuthorizePath,
@@ -57,30 +65,21 @@ func (a *App) handleOAuthAuthorizationServerMetadata(w http.ResponseWriter, r *h
 	})
 }
 
-func (a *App) cerebroOAuthIssuer(r *http.Request) string {
-	if a != nil {
-		if issuer := normalizeOAuthIssuerURL(a.cerebroOAuthIssuerURL); issuer != "" {
-			return issuer
-		}
-		if origin := firstConfiguredWebOrigin(a.cfg.WebOrigin); origin != "" {
-			return origin
-		}
-	}
-	if r != nil {
-		if origin := requestOrigin(r); origin != "" {
-			return origin
-		}
-	}
-	return "http://localhost:3000"
+func (a *App) cerebroOAuthDiscoveryConfigured() bool {
+	_, _, ok := a.cerebroOAuthDiscoveryConfig()
+	return ok
 }
 
-func (a *App) cerebroMCPResourceURL(issuer string) string {
-	if a != nil {
-		if resource := normalizeAbsoluteURL(a.cerebroMCPServerURL); resource != "" {
-			return resource
-		}
+func (a *App) cerebroOAuthDiscoveryConfig() (string, string, bool) {
+	if a == nil {
+		return "", "", false
 	}
-	return strings.TrimRight(issuer, "/") + cerebroMCPEndpointPath
+	issuer := normalizeOAuthIssuerURL(a.cerebroOAuthIssuerURL)
+	resource := normalizeAbsoluteURL(a.cerebroMCPServerURL)
+	if issuer == "" || resource == "" {
+		return "", "", false
+	}
+	return issuer, resource, true
 }
 
 func normalizeOAuthIssuerURL(raw string) string {
