@@ -6,6 +6,10 @@ import { pathToFileURL, fileURLToPath } from "node:url";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
+function readRepoFile(relativePath: string): string {
+  return fs.readFileSync(path.join(repoRoot, relativePath), "utf8");
+}
+
 async function loadPreflight() {
   return import(pathToFileURL(path.join(repoRoot, "scripts/droid-review-preflight.mjs")).href) as Promise<{
     buildPreflightReport: (input: {
@@ -92,8 +96,7 @@ test("Droid preflight preserves legacy Agents/remediation/MCP/SIEM high-risk pat
 });
 
 test("Dependency lock keeps esbuild at or above the patched baseline", () => {
-  const lockPath = path.join(repoRoot, "package-lock.json");
-  const lock = JSON.parse(fs.readFileSync(lockPath, "utf8")) as {
+  const lock = JSON.parse(readRepoFile("package-lock.json")) as {
     packages?: Record<string, { version?: string }>;
   };
   const version = lock.packages?.["node_modules/esbuild"]?.version ?? "";
@@ -101,5 +104,79 @@ test("Dependency lock keeps esbuild at or above the patched baseline", () => {
   assert.ok(
     semverAtLeast(version, "0.28.1"),
     `esbuild version ${version} is below required patched baseline 0.28.1`
+  );
+});
+
+test("Droid Create issue comments on PRs update the PR branch", () => {
+  const workflow = readRepoFile(".github/workflows/droid-create.yml");
+  const issueCommentHandler =
+    workflow.match(/elif event_name == "issue_comment":[\s\S]*?elif event_name == "issues":/)?.[0] ?? "";
+
+  assert.match(issueCommentHandler, /source_pr = api_get\(issue\["pull_request"\]\["url"\]\)/);
+  assert.match(issueCommentHandler, /\n\s+pr = source_pr\n/);
+  assert.match(issueCommentHandler, /\n\s+is_pr = True\n/);
+  assert.doesNotMatch(
+    workflow,
+    /github\.event_name == 'issue_comment' && needs\.droid-context\.outputs\.default_branch/,
+    "PR-linked issue_comment triggers must not force checkout to the default branch"
+  );
+
+  const checkoutRefAssignments = workflow.match(/CHECKOUT_REF: .*/g) ?? [];
+  assert.deepEqual(checkoutRefAssignments, [
+    "CHECKOUT_REF: ${{ needs.droid-context.outputs.checkout_ref }}",
+    "CHECKOUT_REF: ${{ needs.droid-context.outputs.checkout_ref }}"
+  ]);
+});
+
+test("Droid Create event filters reject untrusted comment and issue authors before runner allocation", () => {
+  const workflow = readRepoFile(".github/workflows/droid-create.yml");
+  const contextJob = workflow.match(/  droid-context:[\s\S]*?    runs-on: ubuntu-latest/)?.[0] ?? "";
+  const trustedActors = /\["OWNER","MEMBER","COLLABORATOR"\]/.source;
+
+  assert.match(
+    contextJob,
+    new RegExp(
+      [
+        "github\\.event_name == 'pull_request_review_comment' &&",
+        "\\s+github\\.event\\.pull_request\\.head\\.repo\\.full_name == github\\.repository &&",
+        `\\s+contains\\(fromJSON\\('${trustedActors}'\\), github\\.event\\.comment\\.author_association\\) && \\(`
+      ].join("\\n")
+    )
+  );
+  assert.match(
+    contextJob,
+    new RegExp(
+      [
+        "github\\.event_name == 'pull_request_review' &&",
+        "\\s+github\\.event\\.pull_request\\.head\\.repo\\.full_name == github\\.repository &&",
+        `\\s+contains\\(fromJSON\\('${trustedActors}'\\), github\\.event\\.review\\.author_association\\) && \\(`
+      ].join("\\n")
+    )
+  );
+  assert.match(
+    contextJob,
+    new RegExp(
+      [
+        "github\\.event_name == 'issue_comment' &&",
+        "\\s+github\\.event\\.issue\\.pull_request != null &&",
+        `\\s+contains\\(fromJSON\\('${trustedActors}'\\), github\\.event\\.comment\\.author_association\\) && \\(`
+      ].join("\\n")
+    )
+  );
+  assert.match(
+    contextJob,
+    new RegExp(
+      `contains\\(fromJSON\\('${trustedActors}'\\), github\\.event\\.issue\\.author_association\\) &&\\n\\s+\\(github\\.event\\.action == 'opened' \\|\\|`
+    )
+  );
+});
+
+test("Droid Create uses the resolved target concurrency key", () => {
+  const workflow = readRepoFile(".github/workflows/droid-create.yml");
+  const contextJob = workflow.match(/  droid-context:[\s\S]*?    runs-on: ubuntu-latest/)?.[0] ?? "";
+
+  assert.match(
+    contextJob,
+    /concurrency:\n\s+group: \$\{\{ github\.workflow \}\}-\$\{\{ needs\.resolve-concurrency\.outputs\.key \}\}\n\s+cancel-in-progress: false/
   );
 });
