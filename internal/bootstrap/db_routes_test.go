@@ -57,7 +57,16 @@ func newTestDBApp(t *testing.T) (*App, compatAuth) {
 	})
 
 	app := NewApp(config.Config{WebOrigin: "http://localhost:3000", SessionIdleMinutes: 120}, db)
-	auth := compatAuth{OrganizationID: orgID, UserID: compatID("usr"), Email: "admin@example.com", Role: "ADMIN"}
+	roleID, err := app.ensureCompatRole(context.Background(), orgID, "ADMIN")
+	if err != nil {
+		t.Fatalf("seed admin role: %v", err)
+	}
+	userID := compatID("usr")
+	email := "admin-" + randomBase36(10) + "@example.com"
+	if _, err := db.ExecContext(context.Background(), `INSERT INTO users (id, organization_id, role_id, email, display_name, is_active, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,TRUE,NOW(),NOW())`, userID, orgID, roleID, email, "Admin User"); err != nil {
+		t.Fatalf("seed admin user: %v", err)
+	}
+	auth := compatAuth{OrganizationID: orgID, UserID: userID, Email: email, Role: "ADMIN"}
 	return app, auth
 }
 
@@ -158,6 +167,25 @@ func seedRemediationFixture(t *testing.T, app *App, auth compatAuth, provider st
 		t.Fatalf("seed finding: %v", err)
 	}
 	return integrationID, findingID
+}
+
+func TestGetFindingBoundsCerebroEnrichment(t *testing.T) {
+	app, baseAuth := newTestDBApp(t)
+	auth := seedOrgAdmin(t, app, baseAuth.OrganizationID)
+	header := seedSessionHeader(t, app, auth)
+	client := &fakeSaasCerebroContextClient{}
+	app.WithCerebroContextClient("runtime-a", client)
+	_, findingID := seedSlackFinding(t, app, auth, "REMEDIATION", "xoxp-cerebro-timeout", "TCBR"+strings.ToUpper(randomBase36(6)), `{"subject":"EVIDENCE_APP","sourceEventId":"evt-cerebro-timeout"}`)
+
+	req := connect.NewRequest(&aperiov1.GetFindingRequest{Id: findingID})
+	copyCompatHeaders(req.Header(), header)
+	if _, err := app.GetFinding(context.Background(), req); err != nil {
+		t.Fatalf("GetFinding failed: %v", err)
+	}
+
+	if len(client.listDeadlines) != 1 || !client.listDeadlines[0] {
+		t.Fatalf("expected bounded Cerebro ListClaims context, deadlines=%#v requests=%#v", client.listDeadlines, client.listRequests)
+	}
 }
 
 func remediationExternalAccountID(provider string) string {
@@ -2368,6 +2396,33 @@ func TestDBSecurityOverview(t *testing.T) {
 	summary := data["summary"].(map[string]any)
 	if summary["privilegedIdentities"].(int) != 1 {
 		t.Fatalf("expected 1 privileged identity, got %v", summary["privilegedIdentities"])
+	}
+}
+
+func TestDBSecurityOverviewTypedAndCallApiRateLimitExhaustionAgree(t *testing.T) {
+	app, auth := newTestDBApp(t)
+	auth = seedOrgAdmin(t, app, auth.OrganizationID)
+	ctx := context.Background()
+
+	callHeader := seedSessionHeader(t, app, auth)
+	callHeader.Set("X-Forwarded-For", "198.51.100.93")
+	seedExhaustedRateLimitBucket(t, app, callHeader, http.MethodGet, securityOverviewRateLimitPath)
+	_, callErr := callCompatViaCallAPI(t, app, ctx, callHeader, http.MethodGet, securityOverviewRateLimitPath, "")
+	if code := connect.CodeOf(callErr); code != connect.CodeResourceExhausted {
+		t.Fatalf("CallApi security overview rate limit code = %v (%v), want CodeResourceExhausted", code, callErr)
+	}
+
+	typedHeader := seedSessionHeader(t, app, auth)
+	typedHeader.Set("X-Forwarded-For", "198.51.100.94")
+	seedExhaustedRateLimitBucket(t, app, typedHeader, http.MethodGet, securityOverviewRateLimitPath)
+	typedReq := connect.NewRequest(&aperiov1.GetSecurityOverviewRequest{})
+	copyCompatHeaders(typedReq.Header(), typedHeader)
+	_, typedErr := app.GetSecurityOverview(ctx, typedReq)
+	if code := connect.CodeOf(typedErr); code != connect.CodeResourceExhausted {
+		t.Fatalf("typed security overview rate limit code = %v (%v), want CodeResourceExhausted", code, typedErr)
+	}
+	if callErr.Error() != typedErr.Error() {
+		t.Fatalf("security overview rate limit error mismatch: CallApi=%q typed=%q", callErr.Error(), typedErr.Error())
 	}
 }
 

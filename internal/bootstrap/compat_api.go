@@ -184,6 +184,24 @@ type compatSessionOrg struct {
 	Slug string `json:"slug"`
 }
 
+type compatSessionAuthContext struct {
+	Principal                                   string   `json:"principal"`
+	TenantID                                    string   `json:"tenantId"`
+	TenantSlug                                  string   `json:"tenantSlug"`
+	CredentialKind                              string   `json:"credentialKind"`
+	AuthMode                                    string   `json:"authMode"`
+	TokenTransport                              string   `json:"tokenTransport"`
+	CerebroResource                             string   `json:"cerebroResource"`
+	AllowedTenants                              []string `json:"allowedTenants"`
+	CerebroScopes                               []string `json:"cerebroScopes"`
+	Groups                                      []string `json:"groups"`
+	CerebroMCPResource                          string   `json:"cerebroMcpResource"`
+	CerebroMCPResourceMetadataPath              string   `json:"cerebroMcpResourceMetadataPath"`
+	CerebroOAuthAuthorizationServerMetadataPath string   `json:"cerebroOauthAuthorizationServerMetadataPath"`
+	CerebroMCPGrantTypes                        []string `json:"cerebroMcpGrantTypes"`
+	CerebroMCPBearerMethods                     []string `json:"cerebroMcpBearerMethods"`
+}
+
 // normalizeCompatRoute turns a tunneled REST path into a low-cardinality route
 // template by collapsing opaque identifiers (cuids, UUIDs, and seed-style
 // prefixed IDs) into ":id". This keeps the wide event's http.tunnel.route
@@ -555,7 +573,7 @@ func (a *App) compatRateLimit(
 	path string,
 	body map[string]any,
 ) error {
-	if method != http.MethodPost {
+	if method != http.MethodPost && !(method == http.MethodGet && path == securityOverviewRateLimitPath) {
 		return nil
 	}
 	max, window, ok := compatRateLimitPolicy(path)
@@ -659,6 +677,8 @@ func compatRateLimitPolicy(path string) (int, time.Duration, bool) {
 	case "/api/v1/auth/forgot-password", "/api/v1/auth/reset-password", "/api/v1/auth/invitations/accept":
 		return 10, 15 * time.Minute, true
 	case emailDomainHealthListRateLimitPath, emailDomainHealthGetRateLimitPath:
+		return 20, 10 * time.Minute, true
+	case securityOverviewRateLimitPath:
 		return 20, 10 * time.Minute, true
 	default:
 		if strings.HasPrefix(path, "/api/v1/integrations/") && strings.HasSuffix(path, "/force-sync") {
@@ -830,7 +850,9 @@ func (a *App) compatSignup(ctx context.Context, body map[string]any, headers htt
 		return nil, internalServerError("signup.commit", err)
 	}
 	headers.Add("Set-Cookie", compatSessionCookie(session))
-	return map[string]any{"data": map[string]any{"token": session, "user": map[string]any{"id": userID, "email": email, "displayName": displayName, "mfaEnabled": false, "role": "OWNER"}, "organization": map[string]any{"id": orgID, "name": orgName, "slug": orgSlug}}}, nil
+	user := compatSessionUser{ID: userID, Email: email, DisplayName: displayName, MFAEnabled: false, Role: "OWNER"}
+	org := compatSessionOrg{ID: orgID, Name: orgName, Slug: orgSlug}
+	return map[string]any{"data": a.compatSessionPayload(session, user, org)}, nil
 }
 
 func (a *App) compatLogin(ctx context.Context, body map[string]any, headers http.Header) (any, error) {
@@ -886,7 +908,7 @@ func (a *App) compatLogin(ctx context.Context, body map[string]any, headers http
 		"auth.login", "user", userID,
 		map[string]any{"email": email, "mfaUsed": mfaEnabled, "workspaceSlug": orgSlug},
 	)
-	return map[string]any{"data": compatSessionPayload(session, compatSessionUser{ID: userID, Email: email, DisplayName: nullStringPtr(displayName), MFAEnabled: mfaEnabled, Role: role}, compatSessionOrg{ID: orgID, Name: orgName, Slug: orgSlug})}, nil
+	return map[string]any{"data": a.compatSessionPayload(session, compatSessionUser{ID: userID, Email: email, DisplayName: nullStringPtr(displayName), MFAEnabled: mfaEnabled, Role: role}, compatSessionOrg{ID: orgID, Name: orgName, Slug: orgSlug})}, nil
 }
 
 func (a *App) compatSession(ctx context.Context, auth compatAuth, token string) (any, error) {
@@ -901,7 +923,7 @@ func (a *App) compatSession(ctx context.Context, auth compatAuth, token string) 
 		return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("unauthorized"))
 	}
 	user.DisplayName = nullStringPtr(displayName)
-	return map[string]any{"data": compatSessionPayload(token, user, org)}, nil
+	return map[string]any{"data": a.compatSessionPayload(token, user, org)}, nil
 }
 
 func (a *App) compatWorkspaces(ctx context.Context, auth compatAuth) (any, error) {
@@ -1117,7 +1139,7 @@ func (a *App) compatConsumeAuthToken(ctx context.Context, token, password, purpo
 		auditAction, "user", userID,
 		map[string]any{"email": email, "workspaceSlug": orgSlug},
 	)
-	return map[string]any{"data": compatSessionPayload(session, compatSessionUser{ID: userID, Email: email, DisplayName: nullStringPtr(displayName), MFAEnabled: false, Role: role}, compatSessionOrg{ID: orgID, Name: orgName, Slug: orgSlug})}, nil
+	return map[string]any{"data": a.compatSessionPayload(session, compatSessionUser{ID: userID, Email: email, DisplayName: nullStringPtr(displayName), MFAEnabled: false, Role: role}, compatSessionOrg{ID: orgID, Name: orgName, Slug: orgSlug})}, nil
 }
 
 func (a *App) compatMFASetup(ctx context.Context, auth compatAuth) (any, error) {
@@ -2532,7 +2554,9 @@ func (a *App) compatSecurityOverview(ctx context.Context, auth compatAuth) (any,
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
-	return map[string]any{"data": computeSecurityOverview(identities, assets, exceptions, findings, googleIntegrations)}, nil
+	overview := computeSecurityOverview(identities, assets, exceptions, findings, googleIntegrations)
+	overview = a.enrichSecurityOverviewCerebroContext(ctx, auth.OrganizationID, overview, findings)
+	return map[string]any{"data": overview}, nil
 }
 
 func (a *App) compatCreateSecurityAsset(ctx context.Context, body map[string]any, auth compatAuth) (any, error) {
@@ -2880,7 +2904,112 @@ func expiredCompatSessionCookie() string {
 }
 
 func compatSessionPayload(token string, user compatSessionUser, org compatSessionOrg) map[string]any {
-	return map[string]any{"token": token, "user": user, "organization": org}
+	return map[string]any{
+		"token":        token,
+		"user":         user,
+		"organization": org,
+		"authContext":  compatAuthContextForSession(user, org),
+	}
+}
+
+func (a *App) compatSessionPayload(token string, user compatSessionUser, org compatSessionOrg) map[string]any {
+	payload := compatSessionPayload(token, user, org)
+	payload["authContext"] = a.compatAuthContextForSession(user, org)
+	return payload
+}
+
+const (
+	compatCerebroAPIResource                          = "cerebro-api"
+	compatCerebroMCPResource                          = "cerebro-mcp"
+	compatCerebroMCPResourceMetadataPath              = "/.well-known/oauth-protected-resource/api/v1/mcp"
+	compatCerebroOAuthAuthorizationServerMetadataPath = "/.well-known/oauth-authorization-server"
+	compatCerebroReadScope                            = "cerebro.cosmo.security.read"
+	compatCerebroFindingCandidateScope                = "cerebro.finding_candidates.promote"
+	compatCerebroFindingLifecycleScope                = "cerebro.findings.write"
+	compatCerebroGRCInventoryScope                    = "cerebro.grc.inventory.write"
+	compatCerebroConnectorCredentialsRead             = "cerebro.connector_credentials.read"
+	compatCerebroConnectorCredentialsWrite            = "cerebro.connector_credentials.write"
+	compatCerebroRuntimeResponseScope                 = "cerebro.runtime_response.write"
+)
+
+func compatAuthContextForSession(user compatSessionUser, org compatSessionOrg) compatSessionAuthContext {
+	return compatSessionAuthContext{
+		Principal:               strings.TrimSpace(user.Email),
+		TenantID:                strings.TrimSpace(org.ID),
+		TenantSlug:              strings.TrimSpace(org.Slug),
+		CredentialKind:          "human_workspace_session",
+		AuthMode:                "human_workspace_session",
+		TokenTransport:          "http_only_cookie",
+		CerebroResource:         compatCerebroAPIResource,
+		AllowedTenants:          compactStrings(org.ID),
+		CerebroScopes:           compatCerebroScopesForRole(user.Role),
+		Groups:                  compatCerebroGroupsForRole(user.Role),
+		CerebroMCPResource:      compatCerebroMCPResource,
+		CerebroMCPGrantTypes:    compatCerebroMCPGrantTypes(),
+		CerebroMCPBearerMethods: compatCerebroMCPBearerMethods(),
+	}
+}
+
+func (a *App) compatAuthContextForSession(user compatSessionUser, org compatSessionOrg) compatSessionAuthContext {
+	context := compatAuthContextForSession(user, org)
+	if a.cerebroOAuthDiscoveryConfigured() {
+		context.CerebroMCPResourceMetadataPath = compatCerebroMCPResourceMetadataPath
+		context.CerebroOAuthAuthorizationServerMetadataPath = compatCerebroOAuthAuthorizationServerMetadataPath
+	}
+	return context
+}
+
+func compatCerebroMCPGrantTypes() []string {
+	return []string{"authorization_code", "refresh_token", "client_credentials"}
+}
+
+func compatCerebroMCPBearerMethods() []string {
+	return []string{"header"}
+}
+
+func compatCerebroScopesForRole(role string) []string {
+	switch strings.ToUpper(strings.TrimSpace(role)) {
+	case "OWNER", "ADMIN":
+		return []string{
+			compatCerebroReadScope,
+			compatCerebroFindingCandidateScope,
+			compatCerebroFindingLifecycleScope,
+			compatCerebroGRCInventoryScope,
+			compatCerebroConnectorCredentialsRead,
+			compatCerebroConnectorCredentialsWrite,
+			compatCerebroRuntimeResponseScope,
+		}
+	case "SECURITY_ANALYST":
+		return []string{
+			compatCerebroReadScope,
+			compatCerebroFindingCandidateScope,
+			compatCerebroFindingLifecycleScope,
+			compatCerebroGRCInventoryScope,
+			compatCerebroRuntimeResponseScope,
+		}
+	default:
+		return []string{compatCerebroReadScope}
+	}
+}
+
+func compatCerebroGroupsForRole(role string) []string {
+	switch strings.ToUpper(strings.TrimSpace(role)) {
+	case "OWNER", "ADMIN", "SECURITY_ANALYST", "VIEWER":
+		return []string{"security"}
+	default:
+		return nil
+	}
+}
+
+func compactStrings(values ...string) []string {
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value != "" {
+			out = append(out, value)
+		}
+	}
+	return out
 }
 
 func compatAuthLink(path, token string) string {

@@ -16,8 +16,10 @@ import {
   type DomainWideDelegation,
   type EmailDomainHealth,
   type SecurityAsset,
+  type SecurityCerebroContext,
   type SecurityOverview
 } from "../../lib/api";
+import { CerebroMCPResourceTemplateList } from "../cerebro/mcp-resource-template-list";
 import { PageHeader } from "../layout/page-header";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
@@ -157,6 +159,8 @@ export function SecurityPage() {
 
             <EmailDomainHealthSummaryCard domains={domainHealth} />
 
+            <SecurityCerebroContextCard context={data.cerebroContext ?? null} />
+
             <AttackPathsCard paths={data.attackPaths} />
 
             {(data.domainWideDelegations ?? []).length > 0 ? (
@@ -192,6 +196,104 @@ export function SecurityPage() {
           </>
         )}
       </AsyncSection>
+    </div>
+  );
+}
+
+function SecurityCerebroContextCard({
+  context
+}: {
+  context: SecurityCerebroContext | null;
+}) {
+  if (!context) return null;
+  const modeLabel = context.mode.replaceAll("-", " ");
+  const linked =
+    context.mode === "claim-linked" || context.mode === "graph-linked";
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <CardTitle>Cerebro graph context</CardTitle>
+            <CardDescription>
+              Security overview provenance for the Cerebro source runtime and
+              MCP investigation surface.
+            </CardDescription>
+          </div>
+          <Badge variant={linked ? "secondary" : "outline"}>{modeLabel}</Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="grid gap-4 lg:grid-cols-[1fr_1fr]">
+        <dl className="grid gap-2 text-sm">
+          <CerebroContextRow
+            label="Runtime"
+            value={context.sourceRuntimeId || "Not configured"}
+          />
+          <CerebroContextRow
+            label="Contract"
+            value={context.findingContract || "cerebro.v1.Finding"}
+          />
+          <CerebroContextRow
+            label="MCP resource"
+            value={context.mcp?.resourceUri || "Not configured"}
+          />
+          <CerebroContextRow
+            label="MCP server"
+            value={context.mcp?.server || "Not configured"}
+          />
+        </dl>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4">
+          <CerebroMiniStat label="Claims" value={context.claimCount} />
+          <CerebroMiniStat label="Signals" value={context.graphSignalCount} />
+          <CerebroMiniStat label="Entities" value={context.entityCount} />
+          <CerebroMiniStat label="Paths" value={context.graphPathCount} />
+        </div>
+        {context.mcp?.tools.length ? (
+          <div className="lg:col-span-2">
+            <p className="mb-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              MCP tools
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {context.mcp.tools.map((tool) => (
+                <span
+                  key={tool}
+                  className="rounded border border-border/70 bg-muted/30 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground"
+                >
+                  {tool}
+                </span>
+              ))}
+            </div>
+          </div>
+        ) : null}
+        <CerebroMCPResourceTemplateList
+          className="lg:col-span-2"
+          templates={context.mcp?.resourceTemplates}
+        />
+      </CardContent>
+    </Card>
+  );
+}
+
+function CerebroContextRow({
+  label,
+  value
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="grid grid-cols-[100px_minmax(0,1fr)] gap-3">
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className="truncate font-mono text-xs text-foreground">{value}</dd>
+    </div>
+  );
+}
+
+function CerebroMiniStat({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-md border border-border/70 bg-background/40 px-3 py-2">
+      <p className="text-[11px] text-muted-foreground">{label}</p>
+      <p className="font-mono text-lg text-foreground tabular-nums">{value}</p>
     </div>
   );
 }

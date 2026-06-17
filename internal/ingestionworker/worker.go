@@ -17,6 +17,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/writer/aperio/internal/cerebrofanout"
 	"github.com/writer/aperio/internal/runtimeutil"
 	"github.com/writer/aperio/internal/siemdispatcher"
 	"github.com/writer/aperio/internal/telemetry"
@@ -140,6 +141,11 @@ type Worker struct {
 	db             *sql.DB
 	leaseOwner     string
 	eventPublisher IngestionEventPublisher
+	cerebroFanout  CerebroFindingFanout
+}
+
+type CerebroFindingFanout interface {
+	FanoutFinding(context.Context, cerebrofanout.FindingPayload) (cerebrofanout.Result, error)
 }
 
 type IngestionJobLifecycleEvent struct {
@@ -219,6 +225,11 @@ func New(db *sql.DB) *Worker {
 		leaseOwner:     fmt.Sprintf("%s:%d:%s", hostname, os.Getpid(), randomID()),
 		eventPublisher: NewEnvEventPublisher(),
 	}
+}
+
+func (w *Worker) WithCerebroFanout(fanout CerebroFindingFanout) *Worker {
+	w.cerebroFanout = fanout
+	return w
 }
 
 func Evaluate(payload JobPayload, disabledChecks []string) []Finding {
@@ -1509,6 +1520,7 @@ func (w *Worker) process(ctx context.Context, item job) error {
 		return w.fail(ctx, item, err.Error())
 	}
 	lifecycleEvents := []FindingLifecycleEvent{}
+	cerebroPayloads := []cerebrofanout.FindingPayload{}
 	eventID := "evt_" + randomID()
 	if err := tx.QueryRowContext(ctx, `
 		INSERT INTO ingested_events (id, organization_id, integration_id, ingestion_job_id, provider, event_type, source, actor, severity, payload, processing_status, occurred_at, processed_at, created_at)
@@ -1526,6 +1538,7 @@ func (w *Worker) process(ctx context.Context, item job) error {
 		if err := enqueueFindingDelivery(ctx, tx, payload, finding, eventID, persisted); err != nil {
 			return fail(fmt.Errorf("enqueue SIEM delivery: %w", err))
 		}
+		cerebroPayloads = append(cerebroPayloads, cerebroFindingPayload(findingPayload(payload, finding, eventID, persisted)))
 		if shouldPublishFindingLifecycle(persisted) {
 			lifecycleEvents = append(lifecycleEvents, FindingLifecycleEvent{
 				FindingID:      persisted.ID,
@@ -1570,6 +1583,7 @@ func (w *Worker) process(ctx context.Context, item job) error {
 		return w.fail(ctx, item, fmt.Errorf("commit transaction: %w", err).Error())
 	}
 	txDone = true
+	w.fanoutCerebroFindings(ctx, cerebroPayloads)
 	w.publishFindingLifecycleEvents(ctx, lifecycleEvents)
 	w.publishIngestionJobLifecycleEvent(ctx, item, "succeeded", item.Attempts+1, eventID)
 	return nil
@@ -1898,6 +1912,15 @@ func (w *Worker) publishFindingLifecycleEvents(ctx context.Context, events []Fin
 	}
 }
 
+func (w *Worker) fanoutCerebroFindings(ctx context.Context, payloads []cerebrofanout.FindingPayload) {
+	if w.cerebroFanout == nil || len(payloads) == 0 {
+		return
+	}
+	for _, payload := range payloads {
+		_, _ = w.cerebroFanout.FanoutFinding(ctx, payload)
+	}
+}
+
 func postgresTextArray(values []string) string {
 	var builder strings.Builder
 	builder.WriteByte('{')
@@ -1943,7 +1966,22 @@ func enqueueFindingDelivery(ctx context.Context, tx *sql.Tx, payload JobPayload,
 	if err := rows.Close(); err != nil {
 		return err
 	}
-	dedupe := DedupeKey(payload, finding)
+	deliveryPayload := findingPayload(payload, finding, eventID, persisted)
+	for _, destinationID := range destinationIDs {
+		payloadJSON, _ := json.Marshal(deliveryPayload)
+		_, err := tx.ExecContext(ctx, `
+			INSERT INTO siem_deliveries (id, organization_id, destination_id, stream, dedupe_key, payload, created_at, updated_at)
+			VALUES ($1,$2,$3,'FINDINGS'::"SiemStreamType",$4,$5::jsonb,NOW(),NOW())
+			ON CONFLICT (organization_id, destination_id, stream, dedupe_key) DO NOTHING
+		`, "sdel_"+randomID(), payload.OrganizationID, destinationID, siemdispatcher.StableDeliveryKey(deliveryPayload, destinationID, "FINDINGS"), string(payloadJSON))
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func findingPayload(payload JobPayload, finding Finding, eventID string, persisted persistedFinding) siemdispatcher.Payload {
 	status := persisted.Status
 	if status == "" {
 		status = "OPEN"
@@ -1952,11 +1990,14 @@ func enqueueFindingDelivery(ctx context.Context, tx *sql.Tx, payload JobPayload,
 	if payload.Actor != "" {
 		actor = payload.Actor
 	}
-	for _, destinationID := range destinationIDs {
-		record := map[string]any{
+	return siemdispatcher.Payload{
+		Kind:           "finding",
+		OrganizationID: payload.OrganizationID,
+		OccurredAt:     payload.OccurredAt.UTC().Format(time.RFC3339Nano),
+		Record: map[string]any{
 			"schemaVersion":    "aperio.finding.v1",
 			"findingId":        persisted.ID,
-			"dedupeKey":        dedupe,
+			"dedupeKey":        DedupeKey(payload, finding),
 			"sourceEventId":    eventID,
 			"status":           status,
 			"ruleId":           finding.RuleID,
@@ -1972,24 +2013,17 @@ func enqueueFindingDelivery(ctx context.Context, tx *sql.Tx, payload JobPayload,
 			"source":           payload.Source,
 			"eventType":        payload.EventType,
 			"actor":            actor,
-		}
-		deliveryPayload := siemdispatcher.Payload{
-			Kind:           "finding",
-			OrganizationID: payload.OrganizationID,
-			OccurredAt:     payload.OccurredAt.UTC().Format(time.RFC3339Nano),
-			Record:         record,
-		}
-		payloadJSON, _ := json.Marshal(deliveryPayload)
-		_, err := tx.ExecContext(ctx, `
-			INSERT INTO siem_deliveries (id, organization_id, destination_id, stream, dedupe_key, payload, created_at, updated_at)
-			VALUES ($1,$2,$3,'FINDINGS'::"SiemStreamType",$4,$5::jsonb,NOW(),NOW())
-			ON CONFLICT (organization_id, destination_id, stream, dedupe_key) DO NOTHING
-		`, "sdel_"+randomID(), payload.OrganizationID, destinationID, siemdispatcher.StableDeliveryKey(deliveryPayload, destinationID, "FINDINGS"), string(payloadJSON))
-		if err != nil {
-			return err
-		}
+		},
 	}
-	return nil
+}
+
+func cerebroFindingPayload(payload siemdispatcher.Payload) cerebrofanout.FindingPayload {
+	return cerebrofanout.FindingPayload{
+		OrganizationID: payload.OrganizationID,
+		Kind:           payload.Kind,
+		OccurredAt:     payload.OccurredAt,
+		Record:         payload.Record,
+	}
 }
 
 func (w *Worker) finish(ctx context.Context, item job, ok bool, message string) error {

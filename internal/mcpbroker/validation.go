@@ -17,6 +17,7 @@ var (
 	messageRoles     = stringSet("SYSTEM", "AGENT", "USER", "TOOL")
 	siemKinds        = stringSet("finding", "event", "audit_log")
 	incidentStatuses = stringSet("OPEN", "INVESTIGATING", "CONTAINED", "RESOLVED", "ALL")
+	findingStatuses  = stringSet("OPEN", "RESOLVED", "MUTED", "ALL")
 	severities       = stringSet("CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO")
 	saasProviders    = stringSet("GITHUB", "SLACK", "GOOGLE_WORKSPACE", "ONE_PASSWORD", "OKTA", "MICROSOFT_365", "ATLASSIAN", "SALESFORCE")
 	saasActions      = stringSet("REVOKE_OAUTH_GRANT", "SUSPEND_USER", "RESET_MFA", "REVOKE_SESSION", "REMOVE_EXTERNAL_SHARE", "DISABLE_FORWARDING", "REMOVE_ADMIN_ROLE", "QUARANTINE_APP", "OPEN_TICKET", "NOTIFY_SECOPS")
@@ -47,6 +48,10 @@ func ValidateToolArguments(name string, args any, now time.Time) (map[string]any
 		return validateListCerebroIncidents(input)
 	case "aperio.get_cerebro_incident_context":
 		return validateGetCerebroIncidentContext(input)
+	case "aperio.list_cerebro_findings":
+		return validateListCerebroFindings(input)
+	case "aperio.get_cerebro_finding_context":
+		return validateGetCerebroFindingContext(input)
 	case "aperio.propose_cerebro_response":
 		return validateProposeCerebroResponse(input)
 	default:
@@ -284,6 +289,53 @@ func validateGetCerebroIncidentContext(input map[string]any) (map[string]any, er
 		return nil, err
 	}
 	if out["incidentId"], err = requiredString(input, "incidentId", 1, 0); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func validateListCerebroFindings(input map[string]any) (map[string]any, error) {
+	allowed := stringSet("organizationId", "authToken", "status", "severity", "provider", "limit")
+	if err := rejectUnknown(input, allowed); err != nil {
+		return nil, err
+	}
+	out, err := scopedFields(input)
+	if err != nil {
+		return nil, err
+	}
+	if value, ok, err := optionalEnumNoDefault(input, "status", findingStatuses); err != nil {
+		return nil, err
+	} else if ok {
+		out["status"] = value
+	}
+	if value, ok, err := optionalEnumNoDefault(input, "severity", severities); err != nil {
+		return nil, err
+	} else if ok {
+		out["severity"] = value
+	}
+	if value, ok, err := optionalEnumNoDefault(input, "provider", saasProviders); err != nil {
+		return nil, err
+	} else if ok {
+		out["provider"] = value
+	}
+	limit, err := optionalIntDefault(input, "limit", 1, 100, 25)
+	if err != nil {
+		return nil, err
+	}
+	out["limit"] = limit
+	return out, nil
+}
+
+func validateGetCerebroFindingContext(input map[string]any) (map[string]any, error) {
+	allowed := stringSet("organizationId", "authToken", "findingId")
+	if err := rejectUnknown(input, allowed); err != nil {
+		return nil, err
+	}
+	out, err := scopedFields(input)
+	if err != nil {
+		return nil, err
+	}
+	if out["findingId"], err = requiredString(input, "findingId", 1, 0); err != nil {
 		return nil, err
 	}
 	return out, nil

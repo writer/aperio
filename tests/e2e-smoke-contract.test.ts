@@ -103,6 +103,33 @@ test("smoke harness exports the canonical localhost route matrix and report sect
     smoke.CANONICAL_ROUTES.some((route: { url: string }) => route.url.includes("127.0.0.1:3000")),
     false
   );
+  assert.equal(
+    smoke.isOAuthWellKnownMetadataRequest(
+      "http://localhost:3000/.well-known/oauth-protected-resource/api/v1/mcp"
+    ),
+    true
+  );
+  assert.equal(
+    smoke.isDirectProductApiV1BrowserRequest(
+      "http://localhost:3000/.well-known/oauth-protected-resource/api/v1/mcp",
+      "Fetch"
+    ),
+    false
+  );
+  assert.equal(
+    smoke.isDirectProductApiV1BrowserRequest(
+      "http://localhost:3000/api/v1/admin/reports/report-a/html",
+      "Fetch"
+    ),
+    true
+  );
+  assert.equal(
+    smoke.isDirectProductApiV1BrowserRequest(
+      "http://localhost:3000/api/v1/admin/reports/report-a/html",
+      "Document"
+    ),
+    false
+  );
 
   const report = smoke.createInitialReport();
   for (const section of smoke.REQUIRED_REPORT_SECTIONS) {
@@ -163,6 +190,23 @@ test("browser launch startup failures clean up Chrome and temp profile", () => {
   assert.match(harness, /async function launchBrowser\(report\)[\s\S]*try \{/);
   assert.match(harness, /catch \(error\)[\s\S]*await stopChildProcess\(browser, report\)/);
   assert.match(harness, /catch \(error\)[\s\S]*await fsp\.rm\(userDataDir, \{ recursive: true, force: true \}\)/);
+});
+
+test("Next dev manifest noise stays out of browser failure reporting", async () => {
+  const smoke = await loadSmokeHarness();
+  assert.equal(
+    smoke.isBenignBrowserLog(
+      "Refused to execute script from 'http://localhost:3000/_next/static/development/_clientMiddlewareManifest.js' because its MIME type ('application/json') is not executable"
+    ),
+    true
+  );
+  assert.equal(
+    smoke.isBenignBrowserLog(
+      "Error: ENOENT: no such file or directory, open '/tmp/apps/web/.next/dev/server/app/findings/[findingId]/page/build-manifest.json'"
+    ),
+    true
+  );
+  assert.equal(smoke.isBenignBrowserLog("TypeError: product panel crashed"), false);
 });
 
 test("smoke evidence redaction masks cookies, bearer tokens, passwords, and DSNs", async () => {

@@ -1,8 +1,9 @@
 package mcpbroker
 
 const (
-	ProtocolVersion = "2024-11-05"
+	ProtocolVersion = "2025-11-25"
 	ServerName      = "aperio-a2a-broker"
+	ServerTitle     = "Aperio Cerebro MCP Broker"
 	ServerVersion   = "0.1.0"
 )
 
@@ -12,10 +13,55 @@ type Tool struct {
 	InputSchema map[string]any `json:"inputSchema"`
 }
 
+type Resource struct {
+	URI         string `json:"uri"`
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+	MimeType    string `json:"mimeType,omitempty"`
+}
+
+type ResourceTemplate struct {
+	URITemplate string `json:"uriTemplate"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	MimeType    string `json:"mimeType,omitempty"`
+}
+
 func ApprovedTools() []Tool {
 	tools := make([]Tool, len(approvedTools))
 	copy(tools, approvedTools)
 	return tools
+}
+
+func ApprovedResources() []Resource {
+	return []Resource{}
+}
+
+func ApprovedResourceTemplates() []ResourceTemplate {
+	templates := make([]ResourceTemplate, len(approvedResourceTemplates))
+	copy(templates, approvedResourceTemplates)
+	return templates
+}
+
+var approvedResourceTemplates = []ResourceTemplate{
+	{
+		URITemplate: "cerebro://aperio/{organizationId}/incidents/{incidentId}",
+		Name:        "Aperio Cerebro incident",
+		Description: "Tenant-scoped Cerebro graph context for a SaaS incident in Aperio.",
+		MimeType:    cerebroIncidentMimeType,
+	},
+	{
+		URITemplate: "cerebro://aperio/{organizationId}/findings/{findingId}",
+		Name:        "Aperio Cerebro finding",
+		Description: "Tenant-scoped Cerebro finding context with evidence, incident links, and response actions.",
+		MimeType:    cerebroFindingMimeType,
+	},
+	{
+		URITemplate: "cerebro://aperio/{organizationId}/security/overview",
+		Name:        "Aperio Cerebro security overview",
+		Description: "Tenant-scoped Cerebro security posture overview with linked incident and finding resources.",
+		MimeType:    cerebroSecurityOverviewMimeType,
+	},
 }
 
 var approvedTools = []Tool{
@@ -168,6 +214,42 @@ var approvedTools = []Tool{
 				"organizationId": stringSchema(1, 0),
 				"authToken":      stringSchema(1, 0),
 				"incidentId":     stringSchema(1, 0),
+			},
+		),
+	},
+	{
+		Name:        "aperio.list_cerebro_findings",
+		Description: "List Cerebro-backed finding MCP resources for a tenant.",
+		InputSchema: objectSchema(
+			[]string{"organizationId"},
+			map[string]any{
+				"organizationId": stringSchema(1, 0),
+				"authToken":      stringSchema(1, 0),
+				"status": map[string]any{
+					"type": "string",
+					"enum": []any{"OPEN", "RESOLVED", "MUTED", "ALL"},
+				},
+				"severity": map[string]any{
+					"type": "string",
+					"enum": []any{"CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"},
+				},
+				"provider": map[string]any{
+					"type": "string",
+					"enum": []any{"GITHUB", "SLACK", "GOOGLE_WORKSPACE", "ONE_PASSWORD", "OKTA", "MICROSOFT_365", "ATLASSIAN", "SALESFORCE"},
+				},
+				"limit": integerSchemaWithDefault(1, 100, 25),
+			},
+		),
+	},
+	{
+		Name:        "aperio.get_cerebro_finding_context",
+		Description: "Fetch one finding as a Cerebro MCP graph-context resource with evidence, incident links, and response actions.",
+		InputSchema: objectSchema(
+			[]string{"organizationId", "findingId"},
+			map[string]any{
+				"organizationId": stringSchema(1, 0),
+				"authToken":      stringSchema(1, 0),
+				"findingId":      stringSchema(1, 0),
 			},
 		),
 	},

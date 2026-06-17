@@ -122,6 +122,133 @@ test("frontend auth session types do not expose bearer tokens", () => {
     functionBlock(connectClient, "authSessionFromProto"),
     /session\.token/
   );
+  assert.match(
+    functionBlock(connectClient, "authSessionFromProto"),
+    /session\.authContext/,
+    "frontend auth sessions should consume server-provided Cerebro auth context"
+  );
+  assert.match(exportedTypeBlock(webApi, "AuthContext"), /\bauthMode\s*:/);
+  assert.match(exportedTypeBlock(webApi, "AuthContext"), /\ballowedTenants\s*:/);
+  assert.match(exportedTypeBlock(webApi, "AuthContext"), /\bgroups\s*:/);
+  assert.match(
+    exportedTypeBlock(webApi, "AuthContext"),
+    /\bcerebroMcpResource\s*:/
+  );
+  assert.match(
+    exportedTypeBlock(webApi, "AuthContext"),
+    /\bcerebroMcpResourceMetadataPath\s*:/
+  );
+  assert.match(
+    exportedTypeBlock(webApi, "AuthContext"),
+    /\bcerebroOauthAuthorizationServerMetadataPath\s*:/
+  );
+});
+
+test("frontend auth surfaces share Cerebro auth vocabulary", () => {
+  const authModel = readRepoFile("apps/web/lib/cerebro-auth.ts");
+  const accountMenu = readRepoFile(
+    "apps/web/components/layout/account-menu.tsx"
+  );
+  const authLayout = readRepoFile("apps/web/components/auth/auth-layout.tsx");
+  const loginPage = readRepoFile("apps/web/components/auth/login-page.tsx");
+  const signupPage = readRepoFile("apps/web/components/auth/signup-page.tsx");
+  const forgotPasswordPage = readRepoFile(
+    "apps/web/components/auth/forgot-password-page.tsx"
+  );
+  const resetPasswordPage = readRepoFile(
+    "apps/web/components/auth/reset-password-page.tsx"
+  );
+  const acceptInvitePage = readRepoFile(
+    "apps/web/components/auth/accept-invite-page.tsx"
+  );
+  const authInsightHook = readRepoFile(
+    "apps/web/components/auth/use-cerebro-auth-insights.ts"
+  );
+  const nextConfig = readRepoFile("apps/web/next.config.mjs");
+  const workspaceSwitcher = readRepoFile(
+    "apps/web/components/layout/workspace-switcher.tsx"
+  );
+
+  assert.match(authModel, /CEREBRO_API_RESOURCE\s*=\s*"cerebro-api"/);
+  assert.match(authModel, /CEREBRO_MCP_RESOURCE\s*=\s*"cerebro-mcp"/);
+  assert.match(
+    authModel,
+    /CEREBRO_MCP_RESOURCE_METADATA_PATH\s*=\s*discoveryMetadataPath/
+  );
+  assert.match(
+    authModel,
+    /CEREBRO_OAUTH_AUTHORIZATION_SERVER_METADATA_PATH\s*=\s*\n\s*discoveryMetadataPath/
+  );
+  assert.match(
+    authModel,
+    /CEREBRO_HUMAN_AUTH_MODE\s*=\s*"human_workspace_session"/
+  );
+  assert.match(
+    authModel,
+    /CEREBRO_SESSION_TRANSPORT\s*=\s*"http_only_cookie"/
+  );
+  assert.match(accountMenu, /formatCerebroScope/);
+  assert.match(accountMenu, /formatCerebroTransport/);
+  assert.match(accountMenu, /CEREBRO_API_RESOURCE/);
+  assert.match(
+    authModel,
+    /formatCerebroTransport\(CEREBRO_SESSION_TRANSPORT\)/
+  );
+  assert.match(authModel, /loadCerebroAuthInsights/);
+  assert.match(
+    authModel,
+    /NEXT_PUBLIC_CEREBRO_MCP_RESOURCE_METADATA_PATH/
+  );
+  assert.match(
+    authModel,
+    /NEXT_PUBLIC_CEREBRO_OAUTH_AUTHORIZATION_SERVER_METADATA_PATH/
+  );
+  assert.match(authModel, /discoveryMetadataPath/);
+  assert.match(
+    authModel,
+    /if\s*\(!resourceMetadataPath\s*&&\s*!authorizationServerMetadataPath\)/
+  );
+  assert.match(authModel, /credentials:\s*"same-origin"/);
+  assert.match(accountMenu, /cerebroMcpResourceMetadataPath/);
+  assert.match(
+    accountMenu,
+    /cerebroOauthAuthorizationServerMetadataPath/
+  );
+  assert.doesNotMatch(accountMenu, /CEREBRO_MCP_RESOURCE_METADATA_PATH/);
+  assert.doesNotMatch(
+    accountMenu,
+    /CEREBRO_OAUTH_AUTHORIZATION_SERVER_METADATA_PATH/
+  );
+  assert.match(accountMenu, /cerebroMcpGrantTypes/);
+  assert.match(authLayout, /sessionInsights/);
+  assert.match(authLayout, /CEREBRO_MCP_RESOURCE/);
+  assert.match(loginPage, /CEREBRO_HUMAN_AUTH_MODE/);
+  assert.match(authInsightHook, /loadCerebroAuthInsights/);
+  assert.match(authInsightHook, /loadDiscovery\s*=\s*true/);
+  assert.match(authInsightHook, /if\s*\(!loadDiscovery\)/);
+  for (const source of [
+    loginPage,
+    signupPage,
+    forgotPasswordPage,
+    resetPasswordPage,
+    acceptInvitePage
+  ]) {
+    assert.match(source, /useCerebroAuthInsights/);
+    assert.match(source, /showSessionMessaging/);
+    assert.match(source, /sessionInsights=\{sessionInsights\}/);
+  }
+  for (const source of [resetPasswordPage, acceptInvitePage]) {
+    assert.match(
+      source,
+      /useCerebroAuthInsights\(\{\s*loadDiscovery:\s*!token\s*\}\)/
+    );
+  }
+  assert.match(nextConfig, /\/\.well-known\/oauth-protected-resource/);
+  assert.match(
+    nextConfig,
+    /\/\.well-known\/oauth-authorization-server/
+  );
+  assert.match(workspaceSwitcher, /CEREBRO_API_RESOURCE/);
 });
 
 test("frontend requests rely on cookies instead of Authorization bearer headers", () => {
@@ -154,7 +281,10 @@ test("frontend sources do not expose the CallApi compatibility bridge", () => {
   );
 
   for (const relativePath of browserSources) {
-    const source = readRepoFile(relativePath);
+    const source = readRepoFile(relativePath).replaceAll(
+      "/.well-known/oauth-protected-resource/api/v1/mcp",
+      ""
+    );
     assert.doesNotMatch(
       source,
       /\bcallApi\b|\/api\/v1\//,

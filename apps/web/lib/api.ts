@@ -2,6 +2,24 @@ import { aperioConnectClient } from "@aperio/connect/client";
 
 export type TenantRole = "OWNER" | "ADMIN" | "SECURITY_ANALYST" | "VIEWER";
 
+export type AuthContext = {
+  principal: string;
+  tenantId: string;
+  tenantSlug: string;
+  credentialKind: "human_workspace_session" | string;
+  authMode: "human_workspace_session" | string;
+  tokenTransport: "http_only_cookie" | string;
+  cerebroResource: string;
+  allowedTenants: string[];
+  cerebroScopes: string[];
+  groups: string[];
+  cerebroMcpResource: string;
+  cerebroMcpResourceMetadataPath: string;
+  cerebroOauthAuthorizationServerMetadataPath: string;
+  cerebroMcpGrantTypes: string[];
+  cerebroMcpBearerMethods: string[];
+};
+
 export type AuthSession = {
   user: {
     id: string;
@@ -15,6 +33,7 @@ export type AuthSession = {
     name: string;
     slug: string;
   };
+  authContext: AuthContext;
 };
 
 export type DashboardMetrics = {
@@ -50,6 +69,9 @@ export type LoginPayload = {
   totpCode?: string;
 };
 
+export type FindingCerebroContext =
+  import("@aperio/connect/client").ConnectFindingCerebroContext;
+
 export type Finding = {
   id: string;
   assetId?: string | null;
@@ -68,6 +90,7 @@ export type Finding = {
     provider: Provider;
     displayName: string;
   };
+  cerebroContext?: FindingCerebroContext | null;
 };
 
 export type FindingsFilters = {
@@ -944,6 +967,30 @@ export type DomainWideDelegation = {
   configuredAt: string;
 };
 
+export type SecurityCerebroContext = {
+  source: string;
+  mode: string;
+  sourceRuntimeId: string;
+  findingContract: string;
+  claimCount: number;
+  graphSignalCount: number;
+  entityCount: number;
+  graphPathCount: number;
+  mcp: {
+    server: string;
+    resourceUri: string;
+    resource: string;
+    tools: string[];
+    resourceTemplates?: {
+      uriTemplate: string;
+      name?: string | null;
+      description?: string | null;
+      mimeType?: string | null;
+    }[];
+  } | null;
+  responseHints: string[];
+};
+
 export type SecurityOverview = {
   summary: {
     privilegedIdentities: number;
@@ -965,6 +1012,7 @@ export type SecurityOverview = {
   ownershipGaps: SecurityAsset[];
   exceptions: RiskException[];
   domainWideDelegations?: DomainWideDelegation[];
+  cerebroContext?: SecurityCerebroContext | null;
 };
 
 export type EmailDomainHealth = {

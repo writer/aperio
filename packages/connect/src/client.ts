@@ -3,7 +3,14 @@ import { createConnectTransport } from "@connectrpc/connect-web";
 import {
   AperioService,
   type AuditLogEntry as ProtoAuditLogEntry,
+  type AuthContext as ProtoAuthContext,
   type AuthSession as ProtoAuthSession,
+  type CerebroClaimSummary as ProtoCerebroClaimSummary,
+  type CerebroEntityRef as ProtoCerebroEntityRef,
+  type CerebroGraphPath as ProtoCerebroGraphPath,
+  type CerebroGraphSignal as ProtoCerebroGraphSignal,
+  type CerebroMCPContext as ProtoCerebroMCPContext,
+  type CerebroMCPResourceTemplate as ProtoCerebroMCPResourceTemplate,
   type ConnectorDefinition as ProtoConnectorDefinition,
   type EmailDomainDkimSelector as ProtoEmailDomainDkimSelector,
   type EmailDomainHealth as ProtoEmailDomainHealth,
@@ -11,6 +18,7 @@ import {
   type EmailDomainHealthHistoryPoint as ProtoEmailDomainHealthHistoryPoint,
   type EmailDomainHealthIssue as ProtoEmailDomainHealthIssue,
   type Finding as ProtoFinding,
+  type FindingCerebroContext as ProtoFindingCerebroContext,
   type GoogleMailboxScanConfig as ProtoGoogleMailboxScanConfig,
   type GoogleWorkspaceBigQueryConfig as ProtoGoogleWorkspaceBigQueryConfig,
   type GoogleWorkspaceBigQueryValidation as ProtoGoogleWorkspaceBigQueryValidation,
@@ -33,6 +41,8 @@ import {
   type SecurityGraphEdge as ProtoSecurityGraphEdge,
   type SecurityGraphNode as ProtoSecurityGraphNode,
   type SecurityIdentity as ProtoSecurityIdentity,
+  type SecurityCerebroContext as ProtoSecurityCerebroContext,
+  type SecurityCerebroMCPContext as ProtoSecurityCerebroMCPContext,
   type SecurityOverview as ProtoSecurityOverview,
   type SecurityAsset as ProtoSecurityAsset,
   type SecurityPrincipal as ProtoSecurityPrincipal,
@@ -82,6 +92,7 @@ export type ConnectFinding = {
       | "SALESFORCE";
     displayName: string;
   };
+  cerebroContext: ConnectFindingCerebroContext | null;
 };
 
 export type ConnectFindingsFilters = {
@@ -155,11 +166,19 @@ export type ConnectCerebroClaimSummary = {
   sourceEvent?: string | null;
 };
 
+export type ConnectCerebroMCPResourceTemplate = {
+  uriTemplate: string;
+  name?: string | null;
+  description?: string | null;
+  mimeType?: string | null;
+};
+
 export type ConnectCerebroMCPContext = {
   server?: string | null;
   resourceUri?: string | null;
   mimeType?: string | null;
   tools: string[];
+  resourceTemplates: ConnectCerebroMCPResourceTemplate[];
 };
 
 export type ConnectCerebroIncidentContext = {
@@ -175,6 +194,13 @@ export type ConnectCerebroIncidentContext = {
   claimSummaries: ConnectCerebroClaimSummary[];
   responseHints: string[];
   mcp: ConnectCerebroMCPContext | null;
+};
+
+export type ConnectFindingCerebroContext = Omit<
+  ConnectCerebroIncidentContext,
+  "lastClaimFanoutAt"
+> & {
+  sourceEventId?: string | null;
 };
 
 export type ConnectSaasIncident = {
@@ -270,6 +296,24 @@ type ConnectProvider = ConnectFinding["integration"]["provider"];
 
 type ConnectTenantRole = "OWNER" | "ADMIN" | "SECURITY_ANALYST" | "VIEWER";
 
+export type ConnectAuthContext = {
+  principal: string;
+  tenantId: string;
+  tenantSlug: string;
+  credentialKind: "human_workspace_session" | string;
+  authMode: "human_workspace_session" | string;
+  tokenTransport: "http_only_cookie" | string;
+  cerebroResource: string;
+  allowedTenants: string[];
+  cerebroScopes: string[];
+  groups: string[];
+  cerebroMcpResource: string;
+  cerebroMcpResourceMetadataPath: string;
+  cerebroOauthAuthorizationServerMetadataPath: string;
+  cerebroMcpGrantTypes: string[];
+  cerebroMcpBearerMethods: string[];
+};
+
 export type ConnectAuthSession = {
   user: {
     id: string;
@@ -283,6 +327,7 @@ export type ConnectAuthSession = {
     name: string;
     slug: string;
   };
+  authContext: ConnectAuthContext;
 };
 
 export type ConnectWorkspaceMembership = {
@@ -821,6 +866,24 @@ export type ConnectSecurityOverview = {
     lastSyncAt: string | null;
     configuredAt: string;
   }[];
+  cerebroContext: {
+    source: string;
+    mode: string;
+    sourceRuntimeId: string;
+    findingContract: string;
+    claimCount: number;
+    graphSignalCount: number;
+    entityCount: number;
+    graphPathCount: number;
+    mcp: {
+      server: string;
+      resourceUri: string;
+      resource: string;
+      tools: string[];
+      resourceTemplates: ConnectCerebroMCPResourceTemplate[];
+    } | null;
+    responseHints: string[];
+  } | null;
 };
 
 export type ConnectEmailDomainHealth = {
@@ -975,20 +1038,137 @@ function parseMetadata(metadataJson: string): Record<string, unknown> | null {
     : null;
 }
 
-function authSessionFromProto(session: ProtoAuthSession): ConnectAuthSession {
+const CEREBRO_READ_SCOPE = "cerebro.cosmo.security.read";
+const CEREBRO_API_RESOURCE = "cerebro-api";
+const CEREBRO_MCP_RESOURCE = "cerebro-mcp";
+const CEREBRO_MCP_GRANT_TYPES = [
+  "authorization_code",
+  "refresh_token",
+  "client_credentials"
+];
+const CEREBRO_MCP_BEARER_METHODS = ["header"];
+
+const CEREBRO_SCOPES_BY_ROLE: Record<ConnectTenantRole, string[]> = {
+  OWNER: [
+    CEREBRO_READ_SCOPE,
+    "cerebro.finding_candidates.promote",
+    "cerebro.findings.write",
+    "cerebro.grc.inventory.write",
+    "cerebro.connector_credentials.read",
+    "cerebro.connector_credentials.write",
+    "cerebro.runtime_response.write"
+  ],
+  ADMIN: [
+    CEREBRO_READ_SCOPE,
+    "cerebro.finding_candidates.promote",
+    "cerebro.findings.write",
+    "cerebro.grc.inventory.write",
+    "cerebro.connector_credentials.read",
+    "cerebro.connector_credentials.write",
+    "cerebro.runtime_response.write"
+  ],
+  SECURITY_ANALYST: [
+    CEREBRO_READ_SCOPE,
+    "cerebro.finding_candidates.promote",
+    "cerebro.findings.write",
+    "cerebro.grc.inventory.write",
+    "cerebro.runtime_response.write"
+  ],
+  VIEWER: [CEREBRO_READ_SCOPE]
+};
+
+function normalizeTenantRole(role: string | undefined): ConnectTenantRole {
+  if (
+    role === "OWNER" ||
+    role === "ADMIN" ||
+    role === "SECURITY_ANALYST" ||
+    role === "VIEWER"
+  ) {
+    return role;
+  }
+  return "VIEWER";
+}
+
+function fallbackAuthContext(
+  user: ConnectAuthSession["user"],
+  organization: ConnectAuthSession["organization"]
+): ConnectAuthContext {
   return {
-    user: {
-      id: session.user?.id ?? "",
-      email: session.user?.email ?? "",
-      displayName: session.user?.displayName || null,
-      mfaEnabled: session.user?.mfaEnabled ?? false,
-      role: (session.user?.role ?? "VIEWER") as ConnectTenantRole
-    },
-    organization: {
-      id: session.organization?.id ?? "",
-      name: session.organization?.name ?? "",
-      slug: session.organization?.slug ?? ""
-    }
+    principal: user.email,
+    tenantId: organization.id,
+    tenantSlug: organization.slug,
+    credentialKind: "human_workspace_session",
+    authMode: "human_workspace_session",
+    tokenTransport: "http_only_cookie",
+    cerebroResource: CEREBRO_API_RESOURCE,
+    allowedTenants: organization.id ? [organization.id] : [],
+    cerebroScopes: [...CEREBRO_SCOPES_BY_ROLE[user.role]],
+    groups: ["security"],
+    cerebroMcpResource: CEREBRO_MCP_RESOURCE,
+    cerebroMcpResourceMetadataPath: "",
+    cerebroOauthAuthorizationServerMetadataPath: "",
+    cerebroMcpGrantTypes: [...CEREBRO_MCP_GRANT_TYPES],
+    cerebroMcpBearerMethods: [...CEREBRO_MCP_BEARER_METHODS]
+  };
+}
+
+function authContextFromProto(
+  authContext: ProtoAuthContext | undefined,
+  user: ConnectAuthSession["user"],
+  organization: ConnectAuthSession["organization"]
+): ConnectAuthContext {
+  const fallback = fallbackAuthContext(user, organization);
+  if (!authContext) {
+    return fallback;
+  }
+  return {
+    principal: authContext.principal || fallback.principal,
+    tenantId: authContext.tenantId || fallback.tenantId,
+    tenantSlug: authContext.tenantSlug || fallback.tenantSlug,
+    credentialKind: authContext.credentialKind || fallback.credentialKind,
+    authMode: authContext.authMode || fallback.authMode,
+    tokenTransport: authContext.tokenTransport || fallback.tokenTransport,
+    cerebroResource: authContext.cerebroResource || fallback.cerebroResource,
+    allowedTenants: authContext.allowedTenants.length
+      ? [...authContext.allowedTenants]
+      : fallback.allowedTenants,
+    cerebroScopes: authContext.cerebroScopes.length
+      ? [...authContext.cerebroScopes]
+      : fallback.cerebroScopes,
+    groups: authContext.groups.length ? [...authContext.groups] : fallback.groups,
+    cerebroMcpResource:
+      authContext.cerebroMcpResource || fallback.cerebroMcpResource,
+    cerebroMcpResourceMetadataPath: authContext.cerebroMcpResourceMetadataPath,
+    cerebroOauthAuthorizationServerMetadataPath:
+      authContext.cerebroOauthAuthorizationServerMetadataPath,
+    cerebroMcpGrantTypes: authContext.cerebroMcpGrantTypes.length
+      ? [...authContext.cerebroMcpGrantTypes]
+      : fallback.cerebroMcpGrantTypes,
+    cerebroMcpBearerMethods: authContext.cerebroMcpBearerMethods.length
+      ? [...authContext.cerebroMcpBearerMethods]
+      : fallback.cerebroMcpBearerMethods
+  };
+}
+
+function authSessionFromProto(session: ProtoAuthSession): ConnectAuthSession {
+  const role = normalizeTenantRole(session.user?.role);
+  const user = {
+    id: session.user?.id ?? "",
+    email: session.user?.email ?? "",
+    displayName: session.user?.displayName || null,
+    mfaEnabled: session.user?.mfaEnabled ?? false,
+    role
+  };
+  const organization = {
+    id: session.organization?.id ?? "",
+    name: session.organization?.name ?? "",
+    slug: session.organization?.slug ?? ""
+  };
+
+  return {
+    user,
+    organization,
+    authContext: authContextFromProto(session.authContext, user, organization)
   };
 }
 
@@ -1027,6 +1207,100 @@ function mfaEnrollmentFromProto(
   };
 }
 
+function cerebroEntityRefFromProto(
+  entity: ProtoCerebroEntityRef
+): ConnectCerebroEntityRef {
+  return {
+    urn: entity.urn,
+    type: entity.type || "entity",
+    label: entity.label || entity.urn,
+    provider: entity.provider || null
+  };
+}
+
+function cerebroGraphSignalFromProto(
+  signal: ProtoCerebroGraphSignal
+): ConnectCerebroGraphSignal {
+  return {
+    label: signal.label,
+    predicate: signal.predicate || null,
+    confidence: signal.confidence || null,
+    entityUrn: signal.entityUrn || null,
+    evidence: signal.evidence || null
+  };
+}
+
+function cerebroGraphPathFromProto(
+  path: ProtoCerebroGraphPath
+): ConnectCerebroGraphPath {
+  return {
+    id: path.id,
+    title: path.title,
+    risk: path.risk || null,
+    nodes: path.nodes.map(cerebroEntityRefFromProto)
+  };
+}
+
+function cerebroClaimSummaryFromProto(
+  summary: ProtoCerebroClaimSummary
+): ConnectCerebroClaimSummary {
+  return {
+    claimType: summary.claimType,
+    predicate: summary.predicate,
+    subjectUrn: summary.subjectUrn,
+    objectUrn: summary.objectUrn || null,
+    sourceEvent: summary.sourceEvent || null
+  };
+}
+
+function cerebroMCPContextFromProto(
+  mcp?: ProtoCerebroMCPContext | null
+): ConnectCerebroMCPContext | null {
+  if (!mcp) return null;
+  return {
+    server: mcp.server || null,
+    resourceUri: mcp.resourceUri || null,
+    mimeType: mcp.mimeType || null,
+    tools: [...mcp.tools],
+    resourceTemplates: cerebroMCPResourceTemplatesFromProto(
+      mcp.resourceTemplates
+    )
+  };
+}
+
+function cerebroMCPResourceTemplatesFromProto(
+  templates: readonly ProtoCerebroMCPResourceTemplate[] = []
+): ConnectCerebroMCPResourceTemplate[] {
+  return templates
+    .map((template) => ({
+      uriTemplate: template.uriTemplate,
+      name: template.name || null,
+      description: template.description || null,
+      mimeType: template.mimeType || null
+    }))
+    .filter((template) => template.uriTemplate);
+}
+
+function findingCerebroContextFromProto(
+  context?: ProtoFindingCerebroContext | null
+): ConnectFindingCerebroContext | null {
+  if (!context) return null;
+  return {
+    source: context.source || "local-projection",
+    mode: context.mode || "not-configured",
+    sourceRuntimeId: context.sourceRuntimeId || null,
+    findingContract: context.findingContract || null,
+    sourceEventId: context.sourceEventId || null,
+    claimCount: context.claimCount,
+    graphSignals: context.graphSignals.map(cerebroGraphSignalFromProto),
+    entities: context.entities.map(cerebroEntityRefFromProto),
+    graphPaths: context.graphPaths.map(cerebroGraphPathFromProto),
+    claimSummaries: context.claimSummaries.map(cerebroClaimSummaryFromProto),
+    responseHints: [...context.responseHints],
+    mcp: cerebroMCPContextFromProto(context.mcp)
+  };
+}
+
 function findingFromProto(finding: ProtoFinding): ConnectFinding {
   // Generated proto3 strings default to "", while the web API contract uses
   // null for absent optional fields. Normalize at the edge so components do not
@@ -1049,7 +1323,8 @@ function findingFromProto(finding: ProtoFinding): ConnectFinding {
       provider: (finding.integration?.provider ??
         "") as ConnectFinding["integration"]["provider"],
       displayName: finding.integration?.displayName ?? ""
-    }
+    },
+    cerebroContext: findingCerebroContextFromProto(finding.cerebroContext)
   };
 }
 
@@ -1093,6 +1368,19 @@ function stringsFromUnknown(value: unknown): string[] {
   return Array.isArray(value)
     ? value.filter((item): item is string => typeof item === "string")
     : [];
+}
+
+function cerebroMCPResourceTemplatesFromUnknown(
+  value: unknown
+): ConnectCerebroMCPResourceTemplate[] {
+  return recordsFromUnknown(value)
+    .map((record) => ({
+      uriTemplate: stringFromRecord(record, "uriTemplate") ?? "",
+      name: stringFromRecord(record, "name"),
+      description: stringFromRecord(record, "description"),
+      mimeType: stringFromRecord(record, "mimeType")
+    }))
+    .filter((template) => template.uriTemplate);
 }
 
 function cerebroEntityRefFromRecord(
@@ -1185,12 +1473,23 @@ function cerebroMCPContextFromUnknown(
   const resourceUri = stringFromRecord(record, "resourceUri");
   const mimeType = stringFromRecord(record, "mimeType");
   const tools = stringsFromUnknown(record.tools);
-  if (!server && !resourceUri && !mimeType && tools.length === 0) return null;
+  const resourceTemplates = cerebroMCPResourceTemplatesFromUnknown(
+    record.resourceTemplates
+  );
+  if (
+    !server &&
+    !resourceUri &&
+    !mimeType &&
+    tools.length === 0 &&
+    resourceTemplates.length === 0
+  )
+    return null;
   return {
     server,
     resourceUri,
     mimeType,
-    tools
+    tools,
+    resourceTemplates
   };
 }
 
@@ -1828,6 +2127,39 @@ function securityGraphFromProto(graph?: ProtoSecurityGraph | null) {
   };
 }
 
+function securityCerebroMCPContextFromProto(
+  mcp?: ProtoSecurityCerebroMCPContext | null
+) {
+  if (!mcp) return null;
+  return {
+    server: mcp.server,
+    resourceUri: mcp.resourceUri,
+    resource: mcp.resource,
+    tools: [...mcp.tools],
+    resourceTemplates: cerebroMCPResourceTemplatesFromProto(
+      mcp.resourceTemplates
+    )
+  };
+}
+
+function securityCerebroContextFromProto(
+  context?: ProtoSecurityCerebroContext | null
+): ConnectSecurityOverview["cerebroContext"] {
+  if (!context) return null;
+  return {
+    source: context.source,
+    mode: context.mode,
+    sourceRuntimeId: context.sourceRuntimeId,
+    findingContract: context.findingContract,
+    claimCount: context.claimCount,
+    graphSignalCount: context.graphSignalCount,
+    entityCount: context.entityCount,
+    graphPathCount: context.graphPathCount,
+    mcp: securityCerebroMCPContextFromProto(context.mcp),
+    responseHints: [...context.responseHints]
+  };
+}
+
 function securityOverviewFromProto(
   overview: ProtoSecurityOverview
 ): ConnectSecurityOverview {
@@ -1878,7 +2210,8 @@ function securityOverviewFromProto(
       openMailboxFindings: delegation.openMailboxFindings,
       lastSyncAt: delegation.lastSyncAt || null,
       configuredAt: delegation.configuredAt
-    }))
+    })),
+    cerebroContext: securityCerebroContextFromProto(overview.cerebroContext)
   };
 }
 

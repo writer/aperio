@@ -306,6 +306,9 @@ func (a *App) GetSecurityOverview(ctx context.Context, req *connect.Request[aper
 	if err != nil {
 		return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("unauthorized"))
 	}
+	if err := a.compatRateLimit(ctx, req.Header(), req.Peer().Addr, http.MethodGet, securityOverviewRateLimitPath, typedRateLimitSubjectBody(auth)); err != nil {
+		return nil, err
+	}
 	result, err := a.compatSecurityOverview(ctx, auth)
 	if err != nil {
 		return nil, err
@@ -462,6 +465,7 @@ func authSessionFromMap(data map[string]any) *aperiov1.AuthSession {
 	return &aperiov1.AuthSession{
 		User:         authUserFromAny(data["user"]),
 		Organization: authOrganizationFromAny(data["organization"]),
+		AuthContext:  authContextFromAny(data["authContext"]),
 	}
 }
 
@@ -504,6 +508,54 @@ func authOrganizationFromAny(value any) *aperiov1.AuthOrganization {
 		Id:   stringFromAny(data["id"]),
 		Name: stringFromAny(data["name"]),
 		Slug: stringFromAny(data["slug"]),
+	}
+}
+
+func authContextFromAny(value any) *aperiov1.AuthContext {
+	switch typed := value.(type) {
+	case compatSessionAuthContext:
+		return &aperiov1.AuthContext{
+			Principal:                      typed.Principal,
+			TenantId:                       typed.TenantID,
+			TenantSlug:                     typed.TenantSlug,
+			CredentialKind:                 typed.CredentialKind,
+			AuthMode:                       typed.AuthMode,
+			TokenTransport:                 typed.TokenTransport,
+			CerebroResource:                typed.CerebroResource,
+			AllowedTenants:                 typed.AllowedTenants,
+			CerebroScopes:                  typed.CerebroScopes,
+			Groups:                         typed.Groups,
+			CerebroMcpResource:             typed.CerebroMCPResource,
+			CerebroMcpResourceMetadataPath: typed.CerebroMCPResourceMetadataPath,
+			CerebroOauthAuthorizationServerMetadataPath: typed.CerebroOAuthAuthorizationServerMetadataPath,
+			CerebroMcpGrantTypes:                        typed.CerebroMCPGrantTypes,
+			CerebroMcpBearerMethods:                     typed.CerebroMCPBearerMethods,
+		}
+	case *compatSessionAuthContext:
+		if typed != nil {
+			return authContextFromAny(*typed)
+		}
+	}
+	data := asMap(value)
+	if len(data) == 0 {
+		return nil
+	}
+	return &aperiov1.AuthContext{
+		Principal:                      stringFromAny(data["principal"]),
+		TenantId:                       stringFromAny(data["tenantId"]),
+		TenantSlug:                     stringFromAny(data["tenantSlug"]),
+		CredentialKind:                 stringFromAny(data["credentialKind"]),
+		AuthMode:                       stringFromAny(data["authMode"]),
+		TokenTransport:                 stringFromAny(data["tokenTransport"]),
+		CerebroResource:                stringFromAny(data["cerebroResource"]),
+		AllowedTenants:                 stringSliceFromAny(data["allowedTenants"]),
+		CerebroScopes:                  stringSliceFromAny(data["cerebroScopes"]),
+		Groups:                         stringSliceFromAny(data["groups"]),
+		CerebroMcpResource:             stringFromAny(data["cerebroMcpResource"]),
+		CerebroMcpResourceMetadataPath: stringFromAny(data["cerebroMcpResourceMetadataPath"]),
+		CerebroOauthAuthorizationServerMetadataPath: stringFromAny(data["cerebroOauthAuthorizationServerMetadataPath"]),
+		CerebroMcpGrantTypes:                        stringSliceFromAny(data["cerebroMcpGrantTypes"]),
+		CerebroMcpBearerMethods:                     stringSliceFromAny(data["cerebroMcpBearerMethods"]),
 	}
 }
 
@@ -626,6 +678,7 @@ func securityOverviewFromMap(data map[string]any) *aperiov1.SecurityOverview {
 		OwnershipGaps:         securityAssetsFromAny(data["ownershipGaps"]),
 		Exceptions:            riskExceptionsFromAny(data["exceptions"]),
 		DomainWideDelegations: domainWideDelegationsFromAny(data["domainWideDelegations"]),
+		CerebroContext:        securityCerebroContextFromMap(asMap(data["cerebroContext"])),
 	}
 }
 
@@ -639,6 +692,56 @@ func securityOverviewSummaryFromMap(data map[string]any) *aperiov1.SecurityOverv
 		ActiveExceptions:          int32(intValue(data["activeExceptions"])),
 		TopBlastRadiusScore:       int32(intValue(data["topBlastRadiusScore"])),
 	}
+}
+
+func securityCerebroContextFromMap(data map[string]any) *aperiov1.SecurityCerebroContext {
+	if len(data) == 0 {
+		return nil
+	}
+	return &aperiov1.SecurityCerebroContext{
+		Source:           stringFromAny(data["source"]),
+		Mode:             stringFromAny(data["mode"]),
+		SourceRuntimeId:  stringFromAny(data["sourceRuntimeId"]),
+		FindingContract:  stringFromAny(data["findingContract"]),
+		ClaimCount:       int32(intValue(data["claimCount"])),
+		GraphSignalCount: int32(intValue(data["graphSignalCount"])),
+		EntityCount:      int32(intValue(data["entityCount"])),
+		GraphPathCount:   int32(intValue(data["graphPathCount"])),
+		Mcp:              securityCerebroMCPContextFromMap(asMap(data["mcp"])),
+		ResponseHints:    stringSliceFromAny(data["responseHints"]),
+	}
+}
+
+func securityCerebroMCPContextFromMap(data map[string]any) *aperiov1.SecurityCerebroMCPContext {
+	if len(data) == 0 {
+		return nil
+	}
+	return &aperiov1.SecurityCerebroMCPContext{
+		Server:            stringFromAny(data["server"]),
+		ResourceUri:       stringFromAny(data["resourceUri"]),
+		Resource:          stringFromAny(data["resource"]),
+		Tools:             stringSliceFromAny(data["tools"]),
+		ResourceTemplates: cerebroMCPResourceTemplatesFromAny(data["resourceTemplates"]),
+	}
+}
+
+func cerebroMCPResourceTemplatesFromAny(value any) []*aperiov1.CerebroMCPResourceTemplate {
+	items := anyList(value)
+	out := make([]*aperiov1.CerebroMCPResourceTemplate, 0, len(items))
+	for _, item := range items {
+		data := asMap(item)
+		uriTemplate := stringFromAny(data["uriTemplate"])
+		if uriTemplate == "" {
+			continue
+		}
+		out = append(out, &aperiov1.CerebroMCPResourceTemplate{
+			UriTemplate: uriTemplate,
+			Name:        stringFromAny(data["name"]),
+			Description: stringFromAny(data["description"]),
+			MimeType:    stringFromAny(data["mimeType"]),
+		})
+	}
+	return out
 }
 
 func securityIdentitiesFromAny(value any) []*aperiov1.SecurityIdentity {
@@ -870,8 +973,31 @@ func anyList(value any) []any {
 			out = append(out, item)
 		}
 		return out
+	case []map[string]string:
+		out := make([]any, 0, len(typed))
+		for _, item := range typed {
+			out = append(out, item)
+		}
+		return out
 	}
 	return []any{}
+}
+
+func stringSliceFromAny(value any) []string {
+	switch typed := value.(type) {
+	case []string:
+		out := make([]string, len(typed))
+		copy(out, typed)
+		return out
+	}
+	items := anyList(value)
+	out := make([]string, 0, len(items))
+	for _, item := range items {
+		if value := stringFromAny(item); value != "" {
+			out = append(out, value)
+		}
+	}
+	return out
 }
 
 func anyKey(data map[string]any, keys ...string) any {

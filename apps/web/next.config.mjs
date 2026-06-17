@@ -61,6 +61,18 @@ const nextConfig = {
     // navigate to from the page origin.
     return [
       {
+        source: "/.well-known/oauth-protected-resource",
+        destination: `${apiProxyTarget}/.well-known/oauth-protected-resource`
+      },
+      {
+        source: "/.well-known/oauth-protected-resource/api/v1/mcp",
+        destination: `${apiProxyTarget}/.well-known/oauth-protected-resource/api/v1/mcp`
+      },
+      {
+        source: "/.well-known/oauth-authorization-server",
+        destination: `${apiProxyTarget}/.well-known/oauth-authorization-server`
+      },
+      {
         source: "/compliance/reports/render",
         destination: `${apiProxyTarget}/api/v1/compliance/reports/render`
       },

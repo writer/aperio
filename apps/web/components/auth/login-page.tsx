@@ -2,15 +2,18 @@
 
 import Link from "next/link";
 import { useId, useState } from "react";
-import { useRouter } from "next/navigation";
 import { login } from "../../lib/api";
+import {
+  CEREBRO_API_RESOURCE,
+  CEREBRO_HUMAN_AUTH_MODE
+} from "../../lib/cerebro-auth";
 import { useAuth } from "./auth-shell";
 import { AuthLayout } from "./auth-layout";
+import { useCerebroAuthInsights } from "./use-cerebro-auth-insights";
 import { Button } from "../ui/button";
 import { Field, FormBanner, Input } from "../ui/form";
 
 export function LoginPage() {
-  const router = useRouter();
   const { refreshSession } = useAuth();
   const [organizationSlug, setOrganizationSlug] = useState("");
   const [email, setEmail] = useState("");
@@ -18,6 +21,7 @@ export function LoginPage() {
   const [totpCode, setTotpCode] = useState("");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+  const sessionInsights = useCerebroAuthInsights();
 
   const slugId = useId();
   const emailId = useId();
@@ -37,7 +41,7 @@ export function LoginPage() {
         totpCode: totpCode.trim() || undefined
       });
       await refreshSession();
-      router.replace("/");
+      window.location.replace("/");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Unable to sign in");
     } finally {
@@ -48,7 +52,9 @@ export function LoginPage() {
   return (
     <AuthLayout
       title="Sign in"
-      description="Use your workspace slug, email, and password to access your tenant."
+      description={`Use workspace credentials to bind this browser session to ${CEREBRO_API_RESOURCE} as ${CEREBRO_HUMAN_AUTH_MODE}.`}
+      showSessionMessaging
+      sessionInsights={sessionInsights}
       footer={
         <>
           Need a workspace?{" "}

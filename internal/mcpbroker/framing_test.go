@@ -34,8 +34,21 @@ func TestServerLifecycleAndErrorFrames(t *testing.T) {
 	if serverInfo["name"] != ServerName {
 		t.Fatalf("serverInfo = %#v", serverInfo)
 	}
-	if _, ok := initialize["capabilities"].(map[string]any)["tools"]; !ok {
-		t.Fatalf("initialize capabilities missing tools: %#v", initialize)
+	if serverInfo["title"] != ServerTitle {
+		t.Fatalf("serverInfo missing title: %#v", serverInfo)
+	}
+	capabilities := initialize["capabilities"].(map[string]any)
+	tools, ok := capabilities["tools"].(map[string]any)
+	if !ok || tools["listChanged"] != false {
+		t.Fatalf("initialize tools capability drifted: %#v", initialize)
+	}
+	resources, ok := capabilities["resources"].(map[string]any)
+	if !ok || resources["subscribe"] != false || resources["listChanged"] != false {
+		t.Fatalf("initialize capabilities missing resources: %#v", initialize)
+	}
+	prompts, ok := capabilities["prompts"].(map[string]any)
+	if !ok || prompts["listChanged"] != false {
+		t.Fatalf("initialize prompts capability drifted: %#v", initialize)
 	}
 
 	if result := frames[1]["result"].(map[string]any); len(result) != 0 || frames[1]["id"] != "ping-1" {
@@ -66,8 +79,8 @@ func TestServerToolsListAndUTF8Framing(t *testing.T) {
 		t.Fatalf("multibyte id was not preserved: %#v", frames[0])
 	}
 	tools := frames[0]["result"].(map[string]any)["tools"].([]any)
-	if len(tools) != 9 {
-		t.Fatalf("tools/list returned %d tools, want 9", len(tools))
+	if len(tools) != 11 {
+		t.Fatalf("tools/list returned %d tools, want 11", len(tools))
 	}
 	for index, expected := range []string{
 		"aperio.register_agent",
@@ -78,6 +91,8 @@ func TestServerToolsListAndUTF8Framing(t *testing.T) {
 		"aperio.enqueue_siem_payload",
 		"aperio.list_cerebro_incidents",
 		"aperio.get_cerebro_incident_context",
+		"aperio.list_cerebro_findings",
+		"aperio.get_cerebro_finding_context",
 		"aperio.propose_cerebro_response",
 	} {
 		tool := tools[index].(map[string]any)
@@ -87,6 +102,53 @@ func TestServerToolsListAndUTF8Framing(t *testing.T) {
 		if tool["description"] == "" || tool["inputSchema"] == nil {
 			t.Fatalf("tool[%d] missing description or schema: %#v", index, tool)
 		}
+	}
+}
+
+func TestServerResourcesListTemplatesAndRead(t *testing.T) {
+	runner := &resourceFakeRunner{}
+	stdout := runServer(t, NewServer(runner), strings.NewReader(joinFrames(t,
+		map[string]any{"jsonrpc": "2.0", "id": "resources", "method": "resources/list"},
+		map[string]any{"jsonrpc": "2.0", "id": "templates", "method": "resources/templates/list"},
+		resourceRead("read", "cerebro://aperio/org_1/incidents/inc_1", "secret-token"),
+		map[string]any{"jsonrpc": "2.0", "id": "invalid", "method": "resources/read", "params": map[string]any{}},
+	)))
+	frames := decodeOutputFrames(t, stdout)
+	if len(frames) != 4 {
+		t.Fatalf("frame count = %d, want 4: %#v", len(frames), frames)
+	}
+
+	resources := frames[0]["result"].(map[string]any)["resources"].([]any)
+	if len(resources) != 0 {
+		t.Fatalf("resources/list returned static resources: %#v", resources)
+	}
+
+	templates := frames[1]["result"].(map[string]any)["resourceTemplates"].([]any)
+	if len(templates) != 3 {
+		t.Fatalf("resourceTemplates count = %d, want 3", len(templates))
+	}
+	firstTemplate := templates[0].(map[string]any)
+	if firstTemplate["uriTemplate"] != "cerebro://aperio/{organizationId}/incidents/{incidentId}" ||
+		firstTemplate["mimeType"] != cerebroIncidentMimeType {
+		t.Fatalf("incident resource template drifted: %#v", firstTemplate)
+	}
+
+	read := frames[2]["result"].(map[string]any)
+	contents := read["contents"].([]any)
+	if len(contents) != 1 {
+		t.Fatalf("resources/read contents = %#v, want one content item", contents)
+	}
+	content := contents[0].(map[string]any)
+	if content["uri"] != "cerebro://aperio/org_1/incidents/inc_1" || content["mimeType"] != cerebroIncidentMimeType {
+		t.Fatalf("resources/read content drifted: %#v", content)
+	}
+	if runner.params.URI != "cerebro://aperio/org_1/incidents/inc_1" || runner.params.AuthToken != "secret-token" {
+		t.Fatalf("resource read params drifted: %#v", runner.params)
+	}
+
+	invalidErr := frames[3]["error"].(map[string]any)
+	if invalidErr["code"].(float64) != -32602 {
+		t.Fatalf("invalid resources/read error = %#v", invalidErr)
 	}
 }
 
@@ -187,6 +249,8 @@ func TestEveryApprovedToolHasAClientSafeSuccessEnvelope(t *testing.T) {
 		toolCall("siem", "aperio.enqueue_siem_payload", map[string]any{"organizationId": "org", "record": map[string]any{"id": "finding"}}),
 		toolCall("cerebro-list", "aperio.list_cerebro_incidents", map[string]any{"organizationId": "org"}),
 		toolCall("cerebro-get", "aperio.get_cerebro_incident_context", map[string]any{"organizationId": "org", "incidentId": "inc"}),
+		toolCall("cerebro-findings", "aperio.list_cerebro_findings", map[string]any{"organizationId": "org"}),
+		toolCall("cerebro-finding-get", "aperio.get_cerebro_finding_context", map[string]any{"organizationId": "org", "findingId": "fnd"}),
 		toolCall("cerebro-response", "aperio.propose_cerebro_response", map[string]any{"organizationId": "org", "incidentId": "inc", "action": "REVOKE_OAUTH_GRANT", "targetType": "oauth_app", "targetIdentifier": "Vendor App", "rationale": "Required by Cerebro graph context"}),
 	}
 	stdout := runServer(t, NewServer(runner), strings.NewReader(joinFrames(t, requests...)))
@@ -247,6 +311,19 @@ func toolCall(id string, name string, args map[string]any) map[string]any {
 	}
 }
 
+func resourceRead(id string, uri string, authToken ...string) map[string]any {
+	params := map[string]any{"uri": uri}
+	if len(authToken) > 0 {
+		params["authToken"] = authToken[0]
+	}
+	return map[string]any{
+		"jsonrpc": "2.0",
+		"id":      id,
+		"method":  "resources/read",
+		"params":  params,
+	}
+}
+
 func decodeOutputFrames(t *testing.T, raw []byte) []map[string]any {
 	t.Helper()
 	remaining := raw
@@ -284,6 +361,20 @@ type fakeRunner struct{}
 
 func (fakeRunner) CallTool(context.Context, string, any) (any, error) {
 	return map[string]any{"ok": true}, nil
+}
+
+type resourceFakeRunner struct {
+	fakeRunner
+	params ResourceReadParams
+}
+
+func (r *resourceFakeRunner) ReadResource(_ context.Context, params ResourceReadParams) (ResourceContent, error) {
+	r.params = params
+	return ResourceContent{
+		URI:      params.URI,
+		MimeType: cerebroIncidentMimeType,
+		Text:     `{"ok":true}`,
+	}, nil
 }
 
 type validatingFakeRunner struct {

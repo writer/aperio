@@ -41,6 +41,10 @@ type App struct {
 	eventBus              *aperioEventBus
 	remediationHTTPClient remediationHTTPDoer
 	slackAPIBaseURL       string
+	cerebroContextClient  saasCerebroContextClient
+	cerebroRuntimeID      string
+	cerebroMCPServerURL   string
+	cerebroOAuthIssuerURL string
 }
 
 // dashboardMetrics mirrors the existing web dashboard response shape. Keeping
@@ -78,6 +82,7 @@ type findingRow struct {
 	IntegrationID    string
 	Provider         string
 	DisplayName      string
+	CerebroContext   *aperiov1.FindingCerebroContext
 }
 
 type integrationRow struct {
@@ -223,6 +228,10 @@ func (a *App) Handler() http.Handler {
 func (a *App) routes() {
 	a.mux.HandleFunc("/healthz", a.handleHealthz)
 	a.mux.HandleFunc("/readyz", a.handleReadyz)
+	a.mux.HandleFunc(oauthProtectedResourceMetadataPath, a.handleOAuthProtectedResourceMetadata)
+	a.mux.HandleFunc(oauthProtectedResourceMetadataMCPPath, a.handleOAuthProtectedResourceMetadata)
+	a.mux.HandleFunc(oauthAuthorizationServerMetadataPath, a.handleOAuthAuthorizationServerMetadata)
+	a.mux.HandleFunc(oauthAuthorizationServerMetadataPath+"/", a.handleOAuthAuthorizationServerMetadata)
 	a.mux.HandleFunc("/api/v1/integrations/google-workspace/oauth/callback", a.handleGoogleOAuthCallback)
 	a.mux.HandleFunc("/api/v1/admin/reports/", a.handleExecutiveReportArtifact)
 	a.mux.HandleFunc("/api/v1/compliance/reports/render", a.handleComplianceReport)
@@ -437,6 +446,9 @@ func (a *App) GetFinding(
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, errors.New("finding unavailable"))
 	}
+	enrichCtx, cancel := context.WithTimeout(ctx, 6*time.Second)
+	defer cancel()
+	a.enrichFindingCerebroContext(enrichCtx, organizationID, &finding)
 	return connect.NewResponse(&aperiov1.GetFindingResponse{Data: finding.toProto()}), nil
 }
 
@@ -1862,6 +1874,7 @@ func (finding findingRow) toProto() *aperiov1.Finding {
 			Provider:    finding.Provider,
 			DisplayName: finding.DisplayName,
 		},
+		CerebroContext: finding.CerebroContext,
 	}
 }
 

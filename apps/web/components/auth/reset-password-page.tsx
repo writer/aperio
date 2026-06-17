@@ -4,8 +4,10 @@ import Link from "next/link";
 import { useId, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { resetPassword } from "../../lib/api";
+import { CEREBRO_HUMAN_AUTH_MODE } from "../../lib/cerebro-auth";
 import { useAuth } from "./auth-shell";
 import { AuthLayout } from "./auth-layout";
+import { useCerebroAuthInsights } from "./use-cerebro-auth-insights";
 import { Button } from "../ui/button";
 import { Field, FormBanner, Input } from "../ui/form";
 
@@ -18,6 +20,7 @@ export function ResetPasswordPage() {
   const [confirm, setConfirm] = useState("");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+  const sessionInsights = useCerebroAuthInsights({ loadDiscovery: !token });
 
   const passwordId = useId();
   const confirmId = useId();
@@ -46,7 +49,9 @@ export function ResetPasswordPage() {
   return (
     <AuthLayout
       title="Set a new password"
-      description="Your token is single-use and expires automatically."
+      description={`Your token is single-use; the next session is reissued as ${CEREBRO_HUMAN_AUTH_MODE}.`}
+      showSessionMessaging
+      sessionInsights={sessionInsights}
       footer={
         <Link
           href="/login"

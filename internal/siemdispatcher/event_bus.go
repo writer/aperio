@@ -10,6 +10,7 @@ import (
 	"github.com/nats-io/nats.go"
 	aperiocontractsv1 "github.com/writer/aperio/gen/aperio/contracts/v1"
 	cerebrov1 "github.com/writer/aperio/gen/cerebro/v1"
+	"github.com/writer/aperio/internal/cerebroclient"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -30,7 +31,7 @@ type CerebroClaimsFanoutEvent struct {
 	FindingID      string
 	DedupeKey      string
 	OccurredAt     time.Time
-	Claims         []cerebroClaim
+	Claims         []*cerebrov1.Claim
 	Status         string
 	Error          string
 }
@@ -140,7 +141,7 @@ func (d *Dispatcher) publishCerebroFanout(ctx context.Context, item delivery, de
 		FindingID:      result.FindingID,
 		DedupeKey:      result.DedupeKey,
 		OccurredAt:     occurredAt,
-		Claims:         result.CerebroClaims,
+		Claims:         cerebroclient.ClaimsToProto(result.CerebroClaims),
 		Status:         status,
 		Error:          message,
 	})
@@ -155,10 +156,6 @@ func (d *Dispatcher) publisher() ClaimFanoutPublisher {
 
 func encodeCerebroClaimsFanoutEvent(event CerebroClaimsFanoutEvent) (encodedSIEMAperioEvent, error) {
 	occurredAt := timestamppb.New(event.OccurredAt)
-	claims := make([]*cerebrov1.Claim, 0, len(event.Claims))
-	for _, claim := range event.Claims {
-		claims = append(claims, cerebroClaimToProto(claim))
-	}
 	domainPayload, err := proto.Marshal(&aperiocontractsv1.CerebroClaimsFanoutEvent{
 		DeliveryId:     event.DeliveryID,
 		OrganizationId: event.OrganizationID,
@@ -167,7 +164,7 @@ func encodeCerebroClaimsFanoutEvent(event CerebroClaimsFanoutEvent) (encodedSIEM
 		FindingId:      event.FindingID,
 		DedupeKey:      event.DedupeKey,
 		OccurredAt:     occurredAt,
-		Claims:         claims,
+		Claims:         event.Claims,
 		Status:         event.Status,
 		Error:          event.Error,
 	})
@@ -207,42 +204,6 @@ func encodeSIEMAperioEnvelope(tenantID, kind, schemaRef string, occurredAt *time
 		subject: "events." + kind,
 		payload: payload,
 	}, nil
-}
-
-func cerebroClaimToProto(claim cerebroClaim) *cerebrov1.Claim {
-	var observedAt *timestamppb.Timestamp
-	if observed, err := time.Parse(time.RFC3339Nano, claim.ObservedAt); err == nil {
-		observedAt = timestamppb.New(observed)
-	}
-	return &cerebrov1.Claim{
-		Id:            claim.ID,
-		SubjectUrn:    claim.SubjectURN,
-		SubjectRef:    cerebroEntityRefToProto(claim.SubjectRef),
-		Predicate:     claim.Predicate,
-		ObjectUrn:     claim.ObjectURN,
-		ObjectRef:     optionalCerebroEntityRefToProto(claim.ObjectRef),
-		ObjectValue:   claim.ObjectValue,
-		ClaimType:     claim.ClaimType,
-		Status:        claim.Status,
-		SourceEventId: claim.SourceEvent,
-		ObservedAt:    observedAt,
-		Attributes:    compactEventAttributes(claim.Attributes),
-	}
-}
-
-func cerebroEntityRefToProto(ref cerebroEntityRef) *cerebrov1.EntityRef {
-	return &cerebrov1.EntityRef{
-		Urn:        ref.URN,
-		EntityType: ref.EntityType,
-		Label:      ref.Label,
-	}
-}
-
-func optionalCerebroEntityRefToProto(ref *cerebroEntityRef) *cerebrov1.EntityRef {
-	if ref == nil {
-		return nil
-	}
-	return cerebroEntityRefToProto(*ref)
 }
 
 func compactEventAttributes(attributes map[string]string) map[string]string {

@@ -4,8 +4,10 @@ import Link from "next/link";
 import { useId, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { acceptInvite } from "../../lib/api";
+import { CEREBRO_API_RESOURCE } from "../../lib/cerebro-auth";
 import { useAuth } from "./auth-shell";
 import { AuthLayout } from "./auth-layout";
+import { useCerebroAuthInsights } from "./use-cerebro-auth-insights";
 import { Button } from "../ui/button";
 import { Field, FormBanner, Input } from "../ui/form";
 
@@ -19,6 +21,7 @@ export function AcceptInvitePage() {
   const [password, setPassword] = useState("");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+  const sessionInsights = useCerebroAuthInsights({ loadDiscovery: !token });
 
   const nameId = useId();
   const passwordId = useId();
@@ -47,7 +50,9 @@ export function AcceptInvitePage() {
   return (
     <AuthLayout
       title="Accept invite"
-      description="Finish creating your account in this workspace."
+      description={`Finish creating your tenant principal before Aperio issues a scoped ${CEREBRO_API_RESOURCE} session.`}
+      showSessionMessaging
+      sessionInsights={sessionInsights}
       footer={
         <Link
           href="/login"

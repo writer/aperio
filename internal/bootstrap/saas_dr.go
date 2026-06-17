@@ -111,6 +111,7 @@ func (a *App) ListSaasIncidents(
 		response.PageInfo.NextCursor = rows[len(rows)-1].ID
 	}
 	for _, row := range rows {
+		row.CerebroContextJSON = a.refreshSaasCerebroMCPContext(organizationID, row.ID, row.CerebroContextJSON)
 		response.Data = append(response.Data, row.toProto())
 	}
 	return connect.NewResponse(response), nil
@@ -528,6 +529,9 @@ func (a *App) getSaasIncidentDetail(ctx context.Context, organizationID, inciden
 	if err != nil {
 		return nil, err
 	}
+	enrichCtx, cancel := context.WithTimeout(ctx, 6*time.Second)
+	defer cancel()
+	incident.CerebroContextJSON = a.enrichSaasCerebroContext(enrichCtx, organizationID, incidentID, incident.CerebroContextJSON, findings)
 	detail := &aperiov1.SaasIncidentDetail{
 		Incident:        incident.toProto(),
 		Findings:        make([]*aperiov1.Finding, 0, len(findings)),
@@ -1286,10 +1290,11 @@ func defaultCerebroContextPayload(organizationID string, incidentID string) map[
 		"sourceRuntimeId": "writer-aperio-saas-dr",
 		"findingContract": "cerebro.v1.Finding",
 		"mcp": map[string]any{
-			"server":      "aperio-a2a-broker",
-			"resourceUri": saasCerebroIncidentResourceURI(organizationID, incidentID),
-			"mimeType":    "application/vnd.aperio.cerebro.incident+json",
-			"tools":       saasCerebroMCPTools(),
+			"server":            "aperio-a2a-broker",
+			"resourceUri":       saasCerebroIncidentResourceURI(organizationID, incidentID),
+			"mimeType":          "application/vnd.aperio.cerebro.incident+json",
+			"tools":             saasCerebroMCPTools(),
+			"resourceTemplates": saasCerebroMCPResourceTemplates(),
 		},
 		"claimCount":     0,
 		"graphSignals":   []map[string]any{},
@@ -1376,6 +1381,8 @@ func saasCerebroMCPTools() []string {
 	return []string{
 		"aperio.list_cerebro_incidents",
 		"aperio.get_cerebro_incident_context",
+		"aperio.list_cerebro_findings",
+		"aperio.get_cerebro_finding_context",
 		"aperio.propose_cerebro_response",
 	}
 }

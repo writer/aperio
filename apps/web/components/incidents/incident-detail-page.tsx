@@ -24,6 +24,7 @@ import {
   type SaasResponseAction
 } from "../../lib/api";
 import { formatDateTime, providerLabel } from "../../lib/format";
+import { CerebroMCPResourceTemplateList } from "../cerebro/mcp-resource-template-list";
 import { PageHeader } from "../layout/page-header";
 import { Badge, SeverityBadge } from "../ui/badge";
 import { Button } from "../ui/button";
@@ -499,6 +500,10 @@ function CerebroContextCard({ context }: { context: CerebroContext }) {
             </div>
           </section>
         ) : null}
+
+        <CerebroMCPResourceTemplateList
+          templates={context?.mcp?.resourceTemplates}
+        />
 
         {graphSignals.length > 0 ? (
           <section className="space-y-2">

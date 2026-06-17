@@ -16,6 +16,8 @@ func TestApprovedToolsCatalog(t *testing.T) {
 		"aperio.enqueue_siem_payload",
 		"aperio.list_cerebro_incidents",
 		"aperio.get_cerebro_incident_context",
+		"aperio.list_cerebro_findings",
+		"aperio.get_cerebro_finding_context",
 		"aperio.propose_cerebro_response",
 	}
 	if len(tools) != len(wantNames) {
@@ -49,6 +51,8 @@ func TestApprovedToolsCatalog(t *testing.T) {
 	assertRequired(t, required["aperio.enqueue_siem_payload"], "organizationId", "record")
 	assertRequired(t, required["aperio.list_cerebro_incidents"], "organizationId")
 	assertRequired(t, required["aperio.get_cerebro_incident_context"], "organizationId", "incidentId")
+	assertRequired(t, required["aperio.list_cerebro_findings"], "organizationId")
+	assertRequired(t, required["aperio.get_cerebro_finding_context"], "organizationId", "findingId")
 	assertRequired(t, required["aperio.propose_cerebro_response"], "organizationId", "incidentId", "action", "targetType", "targetIdentifier", "rationale")
 
 	registerProps := tools[0].InputSchema["properties"].(map[string]any)
@@ -73,9 +77,45 @@ func TestApprovedToolsCatalog(t *testing.T) {
 	if cerebroListProps["limit"].(map[string]any)["default"] != 25 {
 		t.Fatalf("list_cerebro_incidents limit default drifted")
 	}
-	cerebroResponseProps := tools[8].InputSchema["properties"].(map[string]any)
+	cerebroFindingListProps := tools[8].InputSchema["properties"].(map[string]any)
+	if cerebroFindingListProps["limit"].(map[string]any)["default"] != 25 {
+		t.Fatalf("list_cerebro_findings limit default drifted")
+	}
+	cerebroResponseProps := tools[10].InputSchema["properties"].(map[string]any)
 	if cerebroResponseProps["approvalRequired"].(map[string]any)["default"] != true {
 		t.Fatalf("propose_cerebro_response approval default drifted")
+	}
+}
+
+func TestApprovedResourceTemplatesCatalog(t *testing.T) {
+	resources := ApprovedResources()
+	if len(resources) != 0 {
+		t.Fatalf("static resource count = %d, want 0 tenant-neutral resources", len(resources))
+	}
+
+	templates := ApprovedResourceTemplates()
+	if len(templates) != 3 {
+		t.Fatalf("resource template count = %d, want 3", len(templates))
+	}
+	want := []struct {
+		uriTemplate string
+		mimeType    string
+	}{
+		{"cerebro://aperio/{organizationId}/incidents/{incidentId}", cerebroIncidentMimeType},
+		{"cerebro://aperio/{organizationId}/findings/{findingId}", cerebroFindingMimeType},
+		{"cerebro://aperio/{organizationId}/security/overview", cerebroSecurityOverviewMimeType},
+	}
+	for index, expected := range want {
+		template := templates[index]
+		if template.URITemplate != expected.uriTemplate {
+			t.Fatalf("template[%d].URITemplate = %q, want %q", index, template.URITemplate, expected.uriTemplate)
+		}
+		if template.MimeType != expected.mimeType {
+			t.Fatalf("template[%d].MimeType = %q, want %q", index, template.MimeType, expected.mimeType)
+		}
+		if template.Name == "" || template.Description == "" {
+			t.Fatalf("template[%d] missing name or description: %#v", index, template)
+		}
 	}
 }
 
@@ -144,6 +184,28 @@ func TestValidateToolArgumentsDefaultsAndTrimming(t *testing.T) {
 		t.Fatalf("list_cerebro_incidents defaults wrong: %#v", cerebroList)
 	}
 
+	cerebroFindings, err := ValidateToolArguments("aperio.list_cerebro_findings", map[string]any{
+		"organizationId": " org_1 ",
+		"provider":       "SLACK",
+	}, now)
+	if err != nil {
+		t.Fatalf("list_cerebro_findings validation failed: %v", err)
+	}
+	if cerebroFindings["organizationId"] != "org_1" || cerebroFindings["provider"] != "SLACK" || cerebroFindings["limit"] != 25 {
+		t.Fatalf("list_cerebro_findings defaults wrong: %#v", cerebroFindings)
+	}
+
+	cerebroFinding, err := ValidateToolArguments("aperio.get_cerebro_finding_context", map[string]any{
+		"organizationId": "org_1",
+		"findingId":      " fnd_1 ",
+	}, now)
+	if err != nil {
+		t.Fatalf("get_cerebro_finding_context validation failed: %v", err)
+	}
+	if cerebroFinding["findingId"] != "fnd_1" {
+		t.Fatalf("get_cerebro_finding_context trimming wrong: %#v", cerebroFinding)
+	}
+
 	cerebroResponse, err := ValidateToolArguments("aperio.propose_cerebro_response", map[string]any{
 		"organizationId":     "org_1",
 		"incidentId":         " inc_1 ",
@@ -200,6 +262,11 @@ func TestValidateToolArgumentsRejectsInvalidInputs(t *testing.T) {
 			name: "invalid cerebro limit",
 			tool: "aperio.list_cerebro_incidents",
 			args: map[string]any{"organizationId": "org", "limit": 101},
+		},
+		{
+			name: "invalid cerebro finding status",
+			tool: "aperio.list_cerebro_findings",
+			args: map[string]any{"organizationId": "org", "status": "INVESTIGATING"},
 		},
 		{
 			name: "invalid cerebro action",

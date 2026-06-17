@@ -163,6 +163,25 @@ Aperio reads runtime configuration from environment variables. Create a `.env` f
 | `APERIO_NATS_URL` | NATS server URL used when event bus publishing is enabled | `nats://127.0.0.1:4222` |
 | `APERIO_NATS_STREAM` | JetStream stream for Cerebro-compatible event envelopes | `CEREBRO_EVENTS` |
 
+### Cerebro integration
+
+When `CEREBRO_BASE_URL`, a credential, and `CEREBRO_TENANT_ID` are configured,
+the Go API and ingestion worker ensure Aperio's Cerebro source runtime at
+startup. The ingestion worker also writes supported findings directly to
+Cerebro as tenant-scoped claims. Leave these unset for local-only development
+without Cerebro.
+
+| Variable | Purpose | Default |
+| --- | --- | --- |
+| `CEREBRO_BASE_URL` | Hosted Cerebro API origin, for example `https://cerebro.example.com` | unset |
+| `CEREBRO_MCP_URL` | Optional explicit Cerebro Streamable HTTP MCP endpoint shown in incident context | derived from `CEREBRO_BASE_URL` |
+| `CEREBRO_API_KEY` | Tenant-scoped Cerebro API key sent as `Authorization: Bearer` | unset |
+| `CEREBRO_TOKEN` | Backward-compatible fallback when `CEREBRO_API_KEY` is not set | unset |
+| `CEREBRO_TENANT_ID` | Tenant id sent as `X-Cerebro-Tenant` and stored on the source runtime | unset |
+| `CEREBRO_SOURCE_RUNTIME_ID` | Source runtime id Aperio ensures in Cerebro | `writer-aperio-saas-dr` |
+| `CEREBRO_SOURCE_ID` | Cerebro source id for the Aperio SaaS DR runtime | `aperio_saas_dr` |
+| `CEREBRO_HTTP_TIMEOUT_SECONDS` | Timeout for startup runtime ensure and Cerebro HTTP calls | `15` |
+
 ### Email
 
 | Variable | Purpose | Default |

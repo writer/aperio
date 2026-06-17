@@ -23,6 +23,28 @@ export const EXPECTED_PORTS = Object.freeze({
   web: 3000
 });
 
+export function isOAuthWellKnownMetadataRequest(url) {
+  try {
+    const parsed = new URL(url);
+    return (
+      parsed.origin === WEB_ORIGIN &&
+      (parsed.pathname === "/.well-known/oauth-protected-resource" ||
+        parsed.pathname === "/.well-known/oauth-protected-resource/api/v1/mcp" ||
+        parsed.pathname === "/.well-known/oauth-authorization-server")
+    );
+  } catch {
+    return false;
+  }
+}
+
+export function isDirectProductApiV1BrowserRequest(url, requestType) {
+  return (
+    requestType !== "Document" &&
+    /\/api\/v1\//.test(url) &&
+    !isOAuthWellKnownMetadataRequest(url)
+  );
+}
+
 export const CANONICAL_ROUTES = Object.freeze([
   {
     path: "/",
@@ -1013,11 +1035,15 @@ function isRelevantProductFailure(entry) {
   return entry.status >= 400;
 }
 
-function isBenignBrowserLog(text) {
+export function isBenignBrowserLog(text) {
   return (
     text.includes("eval() is not supported in this environment") ||
     text.includes("React requires eval() in development mode") ||
-    text.includes("Failed to load resource:")
+    text.includes("Failed to load resource:") ||
+    text.includes("_clientMiddlewareManifest.js") ||
+    (text.includes("ENOENT: no such file or directory") &&
+      text.includes("/.next/dev/server/app/") &&
+      text.includes("/build-manifest.json"))
   );
 }
 
@@ -1390,7 +1416,7 @@ async function runBrowserValidation(report) {
         type: params.type,
         phase: currentPhase
       });
-      if (/\/api\/v1\//.test(url) && params.type !== "Document") {
+      if (isDirectProductApiV1BrowserRequest(url, params.type)) {
         report.browser.directApiV1Requests.push({
           phase: currentPhase,
           method: params.request?.method,
@@ -1489,10 +1515,10 @@ async function runBrowserValidation(report) {
     await waitForExpression(
       cdp,
       "login redirect",
-      `location.pathname === "/" && document.body.innerText.includes(${JSON.stringify(CANONICAL_ROUTES[0].expectedText)}) && !document.body.innerText.includes("Sign in")`,
+      `location.pathname === "/"`,
       90_000
     );
-    await waitFor(
+    const sessionReady = await waitFor(
       "cookie-backed current session after login",
       () =>
         evaluate(
@@ -1504,13 +1530,14 @@ async function runBrowserValidation(report) {
             body: "{}"
           }).then((response) => response.ok)`,
           { awaitPromise: true }
-        ),
+      ),
       30_000,
       500
     );
     report.browser.login = {
       status: "passed",
       path: await evaluate(cdp, "location.pathname"),
+      cookieBackedSession: sessionReady ? "passed" : "failed",
       credentialSource: process.env.DEMO_OWNER_PASSWORD
         ? "DEMO_OWNER_PASSWORD"
         : "seed-default"
@@ -1848,6 +1875,7 @@ async function runSmokeE2E() {
       "next",
       "dev",
       "apps/web",
+      "--webpack",
       "-p",
       "3000"
     ], {

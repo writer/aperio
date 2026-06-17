@@ -74,6 +74,144 @@ func TestReadyzReportsDependencyHealth(t *testing.T) {
 	}
 }
 
+func TestOAuthProtectedResourceMetadataMirrorsCerebroMCP(t *testing.T) {
+	app := NewApp(config.Config{WebOrigin: "https://app.example.com"}, nil).
+		WithCerebroOAuthIssuerURL("https://cerebro.example.com/api").
+		WithCerebroMCPServerURL("https://cerebro.example.com/api/v1/mcp")
+
+	for _, path := range []string{
+		oauthProtectedResourceMetadataPath,
+		oauthProtectedResourceMetadataMCPPath,
+	} {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		rec := httptest.NewRecorder()
+
+		app.Handler().ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("%s status = %d", path, rec.Code)
+		}
+		var payload map[string]any
+		if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("%s decode metadata: %v", path, err)
+		}
+		if payload["resource"] != "https://cerebro.example.com/api/v1/mcp" {
+			t.Fatalf("%s resource = %#v", path, payload["resource"])
+		}
+		assertStringList(t, payload["authorization_servers"], []string{"https://cerebro.example.com"})
+		assertStringList(t, payload["bearer_methods_supported"], []string{"header"})
+		assertStringList(t, payload["scopes_supported"], []string{compatCerebroReadScope})
+	}
+}
+
+func TestOAuthMetadataRequiresCerebroConfig(t *testing.T) {
+	app := NewApp(config.Config{WebOrigin: "https://app.example.com"}, nil)
+
+	for _, path := range []string{
+		oauthProtectedResourceMetadataPath,
+		oauthProtectedResourceMetadataMCPPath,
+		oauthAuthorizationServerMetadataPath,
+	} {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		rec := httptest.NewRecorder()
+
+		app.Handler().ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusNotFound {
+			t.Fatalf("%s status = %d, want 404 when Cerebro discovery is unconfigured", path, rec.Code)
+		}
+	}
+}
+
+func TestOAuthAuthorizationServerMetadataMirrorsCerebro(t *testing.T) {
+	app := NewApp(config.Config{WebOrigin: "https://app.example.com"}, nil).
+		WithCerebroOAuthIssuerURL("https://proxy.example.com/cerebro/api/v1").
+		WithCerebroMCPServerURL("https://proxy.example.com/cerebro/api/v1/mcp")
+	issuer := "https://proxy.example.com/cerebro"
+	for _, path := range []string{
+		oauthAuthorizationServerMetadataPath,
+		oauthAuthorizationServerMetadataPath + "/cerebro",
+	} {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		rec := httptest.NewRecorder()
+
+		app.Handler().ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("%s authorization metadata status = %d", path, rec.Code)
+		}
+		var payload map[string]any
+		if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("%s decode authorization metadata: %v", path, err)
+		}
+		if payload["issuer"] != issuer {
+			t.Fatalf("%s issuer = %#v", path, payload["issuer"])
+		}
+		if payload["authorization_endpoint"] != issuer+oauthAuthorizePath {
+			t.Fatalf("%s authorization endpoint = %#v", path, payload["authorization_endpoint"])
+		}
+		if payload["token_endpoint"] != issuer+oauthTokenPath {
+			t.Fatalf("%s token endpoint = %#v", path, payload["token_endpoint"])
+		}
+		if payload["revocation_endpoint"] != issuer+oauthRevokePath {
+			t.Fatalf("%s revocation endpoint = %#v", path, payload["revocation_endpoint"])
+		}
+		if payload["resource_indicators_supported"] != true {
+			t.Fatalf("%s resource_indicators_supported = %#v", path, payload["resource_indicators_supported"])
+		}
+		assertStringList(t, payload["response_types_supported"], []string{"code"})
+		assertStringList(t, payload["grant_types_supported"], compatCerebroMCPGrantTypes())
+		assertStringList(t, payload["code_challenge_methods_supported"], []string{"S256"})
+		assertStringList(t, payload["token_endpoint_auth_methods_supported"], []string{"none", "client_secret_basic", "client_secret_post"})
+		assertStringList(t, payload["scopes_supported"], []string{compatCerebroReadScope})
+	}
+}
+
+func TestOAuthAuthorizationServerMetadataRejectsWrongIssuerPath(t *testing.T) {
+	app := NewApp(config.Config{WebOrigin: "https://app.example.com"}, nil).
+		WithCerebroOAuthIssuerURL("https://proxy.example.com/cerebro/api/v1").
+		WithCerebroMCPServerURL("https://proxy.example.com/cerebro/api/v1/mcp")
+	req := httptest.NewRequest(http.MethodGet, oauthAuthorizationServerMetadataPath+"/other", nil)
+	rec := httptest.NewRecorder()
+
+	app.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("mismatched issuer metadata path status = %d", rec.Code)
+	}
+}
+
+func TestOAuthMetadataRejectsNonGet(t *testing.T) {
+	app := NewApp(config.Config{WebOrigin: "https://app.example.com"}, nil)
+	req := httptest.NewRequest(http.MethodPost, oauthAuthorizationServerMetadataPath, strings.NewReader("{}"))
+	rec := httptest.NewRecorder()
+
+	app.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("metadata POST status = %d", rec.Code)
+	}
+	if got := rec.Header().Get("Allow"); got != http.MethodGet {
+		t.Fatalf("Allow = %q", got)
+	}
+}
+
+func assertStringList(t *testing.T, value any, want []string) {
+	t.Helper()
+	raw, ok := value.([]any)
+	if !ok {
+		t.Fatalf("value = %#v, want JSON string list", value)
+	}
+	if len(raw) != len(want) {
+		t.Fatalf("value length = %d, want %d: %#v", len(raw), len(want), value)
+	}
+	for i, entry := range raw {
+		if entry != want[i] {
+			t.Fatalf("value[%d] = %#v, want %q in %#v", i, entry, want[i], value)
+		}
+	}
+}
+
 func TestAggregateRiskScoreMatchesClampedPostureShape(t *testing.T) {
 	score := aggregateRiskScore([]riskFinding{
 		{
@@ -320,6 +458,9 @@ func TestCompatRateLimitUsesSeparateIPAndSubjectBuckets(t *testing.T) {
 	if _, _, ok := compatRateLimitPolicy(emailDomainHealthRefreshRatePath); !ok {
 		t.Fatal("email domain refresh path must stay rate limited")
 	}
+	if _, _, ok := compatRateLimitPolicy(securityOverviewRateLimitPath); !ok {
+		t.Fatal("security overview path must stay rate limited")
+	}
 	for _, path := range []string{
 		"/api/v1/integrations/int_123/source-sync",
 		"/api/v1/integrations/int_123/source-backfill",
@@ -400,7 +541,70 @@ func TestCompatClientIdentityHonorsForwardedHeadersFromTrustedProxy(t *testing.T
 }
 
 func TestTypedAuthSessionDropsCompatibilityToken(t *testing.T) {
-	session := authSessionFromMap(map[string]any{
+	displayName := "User Example"
+	payload := compatSessionPayload(
+		"session-token-that-must-stay-cookie-only",
+		compatSessionUser{
+			ID:          "usr_1",
+			Email:       "user@example.com",
+			DisplayName: &displayName,
+			MFAEnabled:  true,
+			Role:        "OWNER",
+		},
+		compatSessionOrg{
+			ID:   "org_1",
+			Name: "Example Org",
+			Slug: "example",
+		},
+	)
+	session := authSessionFromMap(payload)
+
+	if session.Token != "" {
+		t.Fatalf("typed auth session exposed token %q", session.Token)
+	}
+	if session.User == nil || !session.User.MfaEnabled {
+		t.Fatal("expected user session fields to remain populated")
+	}
+	if session.AuthContext == nil {
+		t.Fatal("expected typed auth session to include server auth context")
+	}
+	if session.AuthContext.Principal != "user@example.com" || session.AuthContext.AuthMode != "human_workspace_session" {
+		t.Fatalf("unexpected auth context identity: %#v", session.AuthContext)
+	}
+	if session.AuthContext.TokenTransport != "http_only_cookie" || session.AuthContext.CerebroResource != "cerebro-api" {
+		t.Fatalf("unexpected auth context transport/resource: %#v", session.AuthContext)
+	}
+	if session.AuthContext.CerebroMcpResource != "cerebro-mcp" {
+		t.Fatalf("unexpected MCP resource: %#v", session.AuthContext)
+	}
+	if session.AuthContext.CerebroMcpResourceMetadataPath != "" {
+		t.Fatalf("MCP resource metadata path should not be advertised without mounted discovery routes: %#v", session.AuthContext)
+	}
+	if session.AuthContext.CerebroOauthAuthorizationServerMetadataPath != "" {
+		t.Fatalf("OAuth authorization server metadata path should not be advertised without mounted discovery routes: %#v", session.AuthContext)
+	}
+	for _, grantType := range []string{"authorization_code", "refresh_token", "client_credentials"} {
+		if !stringSliceContains(session.AuthContext.CerebroMcpGrantTypes, grantType) {
+			t.Fatalf("expected MCP grant type %s, got %#v", grantType, session.AuthContext.CerebroMcpGrantTypes)
+		}
+	}
+	if !stringSliceContains(session.AuthContext.CerebroMcpBearerMethods, "header") {
+		t.Fatalf("expected MCP bearer method header, got %#v", session.AuthContext.CerebroMcpBearerMethods)
+	}
+	if !stringSliceContains(session.AuthContext.AllowedTenants, "org_1") {
+		t.Fatalf("expected allowed tenant org_1, got %#v", session.AuthContext.AllowedTenants)
+	}
+	for _, scope := range []string{
+		"cerebro.cosmo.security.read",
+		"cerebro.connector_credentials.write",
+		"cerebro.runtime_response.write",
+	} {
+		if !stringSliceContains(session.AuthContext.CerebroScopes, scope) {
+			t.Fatalf("expected scope %s, got %#v", scope, session.AuthContext.CerebroScopes)
+		}
+	}
+
+	legacySession := authSessionFromMap(map[string]any{
 		"token": "session-token-that-must-stay-cookie-only",
 		"user": map[string]any{
 			"id":          "usr_1",
@@ -416,12 +620,53 @@ func TestTypedAuthSessionDropsCompatibilityToken(t *testing.T) {
 		},
 	})
 
-	if session.Token != "" {
-		t.Fatalf("typed auth session exposed token %q", session.Token)
+	if legacySession.Token != "" {
+		t.Fatalf("legacy typed auth session exposed token %q", legacySession.Token)
 	}
-	if session.User == nil || !session.User.MfaEnabled {
-		t.Fatal("expected user session fields to remain populated")
+}
+
+func TestConfiguredAuthContextAdvertisesOAuthDiscoveryMetadata(t *testing.T) {
+	app := NewApp(config.Config{}, nil).
+		WithCerebroOAuthIssuerURL("https://cerebro.example.com/api").
+		WithCerebroMCPServerURL("https://cerebro.example.com/api/v1/mcp")
+
+	context := app.compatAuthContextForSession(
+		compatSessionUser{Email: "user@example.com", Role: "OWNER"},
+		compatSessionOrg{ID: "org_1", Slug: "example"},
+	)
+
+	if context.CerebroMCPResourceMetadataPath != compatCerebroMCPResourceMetadataPath {
+		t.Fatalf("unexpected MCP resource metadata path: %#v", context)
 	}
+	if context.CerebroOAuthAuthorizationServerMetadataPath != compatCerebroOAuthAuthorizationServerMetadataPath {
+		t.Fatalf("unexpected OAuth authorization server metadata path: %#v", context)
+	}
+}
+
+func TestSecurityAnalystAuthContextKeepsGRCInventoryScope(t *testing.T) {
+	context := compatAuthContextForSession(
+		compatSessionUser{
+			Email: "analyst@example.com",
+			Role:  "SECURITY_ANALYST",
+		},
+		compatSessionOrg{
+			ID:   "org_1",
+			Slug: "example",
+		},
+	)
+
+	if !stringSliceContains(context.CerebroScopes, compatCerebroGRCInventoryScope) {
+		t.Fatalf("expected security analyst GRC scope, got %#v", context.CerebroScopes)
+	}
+}
+
+func stringSliceContains(values []string, target string) bool {
+	for _, value := range values {
+		if value == target {
+			return true
+		}
+	}
+	return false
 }
 
 func TestCompatPasswordHashEmitsAndVerifiesS2(t *testing.T) {

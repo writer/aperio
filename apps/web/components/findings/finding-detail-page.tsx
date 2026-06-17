@@ -2,14 +2,24 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, ShieldAlert, ShieldX } from "lucide-react";
+import {
+  CheckCircle2,
+  GitBranch,
+  Network,
+  RadioTower,
+  Server,
+  ShieldAlert,
+  ShieldX
+} from "lucide-react";
 import {
   acceptFindingRisk,
   createSaasIncident,
   fetchFinding,
   resolveFinding,
-  type Finding
+  type Finding,
+  type FindingCerebroContext
 } from "../../lib/api";
+import { CerebroMCPResourceTemplateList } from "../cerebro/mcp-resource-template-list";
 import { useToast } from "../ui/toast";
 import { PageHeader } from "../layout/page-header";
 import { Badge, SeverityBadge } from "../ui/badge";
@@ -17,6 +27,7 @@ import { Button } from "../ui/button";
 import {
   Card,
   CardContent,
+  CardDescription,
   CardHeader,
   CardTitle
 } from "../ui/card";
@@ -193,6 +204,10 @@ export function FindingDetailPage({ findingId }: { findingId: string }) {
             </div>
 
             <div className="flex flex-col gap-4">
+              <FindingCerebroContextCard
+                context={finding.cerebroContext ?? null}
+              />
+
               <Card>
                 <CardHeader>
                   <CardTitle>Details</CardTitle>
@@ -259,6 +274,129 @@ export function FindingDetailPage({ findingId }: { findingId: string }) {
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+function FindingCerebroContextCard({
+  context
+}: {
+  context: FindingCerebroContext | null;
+}) {
+  if (!context) return null;
+  const mode = context.mode || "not-configured";
+  const claimCount = context.claimCount ?? context.claimSummaries.length;
+  const graphSignalCount = context.graphSignals.length;
+  const graphPathCount = context.graphPaths.length;
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <CardTitle>Cerebro graph context</CardTitle>
+            <CardDescription>
+              {context.sourceRuntimeId ?? "Local projection"} ·{" "}
+              {context.findingContract ?? "cerebro.v1.Finding"}
+            </CardDescription>
+          </div>
+          <Badge variant={mode === "graph-linked" ? "signal" : "outline"}>
+            {mode.replaceAll("-", " ")}
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-3 gap-2">
+          <CerebroStat icon={RadioTower} label="Claims" value={claimCount} />
+          <CerebroStat
+            icon={Network}
+            label="Signals"
+            value={graphSignalCount}
+          />
+          <CerebroStat icon={GitBranch} label="Paths" value={graphPathCount} />
+        </div>
+
+        <div className="space-y-2 text-sm">
+          <Row label="Source event">
+            {context.sourceEventId ? (
+              <span className="font-mono text-xs">{context.sourceEventId}</span>
+            ) : (
+              "Not captured"
+            )}
+          </Row>
+          <Row label="MCP resource">
+            {context.mcp?.resourceUri ? (
+              <span className="font-mono text-xs">{context.mcp.resourceUri}</span>
+            ) : (
+              "Not configured"
+            )}
+          </Row>
+        </div>
+
+        {context.mcp ? (
+          <section className="space-y-2">
+            <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <Server className="h-3.5 w-3.5" aria-hidden />
+              Cerebro MCP
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {context.mcp.tools.map((tool) => (
+                <span
+                  key={tool}
+                  className="rounded border border-border/70 bg-muted/30 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground"
+                >
+                  {tool}
+                </span>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        <CerebroMCPResourceTemplateList
+          templates={context.mcp?.resourceTemplates}
+        />
+
+        {context.claimSummaries.length ? (
+          <section className="space-y-2">
+            <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Claim sample
+            </h4>
+            <div className="space-y-1">
+              {context.claimSummaries.slice(0, 3).map((claim) => (
+                <div
+                  key={`${claim.claimType}:${claim.predicate}:${claim.subjectUrn}:${claim.objectUrn ?? ""}`}
+                  className="truncate rounded border border-border/70 bg-muted/25 px-2 py-1 font-mono text-[11px] text-muted-foreground"
+                  title={`${claim.claimType} ${claim.predicate} ${claim.subjectUrn}`}
+                >
+                  {claim.claimType} · {claim.predicate}
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : null}
+      </CardContent>
+    </Card>
+  );
+}
+
+function CerebroStat({
+  icon: Icon,
+  label,
+  value
+}: {
+  icon: typeof RadioTower;
+  label: string;
+  value: number;
+}) {
+  return (
+    <div className="rounded-md border border-border bg-muted/20 p-2">
+      <Icon className="mb-1 h-3.5 w-3.5 text-signal" aria-hidden />
+      <div className="text-base font-semibold leading-none text-foreground">
+        {value}
+      </div>
+      <div className="mt-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+        {label}
+      </div>
     </div>
   );
 }

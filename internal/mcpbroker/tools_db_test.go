@@ -377,6 +377,165 @@ func TestDBBackedCerebroIncidentToolsExposeGraphContextAndGateResponses(t *testi
 	}
 }
 
+func TestDBBackedCerebroFindingToolsExposeContextAndTenantBoundaries(t *testing.T) {
+	db := openMCPToolTestDB(t)
+	orgID := seedMCPToolOrganization(t, db, "MCP Cerebro Finding Org")
+	otherOrgID := seedMCPToolOrganization(t, db, "MCP Cerebro Finding Other Org")
+	_, findingID := seedMCPFinding(t, db, orgID, "finding-resource")
+	_, otherFindingID := seedMCPFinding(t, db, otherOrgID, "finding-resource-other")
+	incidentID := seedMCPCerebroIncident(t, db, orgID, findingID, "finding-resource")
+	_ = seedMCPCerebroIncident(t, db, otherOrgID, otherFindingID, "finding-resource-other")
+	service := newAuthenticatedTestToolService(t, db)
+
+	before := mcpSideEffectCount(t, db, orgID)
+	list := callMCPToolFrame(t, service, "cerebro-finding-list", "aperio.list_cerebro_findings", map[string]any{
+		"organizationId": orgID,
+		"status":         "OPEN",
+		"severity":       "HIGH",
+		"provider":       "SLACK",
+		"limit":          10,
+	})
+	resources := list["resources"].([]any)
+	if len(resources) != 1 {
+		t.Fatalf("list_cerebro_findings resources = %#v, want one tenant-local finding", resources)
+	}
+	resource := resources[0].(map[string]any)
+	if resource["id"] != findingID || resource["title"] == "" {
+		t.Fatalf("list_cerebro_findings resource drifted: %#v", resource)
+	}
+	if got := resource["resource"].(map[string]any)["uri"]; got != cerebroFindingResourceURI(orgID, findingID) {
+		t.Fatalf("finding resource uri = %v, want %s", got, cerebroFindingResourceURI(orgID, findingID))
+	}
+	cerebro := resource["cerebro"].(map[string]any)
+	if cerebro["source"] != "local-projection" || cerebro["mode"] != "not-configured" || cerebro["findingContract"] != "cerebro.v1.Finding" || cerebro["sourceEventId"] == nil {
+		t.Fatalf("finding Cerebro summary drifted: %#v", cerebro)
+	}
+
+	detail := callMCPToolFrame(t, service, "cerebro-finding-get", "aperio.get_cerebro_finding_context", map[string]any{
+		"organizationId": orgID,
+		"findingId":      findingID,
+	})
+	if detail["server"] != ServerName {
+		t.Fatalf("get_cerebro_finding_context server = %#v", detail["server"])
+	}
+	if detail["resource"].(map[string]any)["mimeType"] != cerebroFindingMimeType {
+		t.Fatalf("detail finding resource drifted: %#v", detail["resource"])
+	}
+	finding := detail["finding"].(map[string]any)
+	context := finding["cerebroContext"].(map[string]any)
+	if context["source"] != "local-projection" || context["findingContract"] != "cerebro.v1.Finding" {
+		t.Fatalf("detail finding Cerebro context drifted: %#v", context)
+	}
+	mcp := context["mcp"].(map[string]any)
+	if mcp["resourceUri"] != cerebroFindingResourceURI(orgID, findingID) || mcp["mimeType"] != cerebroFindingMimeType {
+		t.Fatalf("detail finding MCP context drifted: %#v", mcp)
+	}
+	if templates := mcp["resourceTemplates"].([]any); len(templates) != 3 {
+		t.Fatalf("detail finding MCP resource templates = %#v, want three templates", templates)
+	}
+	incidents := detail["incidents"].([]any)
+	if len(incidents) != 1 || incidents[0].(map[string]any)["id"] != incidentID {
+		t.Fatalf("detail finding incidents drifted: %#v", incidents)
+	}
+
+	expectMCPToolErrorFrame(t, service, "cerebro-finding-cross-get", "aperio.get_cerebro_finding_context", map[string]any{
+		"organizationId": orgID,
+		"findingId":      otherFindingID,
+	})
+	if after := mcpSideEffectCount(t, db, orgID); after != before {
+		t.Fatalf("finding MCP read tools changed side-effect count from %d to %d", before, after)
+	}
+}
+
+func TestDBBackedCerebroResourceReadsUseAuthAndTenantScope(t *testing.T) {
+	db := openMCPToolTestDB(t)
+	orgID := seedMCPToolOrganization(t, db, "MCP Cerebro Resource Org")
+	otherOrgID := seedMCPToolOrganization(t, db, "MCP Cerebro Resource Other Org")
+	_, findingID := seedMCPFinding(t, db, orgID, "resource-read")
+	_, otherFindingID := seedMCPFinding(t, db, otherOrgID, "resource-read-other")
+	incidentID := seedMCPCerebroIncident(t, db, orgID, findingID, "resource-read")
+	otherIncidentID := seedMCPCerebroIncident(t, db, otherOrgID, otherFindingID, "resource-read-other")
+	secret := "resource-secret-" + randomID()
+	t.Setenv("APERIO_MCP_ORGANIZATION_ID", orgID)
+	t.Setenv("APERIO_MCP_SHARED_SECRET", secret)
+	service := NewToolService(db)
+
+	beforeOrg := mcpSideEffectCount(t, db, orgID)
+	beforeOtherOrg := mcpSideEffectCount(t, db, otherOrgID)
+	incident, incidentContent := callMCPResourceReadFrame(t, service, "read-incident", cerebroIncidentResourceURI(orgID, incidentID))
+	if incidentContent["uri"] != cerebroIncidentResourceURI(orgID, incidentID) ||
+		incidentContent["mimeType"] != cerebroIncidentMimeType {
+		t.Fatalf("incident resource content drifted: %#v", incidentContent)
+	}
+	if incident["server"] != ServerName {
+		t.Fatalf("incident resource server = %#v", incident["server"])
+	}
+	incidentResource := incident["resource"].(map[string]any)
+	if incidentResource["uri"] != cerebroIncidentResourceURI(orgID, incidentID) {
+		t.Fatalf("incident resource uri = %v, want %s", incidentResource["uri"], cerebroIncidentResourceURI(orgID, incidentID))
+	}
+	incidentDetail := incident["incident"].(map[string]any)
+	if incidentDetail["id"] != incidentID {
+		t.Fatalf("incident detail id = %v, want %s", incidentDetail["id"], incidentID)
+	}
+
+	finding, findingContent := callMCPResourceReadFrame(t, service, "read-finding", cerebroFindingResourceURI(orgID, findingID))
+	if findingContent["uri"] != cerebroFindingResourceURI(orgID, findingID) ||
+		findingContent["mimeType"] != cerebroFindingMimeType {
+		t.Fatalf("finding resource content drifted: %#v", findingContent)
+	}
+	findingDetail := finding["finding"].(map[string]any)
+	if findingDetail["id"] != findingID {
+		t.Fatalf("finding detail id = %v, want %s", findingDetail["id"], findingID)
+	}
+	if incidents := finding["incidents"].([]any); len(incidents) != 1 || incidents[0].(map[string]any)["id"] != incidentID {
+		t.Fatalf("finding linked incidents drifted: %#v", incidents)
+	}
+
+	security, securityContent := callMCPResourceReadFrame(t, service, "read-security-overview", cerebroSecurityOverviewResourceURI(orgID))
+	if securityContent["uri"] != cerebroSecurityOverviewResourceURI(orgID) ||
+		securityContent["mimeType"] != cerebroSecurityOverviewMimeType {
+		t.Fatalf("security overview resource content drifted: %#v", securityContent)
+	}
+	summary := security["summary"].(map[string]any)
+	if summary["openFindingCount"].(float64) != 1 ||
+		summary["highFindingCount"].(float64) != 1 ||
+		summary["activeIncidentCount"].(float64) != 1 {
+		t.Fatalf("security overview summary drifted: %#v", summary)
+	}
+	if findings := security["findings"].([]any); len(findings) != 1 || findings[0].(map[string]any)["id"] != findingID {
+		t.Fatalf("security overview findings drifted: %#v", findings)
+	}
+	if incidents := security["incidents"].([]any); len(incidents) != 1 || incidents[0].(map[string]any)["id"] != incidentID {
+		t.Fatalf("security overview incidents drifted: %#v", incidents)
+	}
+	securityContext := security["cerebroContext"].(map[string]any)
+	securityMCP := securityContext["mcp"].(map[string]any)
+	if securityContext["mode"] != "mcp-resource" || securityMCP["resourceUri"] != cerebroSecurityOverviewResourceURI(orgID) {
+		t.Fatalf("security overview Cerebro MCP context drifted: %#v", securityContext)
+	}
+	if templates := securityMCP["resourceTemplates"].([]any); len(templates) != 3 {
+		t.Fatalf("security overview MCP resource templates = %#v, want three templates", templates)
+	}
+
+	missingTokenOutput := expectMCPResourceReadErrorFrame(t, service, "read-missing-token", cerebroIncidentResourceURI(orgID, incidentID))
+	wrongOrgOutput := expectMCPResourceReadErrorFrame(t, service, "read-wrong-org", cerebroIncidentResourceURI(otherOrgID, otherIncidentID), secret)
+	for label, output := range map[string][]byte{
+		"missing token": missingTokenOutput,
+		"wrong org":     wrongOrgOutput,
+	} {
+		if bytes.Contains(output, []byte(secret)) {
+			t.Fatalf("%s resource read error disclosed shared secret in stdout: %q", label, string(output))
+		}
+	}
+	if afterOrg := mcpSideEffectCount(t, db, orgID); afterOrg != beforeOrg {
+		t.Fatalf("resource reads changed scoped side effects from %d to %d", beforeOrg, afterOrg)
+	}
+	if afterOtherOrg := mcpSideEffectCount(t, db, otherOrgID); afterOtherOrg != beforeOtherOrg {
+		t.Fatalf("wrong-organization resource read changed other tenant side effects from %d to %d", beforeOtherOrg, afterOtherOrg)
+	}
+}
+
 func TestMCPSharedSecretAndTenantBoundariesRejectBeforeSideEffectsAndDoNotPersistSecrets(t *testing.T) {
 	db := openMCPToolTestDB(t)
 	orgID := seedMCPToolOrganization(t, db, "MCP Secret Org")
@@ -819,6 +978,13 @@ func seedMCPFinding(t *testing.T, db *sql.DB, orgID string, suffix string) (stri
 	t.Helper()
 	integrationID := prefixedID("int")
 	findingID := prefixedID("fnd")
+	evidenceJSON, err := json.Marshal(map[string]any{
+		"subject":       "A123",
+		"sourceEventId": "evt-" + suffix,
+	})
+	if err != nil {
+		t.Fatalf("encode MCP finding evidence: %v", err)
+	}
 	if _, err := db.ExecContext(context.Background(), `
 		INSERT INTO integration_connections (
 			id, organization_id, provider, display_name, external_account_id, scopes, disabled_checks,
@@ -839,9 +1005,9 @@ func seedMCPFinding(t *testing.T, db *sql.DB, orgID string, suffix string) (stri
 		VALUES (
 			$1, $2, $3, $4, 'Seeded MCP finding', 'Seeded for MCP proposal tests',
 			'HIGH'::"Severity", 'OPEN'::"FindingStatus", 70, ARRAY['Review manually']::text[],
-			'{"subject":"A123"}'::jsonb, NOW()
+			$5::jsonb, NOW()
 		)
-	`, findingID, orgID, integrationID, "mcp-"+suffix+"-"+strings.ToLower(randomID())); err != nil {
+	`, findingID, orgID, integrationID, "mcp-"+suffix+"-"+strings.ToLower(randomID()), string(evidenceJSON)); err != nil {
 		t.Fatalf("seed MCP finding: %v", err)
 	}
 	return integrationID, findingID
@@ -1002,6 +1168,30 @@ func callMCPToolFrame(t *testing.T, service *ToolService, id string, name string
 	return parsed
 }
 
+func callMCPResourceReadFrame(t *testing.T, service *ToolService, id string, uri string) (map[string]any, map[string]any) {
+	t.Helper()
+	stdout := runServer(t, NewServer(service), strings.NewReader(joinFrames(t, resourceRead(id, uri, service.sharedSecret))))
+	frames := decodeOutputFrames(t, stdout)
+	if len(frames) != 1 {
+		t.Fatalf("resource read %s returned %d frames, want 1", id, len(frames))
+	}
+	result := frames[0]["result"].(map[string]any)
+	contents := result["contents"].([]any)
+	if len(contents) != 1 {
+		t.Fatalf("resource read %s returned contents %#v, want one item", id, contents)
+	}
+	content := contents[0].(map[string]any)
+	text, ok := content["text"].(string)
+	if !ok || strings.TrimSpace(text) == "" {
+		t.Fatalf("resource read %s returned empty text content: %#v", id, content)
+	}
+	var parsed map[string]any
+	if err := json.Unmarshal([]byte(text), &parsed); err != nil {
+		t.Fatalf("resource read %s returned non-JSON content %q: %v", id, text, err)
+	}
+	return parsed, content
+}
+
 func expectMCPToolErrorFrame(t *testing.T, service *ToolService, id string, name string, args map[string]any) []byte {
 	t.Helper()
 	args = withTestMCPAuth(service, args)
@@ -1017,6 +1207,23 @@ func expectMCPToolErrorFrame(t *testing.T, service *ToolService, id string, name
 	content := result["content"].([]any)
 	if text := content[0].(map[string]any)["text"].(string); strings.TrimSpace(text) == "" {
 		t.Fatalf("tool call %s returned empty error text: %#v", id, result)
+	}
+	return stdout
+}
+
+func expectMCPResourceReadErrorFrame(t *testing.T, service *ToolService, id string, uri string, authToken ...string) []byte {
+	t.Helper()
+	stdout := runServer(t, NewServer(service), strings.NewReader(joinFrames(t, resourceRead(id, uri, authToken...))))
+	frames := decodeOutputFrames(t, stdout)
+	if len(frames) != 1 {
+		t.Fatalf("resource read %s returned %d frames, want 1", id, len(frames))
+	}
+	errorFrame, ok := frames[0]["error"].(map[string]any)
+	if !ok {
+		t.Fatalf("resource read %s succeeded, want JSON-RPC error: %#v", id, frames[0])
+	}
+	if errorFrame["message"] == "" {
+		t.Fatalf("resource read %s returned empty error message: %#v", id, errorFrame)
 	}
 	return stdout
 }
