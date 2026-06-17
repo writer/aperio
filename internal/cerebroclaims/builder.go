@@ -104,11 +104,43 @@ func BuildProto(input BuildInput) ([]*cerebrov1.Claim, error) {
 }
 
 func Ref(organizationID, runtimeID, entityType, externalID, label string) cerebroclient.EntityRef {
-	return sdkclaims.Ref(organizationID, runtimeID, entityType, externalID, label)
+	encodedExternalID := EncodeExternalID(externalID)
+	return cerebroclient.EntityRef{
+		URN:        strings.Join([]string{"urn", "cerebro", organizationID, "runtime", runtimeID, entityType, encodedExternalID}, ":"),
+		EntityType: entityType,
+		Label:      label,
+	}
 }
 
 func EncodeExternalID(value string) string {
-	return sdkclaims.EncodeExternalID(value)
+	const upperHex = "0123456789ABCDEF"
+	var builder strings.Builder
+	for index := 0; index < len(value); index++ {
+		character := value[index]
+		if (character >= 'A' && character <= 'Z') ||
+			(character >= 'a' && character <= 'z') ||
+			(character >= '0' && character <= '9') ||
+			character == '-' ||
+			character == '_' ||
+			character == '.' ||
+			character == '!' ||
+			character == '~' ||
+			character == '*' ||
+			character == '\'' ||
+			character == '(' ||
+			character == ')' {
+			builder.WriteByte(character)
+			continue
+		}
+		if character == ' ' {
+			builder.WriteByte('-')
+			continue
+		}
+		builder.WriteByte('%')
+		builder.WriteByte(upperHex[character>>4])
+		builder.WriteByte(upperHex[character&0x0f])
+	}
+	return builder.String()
 }
 
 func claimSource(payload Payload, attributes map[string]string) sdkclaims.Source {

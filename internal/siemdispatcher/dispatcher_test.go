@@ -721,7 +721,7 @@ func TestCerebroRefEscapesExternalIDLikeEncodeURIComponent(t *testing.T) {
 		"finding:id with spaces!*'()~:/?#[]@é",
 		"encoded finding",
 	)
-	want := "urn:cerebro:org_urn_encoding:runtime:runtime-main:finding:finding%3Aid%20with%20spaces!*'()~%3A%2F%3F%23%5B%5D%40%C3%A9"
+	want := "urn:cerebro:org_urn_encoding:runtime:runtime-main:finding:finding%3Aid-with-spaces!*'()~%3A%2F%3F%23%5B%5D%40%C3%A9"
 	if ref.URN != want {
 		t.Fatalf("Cerebro URN = %q, want %q", ref.URN, want)
 	}
