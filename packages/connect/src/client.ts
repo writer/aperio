@@ -10,6 +10,7 @@ import {
   type CerebroGraphPath as ProtoCerebroGraphPath,
   type CerebroGraphSignal as ProtoCerebroGraphSignal,
   type CerebroMCPContext as ProtoCerebroMCPContext,
+  type CerebroMCPResourceTemplate as ProtoCerebroMCPResourceTemplate,
   type ConnectorDefinition as ProtoConnectorDefinition,
   type EmailDomainDkimSelector as ProtoEmailDomainDkimSelector,
   type EmailDomainHealth as ProtoEmailDomainHealth,
@@ -1261,8 +1262,23 @@ function cerebroMCPContextFromProto(
     resourceUri: mcp.resourceUri || null,
     mimeType: mcp.mimeType || null,
     tools: [...mcp.tools],
-    resourceTemplates: []
+    resourceTemplates: cerebroMCPResourceTemplatesFromProto(
+      mcp.resourceTemplates
+    )
   };
+}
+
+function cerebroMCPResourceTemplatesFromProto(
+  templates: readonly ProtoCerebroMCPResourceTemplate[] = []
+): ConnectCerebroMCPResourceTemplate[] {
+  return templates
+    .map((template) => ({
+      uriTemplate: template.uriTemplate,
+      name: template.name || null,
+      description: template.description || null,
+      mimeType: template.mimeType || null
+    }))
+    .filter((template) => template.uriTemplate);
 }
 
 function findingCerebroContextFromProto(
@@ -2120,14 +2136,9 @@ function securityCerebroMCPContextFromProto(
     resourceUri: mcp.resourceUri,
     resource: mcp.resource,
     tools: [...mcp.tools],
-    resourceTemplates: mcp.resourceTemplates
-      .map((template) => ({
-        uriTemplate: template.uriTemplate,
-        name: template.name || null,
-        description: template.description || null,
-        mimeType: template.mimeType || null
-      }))
-      .filter((template) => template.uriTemplate)
+    resourceTemplates: cerebroMCPResourceTemplatesFromProto(
+      mcp.resourceTemplates
+    )
   };
 }
 

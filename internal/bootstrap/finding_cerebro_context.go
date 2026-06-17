@@ -129,10 +129,11 @@ func (a *App) findingCerebroMCPContext(organizationID string, findingID string) 
 		tools = saasCerebroNativeMCPTools()
 	}
 	return &aperiov1.CerebroMCPContext{
-		Server:      server,
-		ResourceUri: findingCerebroResourceURI(organizationID, findingID),
-		MimeType:    "application/vnd.aperio.cerebro.finding+json",
-		Tools:       tools,
+		Server:            server,
+		ResourceUri:       findingCerebroResourceURI(organizationID, findingID),
+		MimeType:          "application/vnd.aperio.cerebro.finding+json",
+		Tools:             tools,
+		ResourceTemplates: cerebroMCPResourceTemplatesFromAny(saasCerebroMCPResourceTemplates()),
 	}
 }
 

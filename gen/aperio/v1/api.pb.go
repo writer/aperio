@@ -3351,13 +3351,14 @@ func (x *CerebroGraphPath) GetNodes() []*CerebroEntityRef {
 }
 
 type CerebroMCPContext struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Server        string                 `protobuf:"bytes,1,opt,name=server,proto3" json:"server,omitempty"`
-	ResourceUri   string                 `protobuf:"bytes,2,opt,name=resource_uri,json=resourceUri,proto3" json:"resource_uri,omitempty"`
-	MimeType      string                 `protobuf:"bytes,3,opt,name=mime_type,json=mimeType,proto3" json:"mime_type,omitempty"`
-	Tools         []string               `protobuf:"bytes,4,rep,name=tools,proto3" json:"tools,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state             protoimpl.MessageState        `protogen:"open.v1"`
+	Server            string                        `protobuf:"bytes,1,opt,name=server,proto3" json:"server,omitempty"`
+	ResourceUri       string                        `protobuf:"bytes,2,opt,name=resource_uri,json=resourceUri,proto3" json:"resource_uri,omitempty"`
+	MimeType          string                        `protobuf:"bytes,3,opt,name=mime_type,json=mimeType,proto3" json:"mime_type,omitempty"`
+	Tools             []string                      `protobuf:"bytes,4,rep,name=tools,proto3" json:"tools,omitempty"`
+	ResourceTemplates []*CerebroMCPResourceTemplate `protobuf:"bytes,5,rep,name=resource_templates,json=resourceTemplates,proto3" json:"resource_templates,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *CerebroMCPContext) Reset() {
@@ -3414,6 +3415,13 @@ func (x *CerebroMCPContext) GetMimeType() string {
 func (x *CerebroMCPContext) GetTools() []string {
 	if x != nil {
 		return x.Tools
+	}
+	return nil
+}
+
+func (x *CerebroMCPContext) GetResourceTemplates() []*CerebroMCPResourceTemplate {
+	if x != nil {
+		return x.ResourceTemplates
 	}
 	return nil
 }
@@ -15683,12 +15691,13 @@ const file_aperio_v1_api_proto_rawDesc = "" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
 	"\x05title\x18\x02 \x01(\tR\x05title\x12\x12\n" +
 	"\x04risk\x18\x03 \x01(\tR\x04risk\x121\n" +
-	"\x05nodes\x18\x04 \x03(\v2\x1b.aperio.v1.CerebroEntityRefR\x05nodes\"\x81\x01\n" +
+	"\x05nodes\x18\x04 \x03(\v2\x1b.aperio.v1.CerebroEntityRefR\x05nodes\"\xd7\x01\n" +
 	"\x11CerebroMCPContext\x12\x16\n" +
 	"\x06server\x18\x01 \x01(\tR\x06server\x12!\n" +
 	"\fresource_uri\x18\x02 \x01(\tR\vresourceUri\x12\x1b\n" +
 	"\tmime_type\x18\x03 \x01(\tR\bmimeType\x12\x14\n" +
-	"\x05tools\x18\x04 \x03(\tR\x05tools\"\x92\x01\n" +
+	"\x05tools\x18\x04 \x03(\tR\x05tools\x12T\n" +
+	"\x12resource_templates\x18\x05 \x03(\v2%.aperio.v1.CerebroMCPResourceTemplateR\x11resourceTemplates\"\x92\x01\n" +
 	"\x1aCerebroMCPResourceTemplate\x12!\n" +
 	"\furi_template\x18\x01 \x01(\tR\vuriTemplate\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12 \n" +
@@ -17117,269 +17126,270 @@ var file_aperio_v1_api_proto_depIdxs = []int32{
 	55,  // 28: aperio.v1.FindingCerebroContext.graph_paths:type_name -> aperio.v1.CerebroGraphPath
 	56,  // 29: aperio.v1.FindingCerebroContext.mcp:type_name -> aperio.v1.CerebroMCPContext
 	54,  // 30: aperio.v1.CerebroGraphPath.nodes:type_name -> aperio.v1.CerebroEntityRef
-	73,  // 31: aperio.v1.ListSaasIncidentsResponse.data:type_name -> aperio.v1.SaasIncident
-	77,  // 32: aperio.v1.ListSaasIncidentsResponse.page_info:type_name -> aperio.v1.PageInfo
-	72,  // 33: aperio.v1.ListSaasIncidentsResponse.metrics:type_name -> aperio.v1.SaasIncidentMetrics
-	74,  // 34: aperio.v1.GetSaasIncidentResponse.data:type_name -> aperio.v1.SaasIncidentDetail
-	74,  // 35: aperio.v1.CreateSaasIncidentResponse.data:type_name -> aperio.v1.SaasIncidentDetail
-	73,  // 36: aperio.v1.UpdateSaasIncidentStatusResponse.data:type_name -> aperio.v1.SaasIncident
-	76,  // 37: aperio.v1.ProposeSaasResponseActionResponse.data:type_name -> aperio.v1.SaasResponseAction
-	76,  // 38: aperio.v1.ApproveSaasResponseActionResponse.data:type_name -> aperio.v1.SaasResponseAction
-	76,  // 39: aperio.v1.ExecuteSaasResponseActionResponse.data:type_name -> aperio.v1.SaasResponseAction
-	200, // 40: aperio.v1.SaasIncident.assignee:type_name -> aperio.v1.SecurityPrincipal
-	73,  // 41: aperio.v1.SaasIncidentDetail.incident:type_name -> aperio.v1.SaasIncident
-	49,  // 42: aperio.v1.SaasIncidentDetail.findings:type_name -> aperio.v1.Finding
-	75,  // 43: aperio.v1.SaasIncidentDetail.timeline:type_name -> aperio.v1.SaasIncidentTimelineEvent
-	76,  // 44: aperio.v1.SaasIncidentDetail.response_actions:type_name -> aperio.v1.SaasResponseAction
-	200, // 45: aperio.v1.SaasResponseAction.approved_by:type_name -> aperio.v1.SecurityPrincipal
-	200, // 46: aperio.v1.SaasResponseAction.proposed_by:type_name -> aperio.v1.SecurityPrincipal
-	200, // 47: aperio.v1.SaasResponseAction.executed_by:type_name -> aperio.v1.SecurityPrincipal
-	80,  // 48: aperio.v1.ListConnectorCatalogResponse.data:type_name -> aperio.v1.ConnectorDefinition
-	82,  // 49: aperio.v1.ConnectorDefinition.remediation_actions:type_name -> aperio.v1.RemediationAction
-	83,  // 50: aperio.v1.ConnectorDefinition.finding_checks:type_name -> aperio.v1.FindingCheck
-	81,  // 51: aperio.v1.ConnectorDefinition.fields:type_name -> aperio.v1.ConnectorField
-	86,  // 52: aperio.v1.ListIntegrationsResponse.data:type_name -> aperio.v1.IntegrationConnection
-	88,  // 53: aperio.v1.CreateIntegrationRequest.credentials:type_name -> aperio.v1.IntegrationCredentials
-	86,  // 54: aperio.v1.CreateIntegrationResponse.data:type_name -> aperio.v1.IntegrationConnection
-	92,  // 55: aperio.v1.DeleteIntegrationResponse.data:type_name -> aperio.v1.DeleteResult
-	97,  // 56: aperio.v1.GetIntegrationChecksResponse.data:type_name -> aperio.v1.IntegrationCheckState
-	97,  // 57: aperio.v1.UpdateIntegrationChecksResponse.data:type_name -> aperio.v1.IntegrationCheckState
-	98,  // 58: aperio.v1.IntegrationCheckState.checks:type_name -> aperio.v1.FindingCheckStatus
-	103, // 59: aperio.v1.GetGoogleMailboxScanConfigResponse.data:type_name -> aperio.v1.GoogleMailboxScanConfig
-	103, // 60: aperio.v1.UpdateGoogleMailboxScanConfigResponse.data:type_name -> aperio.v1.GoogleMailboxScanConfig
-	108, // 61: aperio.v1.GetGoogleWorkspaceBigQueryConfigResponse.data:type_name -> aperio.v1.GoogleWorkspaceBigQueryConfig
-	108, // 62: aperio.v1.UpdateGoogleWorkspaceBigQueryConfigResponse.data:type_name -> aperio.v1.GoogleWorkspaceBigQueryConfig
-	111, // 63: aperio.v1.ValidateGoogleWorkspaceBigQueryConfigResponse.data:type_name -> aperio.v1.GoogleWorkspaceBigQueryValidation
-	121, // 64: aperio.v1.StartGoogleWorkspaceOAuthResponse.data:type_name -> aperio.v1.OAuthStart
-	114, // 65: aperio.v1.GetIntegrationOAuthClientResponse.data:type_name -> aperio.v1.IntegrationOAuthClient
-	114, // 66: aperio.v1.SetIntegrationOAuthClientResponse.data:type_name -> aperio.v1.IntegrationOAuthClient
-	114, // 67: aperio.v1.ClearIntegrationOAuthClientResponse.data:type_name -> aperio.v1.IntegrationOAuthClient
-	86,  // 68: aperio.v1.ForceSyncIntegrationResponse.data:type_name -> aperio.v1.IntegrationConnection
-	124, // 69: aperio.v1.ForceSyncIntegrationResponse.sync:type_name -> aperio.v1.SyncSummary
-	131, // 70: aperio.v1.GetIntegrationSyncStatusResponse.data:type_name -> aperio.v1.IntegrationSyncStatus
-	133, // 71: aperio.v1.RunIntegrationSourceSyncResponse.data:type_name -> aperio.v1.IntegrationSourceSyncAction
-	133, // 72: aperio.v1.BackfillIntegrationSourceResponse.data:type_name -> aperio.v1.IntegrationSourceSyncAction
-	132, // 73: aperio.v1.IntegrationSyncStatus.sources:type_name -> aperio.v1.IntegrationSourceSyncState
-	136, // 74: aperio.v1.ListSiemCatalogResponse.data:type_name -> aperio.v1.SiemDestinationDefinition
-	137, // 75: aperio.v1.SiemDestinationDefinition.fields:type_name -> aperio.v1.SiemField
-	140, // 76: aperio.v1.ListSiemDestinationsResponse.data:type_name -> aperio.v1.SiemDestination
-	140, // 77: aperio.v1.CreateSiemDestinationResponse.data:type_name -> aperio.v1.SiemDestination
-	92,  // 78: aperio.v1.DeleteSiemDestinationResponse.data:type_name -> aperio.v1.DeleteResult
-	147, // 79: aperio.v1.TestSiemDestinationResponse.data:type_name -> aperio.v1.SiemTestResult
-	150, // 80: aperio.v1.ListShadowItOauthAppsResponse.data:type_name -> aperio.v1.ShadowItOauthApp
-	50,  // 81: aperio.v1.ShadowItOauthApp.integration:type_name -> aperio.v1.FindingIntegration
-	153, // 82: aperio.v1.ListShadowItOauthAppGrantsResponse.data:type_name -> aperio.v1.ShadowItOauthAppDetail
-	154, // 83: aperio.v1.ShadowItOauthAppDetail.app:type_name -> aperio.v1.ShadowItOauthAppRef
-	155, // 84: aperio.v1.ShadowItOauthAppDetail.grants:type_name -> aperio.v1.ShadowItOauthAppGrant
-	160, // 85: aperio.v1.GetTenantSettingsResponse.data:type_name -> aperio.v1.TenantSettings
-	160, // 86: aperio.v1.UpdateTenantSettingsResponse.data:type_name -> aperio.v1.TenantSettings
-	169, // 87: aperio.v1.ListTenantMembersResponse.data:type_name -> aperio.v1.TenantMember
-	169, // 88: aperio.v1.CreateTenantMemberResponse.data:type_name -> aperio.v1.TenantMember
-	170, // 89: aperio.v1.CreateTenantMemberResponse.invitation:type_name -> aperio.v1.InvitationResult
-	169, // 90: aperio.v1.CreateMemberResetLinkResponse.data:type_name -> aperio.v1.TenantMember
-	170, // 91: aperio.v1.CreateMemberResetLinkResponse.reset:type_name -> aperio.v1.InvitationResult
-	169, // 92: aperio.v1.UpdateMemberRoleResponse.data:type_name -> aperio.v1.TenantMember
-	173, // 93: aperio.v1.ListAuditLogsResponse.data:type_name -> aperio.v1.AuditLogEntry
-	176, // 94: aperio.v1.GetSecurityOverviewResponse.data:type_name -> aperio.v1.SecurityOverview
-	177, // 95: aperio.v1.SecurityOverview.summary:type_name -> aperio.v1.SecurityOverviewSummary
-	180, // 96: aperio.v1.SecurityOverview.identities:type_name -> aperio.v1.SecurityIdentity
-	181, // 97: aperio.v1.SecurityOverview.graph:type_name -> aperio.v1.SecurityGraph
-	199, // 98: aperio.v1.SecurityOverview.oauth_apps:type_name -> aperio.v1.SecurityAsset
-	199, // 99: aperio.v1.SecurityOverview.data_assets:type_name -> aperio.v1.SecurityAsset
-	184, // 100: aperio.v1.SecurityOverview.attack_paths:type_name -> aperio.v1.AttackPath
-	199, // 101: aperio.v1.SecurityOverview.ownership_gaps:type_name -> aperio.v1.SecurityAsset
-	207, // 102: aperio.v1.SecurityOverview.exceptions:type_name -> aperio.v1.RiskException
-	185, // 103: aperio.v1.SecurityOverview.domain_wide_delegations:type_name -> aperio.v1.DomainWideDelegation
-	178, // 104: aperio.v1.SecurityOverview.cerebro_context:type_name -> aperio.v1.SecurityCerebroContext
-	179, // 105: aperio.v1.SecurityCerebroContext.mcp:type_name -> aperio.v1.SecurityCerebroMCPContext
-	57,  // 106: aperio.v1.SecurityCerebroMCPContext.resource_templates:type_name -> aperio.v1.CerebroMCPResourceTemplate
-	50,  // 107: aperio.v1.SecurityIdentity.integration:type_name -> aperio.v1.FindingIntegration
-	182, // 108: aperio.v1.SecurityGraph.nodes:type_name -> aperio.v1.SecurityGraphNode
-	183, // 109: aperio.v1.SecurityGraph.edges:type_name -> aperio.v1.SecurityGraphEdge
-	192, // 110: aperio.v1.ListEmailDomainHealthResponse.data:type_name -> aperio.v1.EmailDomainHealth
-	196, // 111: aperio.v1.GetEmailDomainHealthResponse.data:type_name -> aperio.v1.EmailDomainHealthDetail
-	192, // 112: aperio.v1.RefreshEmailDomainHealthResponse.data:type_name -> aperio.v1.EmailDomainHealth
-	192, // 113: aperio.v1.EmailDomainHealthDetail.domain:type_name -> aperio.v1.EmailDomainHealth
-	194, // 114: aperio.v1.EmailDomainHealthDetail.dkim_selectors:type_name -> aperio.v1.EmailDomainDkimSelector
-	193, // 115: aperio.v1.EmailDomainHealthDetail.issues:type_name -> aperio.v1.EmailDomainHealthIssue
-	195, // 116: aperio.v1.EmailDomainHealthDetail.history:type_name -> aperio.v1.EmailDomainHealthHistoryPoint
-	199, // 117: aperio.v1.ListSecurityAssetsResponse.data:type_name -> aperio.v1.SecurityAsset
-	50,  // 118: aperio.v1.SecurityAsset.integration:type_name -> aperio.v1.FindingIntegration
-	200, // 119: aperio.v1.SecurityAsset.owner:type_name -> aperio.v1.SecurityPrincipal
-	200, // 120: aperio.v1.SecurityAsset.business_owner:type_name -> aperio.v1.SecurityPrincipal
-	199, // 121: aperio.v1.CreateSecurityAssetResponse.data:type_name -> aperio.v1.SecurityAsset
-	199, // 122: aperio.v1.UpdateSecurityAssetResponse.data:type_name -> aperio.v1.SecurityAsset
-	207, // 123: aperio.v1.ListRiskExceptionsResponse.data:type_name -> aperio.v1.RiskException
-	208, // 124: aperio.v1.RiskException.asset:type_name -> aperio.v1.RiskExceptionAsset
-	209, // 125: aperio.v1.RiskException.finding:type_name -> aperio.v1.RiskExceptionFinding
-	200, // 126: aperio.v1.RiskException.created_by:type_name -> aperio.v1.SecurityPrincipal
-	200, // 127: aperio.v1.RiskException.approved_by:type_name -> aperio.v1.SecurityPrincipal
-	207, // 128: aperio.v1.CreateRiskExceptionResponse.data:type_name -> aperio.v1.RiskException
-	207, // 129: aperio.v1.UpdateRiskExceptionResponse.data:type_name -> aperio.v1.RiskException
-	214, // 130: aperio.v1.ListExecutiveReportsResponse.data:type_name -> aperio.v1.ExecutiveReport
-	214, // 131: aperio.v1.GetExecutiveReportResponse.data:type_name -> aperio.v1.ExecutiveReport
-	214, // 132: aperio.v1.CreateExecutiveReportResponse.data:type_name -> aperio.v1.ExecutiveReport
-	223, // 133: aperio.v1.ListConnectorRulesResponse.built_in:type_name -> aperio.v1.ConnectorBuiltInRule
-	224, // 134: aperio.v1.ListConnectorRulesResponse.custom:type_name -> aperio.v1.ConnectorCustomRule
-	0,   // 135: aperio.v1.AperioService.CallApi:input_type -> aperio.v1.CallApiRequest
-	2,   // 136: aperio.v1.AperioService.Signup:input_type -> aperio.v1.SignupRequest
-	4,   // 137: aperio.v1.AperioService.Login:input_type -> aperio.v1.LoginRequest
-	6,   // 138: aperio.v1.AperioService.GetCurrentSession:input_type -> aperio.v1.GetCurrentSessionRequest
-	8,   // 139: aperio.v1.AperioService.LogoutCurrentSession:input_type -> aperio.v1.LogoutCurrentSessionRequest
-	10,  // 140: aperio.v1.AperioService.ListWorkspaces:input_type -> aperio.v1.ListWorkspacesRequest
-	12,  // 141: aperio.v1.AperioService.SwitchWorkspace:input_type -> aperio.v1.SwitchWorkspaceRequest
-	14,  // 142: aperio.v1.AperioService.RequestPasswordReset:input_type -> aperio.v1.RequestPasswordResetRequest
-	16,  // 143: aperio.v1.AperioService.ResetPassword:input_type -> aperio.v1.ResetPasswordRequest
-	18,  // 144: aperio.v1.AperioService.AcceptInvite:input_type -> aperio.v1.AcceptInviteRequest
-	20,  // 145: aperio.v1.AperioService.BeginMfaEnrollment:input_type -> aperio.v1.BeginMfaEnrollmentRequest
-	22,  // 146: aperio.v1.AperioService.EnableMfa:input_type -> aperio.v1.EnableMfaRequest
-	24,  // 147: aperio.v1.AperioService.DisableMfa:input_type -> aperio.v1.DisableMfaRequest
-	33,  // 148: aperio.v1.AperioService.CheckHealth:input_type -> aperio.v1.CheckHealthRequest
-	36,  // 149: aperio.v1.AperioService.GetDashboardMetrics:input_type -> aperio.v1.GetDashboardMetricsRequest
-	39,  // 150: aperio.v1.AperioService.ListFindings:input_type -> aperio.v1.ListFindingsRequest
-	41,  // 151: aperio.v1.AperioService.GetFinding:input_type -> aperio.v1.GetFindingRequest
-	43,  // 152: aperio.v1.AperioService.UpdateFindingStatus:input_type -> aperio.v1.UpdateFindingStatusRequest
-	46,  // 153: aperio.v1.AperioService.RemediateFinding:input_type -> aperio.v1.RemediateFindingRequest
-	58,  // 154: aperio.v1.AperioService.ListSaasIncidents:input_type -> aperio.v1.ListSaasIncidentsRequest
-	60,  // 155: aperio.v1.AperioService.GetSaasIncident:input_type -> aperio.v1.GetSaasIncidentRequest
-	62,  // 156: aperio.v1.AperioService.CreateSaasIncident:input_type -> aperio.v1.CreateSaasIncidentRequest
-	64,  // 157: aperio.v1.AperioService.UpdateSaasIncidentStatus:input_type -> aperio.v1.UpdateSaasIncidentStatusRequest
-	66,  // 158: aperio.v1.AperioService.ProposeSaasResponseAction:input_type -> aperio.v1.ProposeSaasResponseActionRequest
-	68,  // 159: aperio.v1.AperioService.ApproveSaasResponseAction:input_type -> aperio.v1.ApproveSaasResponseActionRequest
-	70,  // 160: aperio.v1.AperioService.ExecuteSaasResponseAction:input_type -> aperio.v1.ExecuteSaasResponseActionRequest
-	78,  // 161: aperio.v1.AperioService.ListConnectorCatalog:input_type -> aperio.v1.ListConnectorCatalogRequest
-	84,  // 162: aperio.v1.AperioService.ListIntegrations:input_type -> aperio.v1.ListIntegrationsRequest
-	87,  // 163: aperio.v1.AperioService.CreateIntegration:input_type -> aperio.v1.CreateIntegrationRequest
-	90,  // 164: aperio.v1.AperioService.DeleteIntegration:input_type -> aperio.v1.DeleteIntegrationRequest
-	93,  // 165: aperio.v1.AperioService.GetIntegrationChecks:input_type -> aperio.v1.GetIntegrationChecksRequest
-	95,  // 166: aperio.v1.AperioService.UpdateIntegrationChecks:input_type -> aperio.v1.UpdateIntegrationChecksRequest
-	225, // 167: aperio.v1.AperioService.ListConnectorRules:input_type -> aperio.v1.ListConnectorRulesRequest
-	227, // 168: aperio.v1.AperioService.CreateCustomRule:input_type -> aperio.v1.CreateCustomRuleRequest
-	229, // 169: aperio.v1.AperioService.UpdateCustomRule:input_type -> aperio.v1.UpdateCustomRuleRequest
-	231, // 170: aperio.v1.AperioService.DeleteCustomRule:input_type -> aperio.v1.DeleteCustomRuleRequest
-	99,  // 171: aperio.v1.AperioService.GetGoogleMailboxScanConfig:input_type -> aperio.v1.GetGoogleMailboxScanConfigRequest
-	101, // 172: aperio.v1.AperioService.UpdateGoogleMailboxScanConfig:input_type -> aperio.v1.UpdateGoogleMailboxScanConfigRequest
-	104, // 173: aperio.v1.AperioService.GetGoogleWorkspaceBigQueryConfig:input_type -> aperio.v1.GetGoogleWorkspaceBigQueryConfigRequest
-	106, // 174: aperio.v1.AperioService.UpdateGoogleWorkspaceBigQueryConfig:input_type -> aperio.v1.UpdateGoogleWorkspaceBigQueryConfigRequest
-	109, // 175: aperio.v1.AperioService.ValidateGoogleWorkspaceBigQueryConfig:input_type -> aperio.v1.ValidateGoogleWorkspaceBigQueryConfigRequest
-	112, // 176: aperio.v1.AperioService.StartGoogleWorkspaceOAuth:input_type -> aperio.v1.StartGoogleWorkspaceOAuthRequest
-	115, // 177: aperio.v1.AperioService.GetIntegrationOAuthClient:input_type -> aperio.v1.GetIntegrationOAuthClientRequest
-	117, // 178: aperio.v1.AperioService.SetIntegrationOAuthClient:input_type -> aperio.v1.SetIntegrationOAuthClientRequest
-	119, // 179: aperio.v1.AperioService.ClearIntegrationOAuthClient:input_type -> aperio.v1.ClearIntegrationOAuthClientRequest
-	122, // 180: aperio.v1.AperioService.ForceSyncIntegration:input_type -> aperio.v1.ForceSyncIntegrationRequest
-	125, // 181: aperio.v1.AperioService.GetIntegrationSyncStatus:input_type -> aperio.v1.GetIntegrationSyncStatusRequest
-	127, // 182: aperio.v1.AperioService.RunIntegrationSourceSync:input_type -> aperio.v1.RunIntegrationSourceSyncRequest
-	129, // 183: aperio.v1.AperioService.BackfillIntegrationSource:input_type -> aperio.v1.BackfillIntegrationSourceRequest
-	134, // 184: aperio.v1.AperioService.ListSiemCatalog:input_type -> aperio.v1.ListSiemCatalogRequest
-	138, // 185: aperio.v1.AperioService.ListSiemDestinations:input_type -> aperio.v1.ListSiemDestinationsRequest
-	141, // 186: aperio.v1.AperioService.CreateSiemDestination:input_type -> aperio.v1.CreateSiemDestinationRequest
-	143, // 187: aperio.v1.AperioService.DeleteSiemDestination:input_type -> aperio.v1.DeleteSiemDestinationRequest
-	145, // 188: aperio.v1.AperioService.TestSiemDestination:input_type -> aperio.v1.TestSiemDestinationRequest
-	148, // 189: aperio.v1.AperioService.ListShadowItOauthApps:input_type -> aperio.v1.ListShadowItOauthAppsRequest
-	151, // 190: aperio.v1.AperioService.ListShadowItOauthAppGrants:input_type -> aperio.v1.ListShadowItOauthAppGrantsRequest
-	156, // 191: aperio.v1.AperioService.GetTenantSettings:input_type -> aperio.v1.GetTenantSettingsRequest
-	158, // 192: aperio.v1.AperioService.UpdateTenantSettings:input_type -> aperio.v1.UpdateTenantSettingsRequest
-	161, // 193: aperio.v1.AperioService.ListTenantMembers:input_type -> aperio.v1.ListTenantMembersRequest
-	163, // 194: aperio.v1.AperioService.CreateTenantMember:input_type -> aperio.v1.CreateTenantMemberRequest
-	165, // 195: aperio.v1.AperioService.CreateMemberResetLink:input_type -> aperio.v1.CreateMemberResetLinkRequest
-	167, // 196: aperio.v1.AperioService.UpdateMemberRole:input_type -> aperio.v1.UpdateMemberRoleRequest
-	171, // 197: aperio.v1.AperioService.ListAuditLogs:input_type -> aperio.v1.ListAuditLogsRequest
-	174, // 198: aperio.v1.AperioService.GetSecurityOverview:input_type -> aperio.v1.GetSecurityOverviewRequest
-	186, // 199: aperio.v1.AperioService.ListEmailDomainHealth:input_type -> aperio.v1.ListEmailDomainHealthRequest
-	188, // 200: aperio.v1.AperioService.GetEmailDomainHealth:input_type -> aperio.v1.GetEmailDomainHealthRequest
-	190, // 201: aperio.v1.AperioService.RefreshEmailDomainHealth:input_type -> aperio.v1.RefreshEmailDomainHealthRequest
-	197, // 202: aperio.v1.AperioService.ListSecurityAssets:input_type -> aperio.v1.ListSecurityAssetsRequest
-	201, // 203: aperio.v1.AperioService.CreateSecurityAsset:input_type -> aperio.v1.CreateSecurityAssetRequest
-	203, // 204: aperio.v1.AperioService.UpdateSecurityAsset:input_type -> aperio.v1.UpdateSecurityAssetRequest
-	205, // 205: aperio.v1.AperioService.ListRiskExceptions:input_type -> aperio.v1.ListRiskExceptionsRequest
-	210, // 206: aperio.v1.AperioService.CreateRiskException:input_type -> aperio.v1.CreateRiskExceptionRequest
-	212, // 207: aperio.v1.AperioService.UpdateRiskException:input_type -> aperio.v1.UpdateRiskExceptionRequest
-	215, // 208: aperio.v1.AperioService.ListExecutiveReports:input_type -> aperio.v1.ListExecutiveReportsRequest
-	217, // 209: aperio.v1.AperioService.GetExecutiveReport:input_type -> aperio.v1.GetExecutiveReportRequest
-	219, // 210: aperio.v1.AperioService.CreateExecutiveReport:input_type -> aperio.v1.CreateExecutiveReportRequest
-	221, // 211: aperio.v1.AperioService.DeleteExecutiveReport:input_type -> aperio.v1.DeleteExecutiveReportRequest
-	1,   // 212: aperio.v1.AperioService.CallApi:output_type -> aperio.v1.CallApiResponse
-	3,   // 213: aperio.v1.AperioService.Signup:output_type -> aperio.v1.SignupResponse
-	5,   // 214: aperio.v1.AperioService.Login:output_type -> aperio.v1.LoginResponse
-	7,   // 215: aperio.v1.AperioService.GetCurrentSession:output_type -> aperio.v1.GetCurrentSessionResponse
-	9,   // 216: aperio.v1.AperioService.LogoutCurrentSession:output_type -> aperio.v1.LogoutCurrentSessionResponse
-	11,  // 217: aperio.v1.AperioService.ListWorkspaces:output_type -> aperio.v1.ListWorkspacesResponse
-	13,  // 218: aperio.v1.AperioService.SwitchWorkspace:output_type -> aperio.v1.SwitchWorkspaceResponse
-	15,  // 219: aperio.v1.AperioService.RequestPasswordReset:output_type -> aperio.v1.RequestPasswordResetResponse
-	17,  // 220: aperio.v1.AperioService.ResetPassword:output_type -> aperio.v1.ResetPasswordResponse
-	19,  // 221: aperio.v1.AperioService.AcceptInvite:output_type -> aperio.v1.AcceptInviteResponse
-	21,  // 222: aperio.v1.AperioService.BeginMfaEnrollment:output_type -> aperio.v1.BeginMfaEnrollmentResponse
-	23,  // 223: aperio.v1.AperioService.EnableMfa:output_type -> aperio.v1.EnableMfaResponse
-	25,  // 224: aperio.v1.AperioService.DisableMfa:output_type -> aperio.v1.DisableMfaResponse
-	34,  // 225: aperio.v1.AperioService.CheckHealth:output_type -> aperio.v1.CheckHealthResponse
-	37,  // 226: aperio.v1.AperioService.GetDashboardMetrics:output_type -> aperio.v1.GetDashboardMetricsResponse
-	40,  // 227: aperio.v1.AperioService.ListFindings:output_type -> aperio.v1.ListFindingsResponse
-	42,  // 228: aperio.v1.AperioService.GetFinding:output_type -> aperio.v1.GetFindingResponse
-	44,  // 229: aperio.v1.AperioService.UpdateFindingStatus:output_type -> aperio.v1.UpdateFindingStatusResponse
-	47,  // 230: aperio.v1.AperioService.RemediateFinding:output_type -> aperio.v1.RemediateFindingResponse
-	59,  // 231: aperio.v1.AperioService.ListSaasIncidents:output_type -> aperio.v1.ListSaasIncidentsResponse
-	61,  // 232: aperio.v1.AperioService.GetSaasIncident:output_type -> aperio.v1.GetSaasIncidentResponse
-	63,  // 233: aperio.v1.AperioService.CreateSaasIncident:output_type -> aperio.v1.CreateSaasIncidentResponse
-	65,  // 234: aperio.v1.AperioService.UpdateSaasIncidentStatus:output_type -> aperio.v1.UpdateSaasIncidentStatusResponse
-	67,  // 235: aperio.v1.AperioService.ProposeSaasResponseAction:output_type -> aperio.v1.ProposeSaasResponseActionResponse
-	69,  // 236: aperio.v1.AperioService.ApproveSaasResponseAction:output_type -> aperio.v1.ApproveSaasResponseActionResponse
-	71,  // 237: aperio.v1.AperioService.ExecuteSaasResponseAction:output_type -> aperio.v1.ExecuteSaasResponseActionResponse
-	79,  // 238: aperio.v1.AperioService.ListConnectorCatalog:output_type -> aperio.v1.ListConnectorCatalogResponse
-	85,  // 239: aperio.v1.AperioService.ListIntegrations:output_type -> aperio.v1.ListIntegrationsResponse
-	89,  // 240: aperio.v1.AperioService.CreateIntegration:output_type -> aperio.v1.CreateIntegrationResponse
-	91,  // 241: aperio.v1.AperioService.DeleteIntegration:output_type -> aperio.v1.DeleteIntegrationResponse
-	94,  // 242: aperio.v1.AperioService.GetIntegrationChecks:output_type -> aperio.v1.GetIntegrationChecksResponse
-	96,  // 243: aperio.v1.AperioService.UpdateIntegrationChecks:output_type -> aperio.v1.UpdateIntegrationChecksResponse
-	226, // 244: aperio.v1.AperioService.ListConnectorRules:output_type -> aperio.v1.ListConnectorRulesResponse
-	228, // 245: aperio.v1.AperioService.CreateCustomRule:output_type -> aperio.v1.CreateCustomRuleResponse
-	230, // 246: aperio.v1.AperioService.UpdateCustomRule:output_type -> aperio.v1.UpdateCustomRuleResponse
-	232, // 247: aperio.v1.AperioService.DeleteCustomRule:output_type -> aperio.v1.DeleteCustomRuleResponse
-	100, // 248: aperio.v1.AperioService.GetGoogleMailboxScanConfig:output_type -> aperio.v1.GetGoogleMailboxScanConfigResponse
-	102, // 249: aperio.v1.AperioService.UpdateGoogleMailboxScanConfig:output_type -> aperio.v1.UpdateGoogleMailboxScanConfigResponse
-	105, // 250: aperio.v1.AperioService.GetGoogleWorkspaceBigQueryConfig:output_type -> aperio.v1.GetGoogleWorkspaceBigQueryConfigResponse
-	107, // 251: aperio.v1.AperioService.UpdateGoogleWorkspaceBigQueryConfig:output_type -> aperio.v1.UpdateGoogleWorkspaceBigQueryConfigResponse
-	110, // 252: aperio.v1.AperioService.ValidateGoogleWorkspaceBigQueryConfig:output_type -> aperio.v1.ValidateGoogleWorkspaceBigQueryConfigResponse
-	113, // 253: aperio.v1.AperioService.StartGoogleWorkspaceOAuth:output_type -> aperio.v1.StartGoogleWorkspaceOAuthResponse
-	116, // 254: aperio.v1.AperioService.GetIntegrationOAuthClient:output_type -> aperio.v1.GetIntegrationOAuthClientResponse
-	118, // 255: aperio.v1.AperioService.SetIntegrationOAuthClient:output_type -> aperio.v1.SetIntegrationOAuthClientResponse
-	120, // 256: aperio.v1.AperioService.ClearIntegrationOAuthClient:output_type -> aperio.v1.ClearIntegrationOAuthClientResponse
-	123, // 257: aperio.v1.AperioService.ForceSyncIntegration:output_type -> aperio.v1.ForceSyncIntegrationResponse
-	126, // 258: aperio.v1.AperioService.GetIntegrationSyncStatus:output_type -> aperio.v1.GetIntegrationSyncStatusResponse
-	128, // 259: aperio.v1.AperioService.RunIntegrationSourceSync:output_type -> aperio.v1.RunIntegrationSourceSyncResponse
-	130, // 260: aperio.v1.AperioService.BackfillIntegrationSource:output_type -> aperio.v1.BackfillIntegrationSourceResponse
-	135, // 261: aperio.v1.AperioService.ListSiemCatalog:output_type -> aperio.v1.ListSiemCatalogResponse
-	139, // 262: aperio.v1.AperioService.ListSiemDestinations:output_type -> aperio.v1.ListSiemDestinationsResponse
-	142, // 263: aperio.v1.AperioService.CreateSiemDestination:output_type -> aperio.v1.CreateSiemDestinationResponse
-	144, // 264: aperio.v1.AperioService.DeleteSiemDestination:output_type -> aperio.v1.DeleteSiemDestinationResponse
-	146, // 265: aperio.v1.AperioService.TestSiemDestination:output_type -> aperio.v1.TestSiemDestinationResponse
-	149, // 266: aperio.v1.AperioService.ListShadowItOauthApps:output_type -> aperio.v1.ListShadowItOauthAppsResponse
-	152, // 267: aperio.v1.AperioService.ListShadowItOauthAppGrants:output_type -> aperio.v1.ListShadowItOauthAppGrantsResponse
-	157, // 268: aperio.v1.AperioService.GetTenantSettings:output_type -> aperio.v1.GetTenantSettingsResponse
-	159, // 269: aperio.v1.AperioService.UpdateTenantSettings:output_type -> aperio.v1.UpdateTenantSettingsResponse
-	162, // 270: aperio.v1.AperioService.ListTenantMembers:output_type -> aperio.v1.ListTenantMembersResponse
-	164, // 271: aperio.v1.AperioService.CreateTenantMember:output_type -> aperio.v1.CreateTenantMemberResponse
-	166, // 272: aperio.v1.AperioService.CreateMemberResetLink:output_type -> aperio.v1.CreateMemberResetLinkResponse
-	168, // 273: aperio.v1.AperioService.UpdateMemberRole:output_type -> aperio.v1.UpdateMemberRoleResponse
-	172, // 274: aperio.v1.AperioService.ListAuditLogs:output_type -> aperio.v1.ListAuditLogsResponse
-	175, // 275: aperio.v1.AperioService.GetSecurityOverview:output_type -> aperio.v1.GetSecurityOverviewResponse
-	187, // 276: aperio.v1.AperioService.ListEmailDomainHealth:output_type -> aperio.v1.ListEmailDomainHealthResponse
-	189, // 277: aperio.v1.AperioService.GetEmailDomainHealth:output_type -> aperio.v1.GetEmailDomainHealthResponse
-	191, // 278: aperio.v1.AperioService.RefreshEmailDomainHealth:output_type -> aperio.v1.RefreshEmailDomainHealthResponse
-	198, // 279: aperio.v1.AperioService.ListSecurityAssets:output_type -> aperio.v1.ListSecurityAssetsResponse
-	202, // 280: aperio.v1.AperioService.CreateSecurityAsset:output_type -> aperio.v1.CreateSecurityAssetResponse
-	204, // 281: aperio.v1.AperioService.UpdateSecurityAsset:output_type -> aperio.v1.UpdateSecurityAssetResponse
-	206, // 282: aperio.v1.AperioService.ListRiskExceptions:output_type -> aperio.v1.ListRiskExceptionsResponse
-	211, // 283: aperio.v1.AperioService.CreateRiskException:output_type -> aperio.v1.CreateRiskExceptionResponse
-	213, // 284: aperio.v1.AperioService.UpdateRiskException:output_type -> aperio.v1.UpdateRiskExceptionResponse
-	216, // 285: aperio.v1.AperioService.ListExecutiveReports:output_type -> aperio.v1.ListExecutiveReportsResponse
-	218, // 286: aperio.v1.AperioService.GetExecutiveReport:output_type -> aperio.v1.GetExecutiveReportResponse
-	220, // 287: aperio.v1.AperioService.CreateExecutiveReport:output_type -> aperio.v1.CreateExecutiveReportResponse
-	222, // 288: aperio.v1.AperioService.DeleteExecutiveReport:output_type -> aperio.v1.DeleteExecutiveReportResponse
-	212, // [212:289] is the sub-list for method output_type
-	135, // [135:212] is the sub-list for method input_type
-	135, // [135:135] is the sub-list for extension type_name
-	135, // [135:135] is the sub-list for extension extendee
-	0,   // [0:135] is the sub-list for field type_name
+	57,  // 31: aperio.v1.CerebroMCPContext.resource_templates:type_name -> aperio.v1.CerebroMCPResourceTemplate
+	73,  // 32: aperio.v1.ListSaasIncidentsResponse.data:type_name -> aperio.v1.SaasIncident
+	77,  // 33: aperio.v1.ListSaasIncidentsResponse.page_info:type_name -> aperio.v1.PageInfo
+	72,  // 34: aperio.v1.ListSaasIncidentsResponse.metrics:type_name -> aperio.v1.SaasIncidentMetrics
+	74,  // 35: aperio.v1.GetSaasIncidentResponse.data:type_name -> aperio.v1.SaasIncidentDetail
+	74,  // 36: aperio.v1.CreateSaasIncidentResponse.data:type_name -> aperio.v1.SaasIncidentDetail
+	73,  // 37: aperio.v1.UpdateSaasIncidentStatusResponse.data:type_name -> aperio.v1.SaasIncident
+	76,  // 38: aperio.v1.ProposeSaasResponseActionResponse.data:type_name -> aperio.v1.SaasResponseAction
+	76,  // 39: aperio.v1.ApproveSaasResponseActionResponse.data:type_name -> aperio.v1.SaasResponseAction
+	76,  // 40: aperio.v1.ExecuteSaasResponseActionResponse.data:type_name -> aperio.v1.SaasResponseAction
+	200, // 41: aperio.v1.SaasIncident.assignee:type_name -> aperio.v1.SecurityPrincipal
+	73,  // 42: aperio.v1.SaasIncidentDetail.incident:type_name -> aperio.v1.SaasIncident
+	49,  // 43: aperio.v1.SaasIncidentDetail.findings:type_name -> aperio.v1.Finding
+	75,  // 44: aperio.v1.SaasIncidentDetail.timeline:type_name -> aperio.v1.SaasIncidentTimelineEvent
+	76,  // 45: aperio.v1.SaasIncidentDetail.response_actions:type_name -> aperio.v1.SaasResponseAction
+	200, // 46: aperio.v1.SaasResponseAction.approved_by:type_name -> aperio.v1.SecurityPrincipal
+	200, // 47: aperio.v1.SaasResponseAction.proposed_by:type_name -> aperio.v1.SecurityPrincipal
+	200, // 48: aperio.v1.SaasResponseAction.executed_by:type_name -> aperio.v1.SecurityPrincipal
+	80,  // 49: aperio.v1.ListConnectorCatalogResponse.data:type_name -> aperio.v1.ConnectorDefinition
+	82,  // 50: aperio.v1.ConnectorDefinition.remediation_actions:type_name -> aperio.v1.RemediationAction
+	83,  // 51: aperio.v1.ConnectorDefinition.finding_checks:type_name -> aperio.v1.FindingCheck
+	81,  // 52: aperio.v1.ConnectorDefinition.fields:type_name -> aperio.v1.ConnectorField
+	86,  // 53: aperio.v1.ListIntegrationsResponse.data:type_name -> aperio.v1.IntegrationConnection
+	88,  // 54: aperio.v1.CreateIntegrationRequest.credentials:type_name -> aperio.v1.IntegrationCredentials
+	86,  // 55: aperio.v1.CreateIntegrationResponse.data:type_name -> aperio.v1.IntegrationConnection
+	92,  // 56: aperio.v1.DeleteIntegrationResponse.data:type_name -> aperio.v1.DeleteResult
+	97,  // 57: aperio.v1.GetIntegrationChecksResponse.data:type_name -> aperio.v1.IntegrationCheckState
+	97,  // 58: aperio.v1.UpdateIntegrationChecksResponse.data:type_name -> aperio.v1.IntegrationCheckState
+	98,  // 59: aperio.v1.IntegrationCheckState.checks:type_name -> aperio.v1.FindingCheckStatus
+	103, // 60: aperio.v1.GetGoogleMailboxScanConfigResponse.data:type_name -> aperio.v1.GoogleMailboxScanConfig
+	103, // 61: aperio.v1.UpdateGoogleMailboxScanConfigResponse.data:type_name -> aperio.v1.GoogleMailboxScanConfig
+	108, // 62: aperio.v1.GetGoogleWorkspaceBigQueryConfigResponse.data:type_name -> aperio.v1.GoogleWorkspaceBigQueryConfig
+	108, // 63: aperio.v1.UpdateGoogleWorkspaceBigQueryConfigResponse.data:type_name -> aperio.v1.GoogleWorkspaceBigQueryConfig
+	111, // 64: aperio.v1.ValidateGoogleWorkspaceBigQueryConfigResponse.data:type_name -> aperio.v1.GoogleWorkspaceBigQueryValidation
+	121, // 65: aperio.v1.StartGoogleWorkspaceOAuthResponse.data:type_name -> aperio.v1.OAuthStart
+	114, // 66: aperio.v1.GetIntegrationOAuthClientResponse.data:type_name -> aperio.v1.IntegrationOAuthClient
+	114, // 67: aperio.v1.SetIntegrationOAuthClientResponse.data:type_name -> aperio.v1.IntegrationOAuthClient
+	114, // 68: aperio.v1.ClearIntegrationOAuthClientResponse.data:type_name -> aperio.v1.IntegrationOAuthClient
+	86,  // 69: aperio.v1.ForceSyncIntegrationResponse.data:type_name -> aperio.v1.IntegrationConnection
+	124, // 70: aperio.v1.ForceSyncIntegrationResponse.sync:type_name -> aperio.v1.SyncSummary
+	131, // 71: aperio.v1.GetIntegrationSyncStatusResponse.data:type_name -> aperio.v1.IntegrationSyncStatus
+	133, // 72: aperio.v1.RunIntegrationSourceSyncResponse.data:type_name -> aperio.v1.IntegrationSourceSyncAction
+	133, // 73: aperio.v1.BackfillIntegrationSourceResponse.data:type_name -> aperio.v1.IntegrationSourceSyncAction
+	132, // 74: aperio.v1.IntegrationSyncStatus.sources:type_name -> aperio.v1.IntegrationSourceSyncState
+	136, // 75: aperio.v1.ListSiemCatalogResponse.data:type_name -> aperio.v1.SiemDestinationDefinition
+	137, // 76: aperio.v1.SiemDestinationDefinition.fields:type_name -> aperio.v1.SiemField
+	140, // 77: aperio.v1.ListSiemDestinationsResponse.data:type_name -> aperio.v1.SiemDestination
+	140, // 78: aperio.v1.CreateSiemDestinationResponse.data:type_name -> aperio.v1.SiemDestination
+	92,  // 79: aperio.v1.DeleteSiemDestinationResponse.data:type_name -> aperio.v1.DeleteResult
+	147, // 80: aperio.v1.TestSiemDestinationResponse.data:type_name -> aperio.v1.SiemTestResult
+	150, // 81: aperio.v1.ListShadowItOauthAppsResponse.data:type_name -> aperio.v1.ShadowItOauthApp
+	50,  // 82: aperio.v1.ShadowItOauthApp.integration:type_name -> aperio.v1.FindingIntegration
+	153, // 83: aperio.v1.ListShadowItOauthAppGrantsResponse.data:type_name -> aperio.v1.ShadowItOauthAppDetail
+	154, // 84: aperio.v1.ShadowItOauthAppDetail.app:type_name -> aperio.v1.ShadowItOauthAppRef
+	155, // 85: aperio.v1.ShadowItOauthAppDetail.grants:type_name -> aperio.v1.ShadowItOauthAppGrant
+	160, // 86: aperio.v1.GetTenantSettingsResponse.data:type_name -> aperio.v1.TenantSettings
+	160, // 87: aperio.v1.UpdateTenantSettingsResponse.data:type_name -> aperio.v1.TenantSettings
+	169, // 88: aperio.v1.ListTenantMembersResponse.data:type_name -> aperio.v1.TenantMember
+	169, // 89: aperio.v1.CreateTenantMemberResponse.data:type_name -> aperio.v1.TenantMember
+	170, // 90: aperio.v1.CreateTenantMemberResponse.invitation:type_name -> aperio.v1.InvitationResult
+	169, // 91: aperio.v1.CreateMemberResetLinkResponse.data:type_name -> aperio.v1.TenantMember
+	170, // 92: aperio.v1.CreateMemberResetLinkResponse.reset:type_name -> aperio.v1.InvitationResult
+	169, // 93: aperio.v1.UpdateMemberRoleResponse.data:type_name -> aperio.v1.TenantMember
+	173, // 94: aperio.v1.ListAuditLogsResponse.data:type_name -> aperio.v1.AuditLogEntry
+	176, // 95: aperio.v1.GetSecurityOverviewResponse.data:type_name -> aperio.v1.SecurityOverview
+	177, // 96: aperio.v1.SecurityOverview.summary:type_name -> aperio.v1.SecurityOverviewSummary
+	180, // 97: aperio.v1.SecurityOverview.identities:type_name -> aperio.v1.SecurityIdentity
+	181, // 98: aperio.v1.SecurityOverview.graph:type_name -> aperio.v1.SecurityGraph
+	199, // 99: aperio.v1.SecurityOverview.oauth_apps:type_name -> aperio.v1.SecurityAsset
+	199, // 100: aperio.v1.SecurityOverview.data_assets:type_name -> aperio.v1.SecurityAsset
+	184, // 101: aperio.v1.SecurityOverview.attack_paths:type_name -> aperio.v1.AttackPath
+	199, // 102: aperio.v1.SecurityOverview.ownership_gaps:type_name -> aperio.v1.SecurityAsset
+	207, // 103: aperio.v1.SecurityOverview.exceptions:type_name -> aperio.v1.RiskException
+	185, // 104: aperio.v1.SecurityOverview.domain_wide_delegations:type_name -> aperio.v1.DomainWideDelegation
+	178, // 105: aperio.v1.SecurityOverview.cerebro_context:type_name -> aperio.v1.SecurityCerebroContext
+	179, // 106: aperio.v1.SecurityCerebroContext.mcp:type_name -> aperio.v1.SecurityCerebroMCPContext
+	57,  // 107: aperio.v1.SecurityCerebroMCPContext.resource_templates:type_name -> aperio.v1.CerebroMCPResourceTemplate
+	50,  // 108: aperio.v1.SecurityIdentity.integration:type_name -> aperio.v1.FindingIntegration
+	182, // 109: aperio.v1.SecurityGraph.nodes:type_name -> aperio.v1.SecurityGraphNode
+	183, // 110: aperio.v1.SecurityGraph.edges:type_name -> aperio.v1.SecurityGraphEdge
+	192, // 111: aperio.v1.ListEmailDomainHealthResponse.data:type_name -> aperio.v1.EmailDomainHealth
+	196, // 112: aperio.v1.GetEmailDomainHealthResponse.data:type_name -> aperio.v1.EmailDomainHealthDetail
+	192, // 113: aperio.v1.RefreshEmailDomainHealthResponse.data:type_name -> aperio.v1.EmailDomainHealth
+	192, // 114: aperio.v1.EmailDomainHealthDetail.domain:type_name -> aperio.v1.EmailDomainHealth
+	194, // 115: aperio.v1.EmailDomainHealthDetail.dkim_selectors:type_name -> aperio.v1.EmailDomainDkimSelector
+	193, // 116: aperio.v1.EmailDomainHealthDetail.issues:type_name -> aperio.v1.EmailDomainHealthIssue
+	195, // 117: aperio.v1.EmailDomainHealthDetail.history:type_name -> aperio.v1.EmailDomainHealthHistoryPoint
+	199, // 118: aperio.v1.ListSecurityAssetsResponse.data:type_name -> aperio.v1.SecurityAsset
+	50,  // 119: aperio.v1.SecurityAsset.integration:type_name -> aperio.v1.FindingIntegration
+	200, // 120: aperio.v1.SecurityAsset.owner:type_name -> aperio.v1.SecurityPrincipal
+	200, // 121: aperio.v1.SecurityAsset.business_owner:type_name -> aperio.v1.SecurityPrincipal
+	199, // 122: aperio.v1.CreateSecurityAssetResponse.data:type_name -> aperio.v1.SecurityAsset
+	199, // 123: aperio.v1.UpdateSecurityAssetResponse.data:type_name -> aperio.v1.SecurityAsset
+	207, // 124: aperio.v1.ListRiskExceptionsResponse.data:type_name -> aperio.v1.RiskException
+	208, // 125: aperio.v1.RiskException.asset:type_name -> aperio.v1.RiskExceptionAsset
+	209, // 126: aperio.v1.RiskException.finding:type_name -> aperio.v1.RiskExceptionFinding
+	200, // 127: aperio.v1.RiskException.created_by:type_name -> aperio.v1.SecurityPrincipal
+	200, // 128: aperio.v1.RiskException.approved_by:type_name -> aperio.v1.SecurityPrincipal
+	207, // 129: aperio.v1.CreateRiskExceptionResponse.data:type_name -> aperio.v1.RiskException
+	207, // 130: aperio.v1.UpdateRiskExceptionResponse.data:type_name -> aperio.v1.RiskException
+	214, // 131: aperio.v1.ListExecutiveReportsResponse.data:type_name -> aperio.v1.ExecutiveReport
+	214, // 132: aperio.v1.GetExecutiveReportResponse.data:type_name -> aperio.v1.ExecutiveReport
+	214, // 133: aperio.v1.CreateExecutiveReportResponse.data:type_name -> aperio.v1.ExecutiveReport
+	223, // 134: aperio.v1.ListConnectorRulesResponse.built_in:type_name -> aperio.v1.ConnectorBuiltInRule
+	224, // 135: aperio.v1.ListConnectorRulesResponse.custom:type_name -> aperio.v1.ConnectorCustomRule
+	0,   // 136: aperio.v1.AperioService.CallApi:input_type -> aperio.v1.CallApiRequest
+	2,   // 137: aperio.v1.AperioService.Signup:input_type -> aperio.v1.SignupRequest
+	4,   // 138: aperio.v1.AperioService.Login:input_type -> aperio.v1.LoginRequest
+	6,   // 139: aperio.v1.AperioService.GetCurrentSession:input_type -> aperio.v1.GetCurrentSessionRequest
+	8,   // 140: aperio.v1.AperioService.LogoutCurrentSession:input_type -> aperio.v1.LogoutCurrentSessionRequest
+	10,  // 141: aperio.v1.AperioService.ListWorkspaces:input_type -> aperio.v1.ListWorkspacesRequest
+	12,  // 142: aperio.v1.AperioService.SwitchWorkspace:input_type -> aperio.v1.SwitchWorkspaceRequest
+	14,  // 143: aperio.v1.AperioService.RequestPasswordReset:input_type -> aperio.v1.RequestPasswordResetRequest
+	16,  // 144: aperio.v1.AperioService.ResetPassword:input_type -> aperio.v1.ResetPasswordRequest
+	18,  // 145: aperio.v1.AperioService.AcceptInvite:input_type -> aperio.v1.AcceptInviteRequest
+	20,  // 146: aperio.v1.AperioService.BeginMfaEnrollment:input_type -> aperio.v1.BeginMfaEnrollmentRequest
+	22,  // 147: aperio.v1.AperioService.EnableMfa:input_type -> aperio.v1.EnableMfaRequest
+	24,  // 148: aperio.v1.AperioService.DisableMfa:input_type -> aperio.v1.DisableMfaRequest
+	33,  // 149: aperio.v1.AperioService.CheckHealth:input_type -> aperio.v1.CheckHealthRequest
+	36,  // 150: aperio.v1.AperioService.GetDashboardMetrics:input_type -> aperio.v1.GetDashboardMetricsRequest
+	39,  // 151: aperio.v1.AperioService.ListFindings:input_type -> aperio.v1.ListFindingsRequest
+	41,  // 152: aperio.v1.AperioService.GetFinding:input_type -> aperio.v1.GetFindingRequest
+	43,  // 153: aperio.v1.AperioService.UpdateFindingStatus:input_type -> aperio.v1.UpdateFindingStatusRequest
+	46,  // 154: aperio.v1.AperioService.RemediateFinding:input_type -> aperio.v1.RemediateFindingRequest
+	58,  // 155: aperio.v1.AperioService.ListSaasIncidents:input_type -> aperio.v1.ListSaasIncidentsRequest
+	60,  // 156: aperio.v1.AperioService.GetSaasIncident:input_type -> aperio.v1.GetSaasIncidentRequest
+	62,  // 157: aperio.v1.AperioService.CreateSaasIncident:input_type -> aperio.v1.CreateSaasIncidentRequest
+	64,  // 158: aperio.v1.AperioService.UpdateSaasIncidentStatus:input_type -> aperio.v1.UpdateSaasIncidentStatusRequest
+	66,  // 159: aperio.v1.AperioService.ProposeSaasResponseAction:input_type -> aperio.v1.ProposeSaasResponseActionRequest
+	68,  // 160: aperio.v1.AperioService.ApproveSaasResponseAction:input_type -> aperio.v1.ApproveSaasResponseActionRequest
+	70,  // 161: aperio.v1.AperioService.ExecuteSaasResponseAction:input_type -> aperio.v1.ExecuteSaasResponseActionRequest
+	78,  // 162: aperio.v1.AperioService.ListConnectorCatalog:input_type -> aperio.v1.ListConnectorCatalogRequest
+	84,  // 163: aperio.v1.AperioService.ListIntegrations:input_type -> aperio.v1.ListIntegrationsRequest
+	87,  // 164: aperio.v1.AperioService.CreateIntegration:input_type -> aperio.v1.CreateIntegrationRequest
+	90,  // 165: aperio.v1.AperioService.DeleteIntegration:input_type -> aperio.v1.DeleteIntegrationRequest
+	93,  // 166: aperio.v1.AperioService.GetIntegrationChecks:input_type -> aperio.v1.GetIntegrationChecksRequest
+	95,  // 167: aperio.v1.AperioService.UpdateIntegrationChecks:input_type -> aperio.v1.UpdateIntegrationChecksRequest
+	225, // 168: aperio.v1.AperioService.ListConnectorRules:input_type -> aperio.v1.ListConnectorRulesRequest
+	227, // 169: aperio.v1.AperioService.CreateCustomRule:input_type -> aperio.v1.CreateCustomRuleRequest
+	229, // 170: aperio.v1.AperioService.UpdateCustomRule:input_type -> aperio.v1.UpdateCustomRuleRequest
+	231, // 171: aperio.v1.AperioService.DeleteCustomRule:input_type -> aperio.v1.DeleteCustomRuleRequest
+	99,  // 172: aperio.v1.AperioService.GetGoogleMailboxScanConfig:input_type -> aperio.v1.GetGoogleMailboxScanConfigRequest
+	101, // 173: aperio.v1.AperioService.UpdateGoogleMailboxScanConfig:input_type -> aperio.v1.UpdateGoogleMailboxScanConfigRequest
+	104, // 174: aperio.v1.AperioService.GetGoogleWorkspaceBigQueryConfig:input_type -> aperio.v1.GetGoogleWorkspaceBigQueryConfigRequest
+	106, // 175: aperio.v1.AperioService.UpdateGoogleWorkspaceBigQueryConfig:input_type -> aperio.v1.UpdateGoogleWorkspaceBigQueryConfigRequest
+	109, // 176: aperio.v1.AperioService.ValidateGoogleWorkspaceBigQueryConfig:input_type -> aperio.v1.ValidateGoogleWorkspaceBigQueryConfigRequest
+	112, // 177: aperio.v1.AperioService.StartGoogleWorkspaceOAuth:input_type -> aperio.v1.StartGoogleWorkspaceOAuthRequest
+	115, // 178: aperio.v1.AperioService.GetIntegrationOAuthClient:input_type -> aperio.v1.GetIntegrationOAuthClientRequest
+	117, // 179: aperio.v1.AperioService.SetIntegrationOAuthClient:input_type -> aperio.v1.SetIntegrationOAuthClientRequest
+	119, // 180: aperio.v1.AperioService.ClearIntegrationOAuthClient:input_type -> aperio.v1.ClearIntegrationOAuthClientRequest
+	122, // 181: aperio.v1.AperioService.ForceSyncIntegration:input_type -> aperio.v1.ForceSyncIntegrationRequest
+	125, // 182: aperio.v1.AperioService.GetIntegrationSyncStatus:input_type -> aperio.v1.GetIntegrationSyncStatusRequest
+	127, // 183: aperio.v1.AperioService.RunIntegrationSourceSync:input_type -> aperio.v1.RunIntegrationSourceSyncRequest
+	129, // 184: aperio.v1.AperioService.BackfillIntegrationSource:input_type -> aperio.v1.BackfillIntegrationSourceRequest
+	134, // 185: aperio.v1.AperioService.ListSiemCatalog:input_type -> aperio.v1.ListSiemCatalogRequest
+	138, // 186: aperio.v1.AperioService.ListSiemDestinations:input_type -> aperio.v1.ListSiemDestinationsRequest
+	141, // 187: aperio.v1.AperioService.CreateSiemDestination:input_type -> aperio.v1.CreateSiemDestinationRequest
+	143, // 188: aperio.v1.AperioService.DeleteSiemDestination:input_type -> aperio.v1.DeleteSiemDestinationRequest
+	145, // 189: aperio.v1.AperioService.TestSiemDestination:input_type -> aperio.v1.TestSiemDestinationRequest
+	148, // 190: aperio.v1.AperioService.ListShadowItOauthApps:input_type -> aperio.v1.ListShadowItOauthAppsRequest
+	151, // 191: aperio.v1.AperioService.ListShadowItOauthAppGrants:input_type -> aperio.v1.ListShadowItOauthAppGrantsRequest
+	156, // 192: aperio.v1.AperioService.GetTenantSettings:input_type -> aperio.v1.GetTenantSettingsRequest
+	158, // 193: aperio.v1.AperioService.UpdateTenantSettings:input_type -> aperio.v1.UpdateTenantSettingsRequest
+	161, // 194: aperio.v1.AperioService.ListTenantMembers:input_type -> aperio.v1.ListTenantMembersRequest
+	163, // 195: aperio.v1.AperioService.CreateTenantMember:input_type -> aperio.v1.CreateTenantMemberRequest
+	165, // 196: aperio.v1.AperioService.CreateMemberResetLink:input_type -> aperio.v1.CreateMemberResetLinkRequest
+	167, // 197: aperio.v1.AperioService.UpdateMemberRole:input_type -> aperio.v1.UpdateMemberRoleRequest
+	171, // 198: aperio.v1.AperioService.ListAuditLogs:input_type -> aperio.v1.ListAuditLogsRequest
+	174, // 199: aperio.v1.AperioService.GetSecurityOverview:input_type -> aperio.v1.GetSecurityOverviewRequest
+	186, // 200: aperio.v1.AperioService.ListEmailDomainHealth:input_type -> aperio.v1.ListEmailDomainHealthRequest
+	188, // 201: aperio.v1.AperioService.GetEmailDomainHealth:input_type -> aperio.v1.GetEmailDomainHealthRequest
+	190, // 202: aperio.v1.AperioService.RefreshEmailDomainHealth:input_type -> aperio.v1.RefreshEmailDomainHealthRequest
+	197, // 203: aperio.v1.AperioService.ListSecurityAssets:input_type -> aperio.v1.ListSecurityAssetsRequest
+	201, // 204: aperio.v1.AperioService.CreateSecurityAsset:input_type -> aperio.v1.CreateSecurityAssetRequest
+	203, // 205: aperio.v1.AperioService.UpdateSecurityAsset:input_type -> aperio.v1.UpdateSecurityAssetRequest
+	205, // 206: aperio.v1.AperioService.ListRiskExceptions:input_type -> aperio.v1.ListRiskExceptionsRequest
+	210, // 207: aperio.v1.AperioService.CreateRiskException:input_type -> aperio.v1.CreateRiskExceptionRequest
+	212, // 208: aperio.v1.AperioService.UpdateRiskException:input_type -> aperio.v1.UpdateRiskExceptionRequest
+	215, // 209: aperio.v1.AperioService.ListExecutiveReports:input_type -> aperio.v1.ListExecutiveReportsRequest
+	217, // 210: aperio.v1.AperioService.GetExecutiveReport:input_type -> aperio.v1.GetExecutiveReportRequest
+	219, // 211: aperio.v1.AperioService.CreateExecutiveReport:input_type -> aperio.v1.CreateExecutiveReportRequest
+	221, // 212: aperio.v1.AperioService.DeleteExecutiveReport:input_type -> aperio.v1.DeleteExecutiveReportRequest
+	1,   // 213: aperio.v1.AperioService.CallApi:output_type -> aperio.v1.CallApiResponse
+	3,   // 214: aperio.v1.AperioService.Signup:output_type -> aperio.v1.SignupResponse
+	5,   // 215: aperio.v1.AperioService.Login:output_type -> aperio.v1.LoginResponse
+	7,   // 216: aperio.v1.AperioService.GetCurrentSession:output_type -> aperio.v1.GetCurrentSessionResponse
+	9,   // 217: aperio.v1.AperioService.LogoutCurrentSession:output_type -> aperio.v1.LogoutCurrentSessionResponse
+	11,  // 218: aperio.v1.AperioService.ListWorkspaces:output_type -> aperio.v1.ListWorkspacesResponse
+	13,  // 219: aperio.v1.AperioService.SwitchWorkspace:output_type -> aperio.v1.SwitchWorkspaceResponse
+	15,  // 220: aperio.v1.AperioService.RequestPasswordReset:output_type -> aperio.v1.RequestPasswordResetResponse
+	17,  // 221: aperio.v1.AperioService.ResetPassword:output_type -> aperio.v1.ResetPasswordResponse
+	19,  // 222: aperio.v1.AperioService.AcceptInvite:output_type -> aperio.v1.AcceptInviteResponse
+	21,  // 223: aperio.v1.AperioService.BeginMfaEnrollment:output_type -> aperio.v1.BeginMfaEnrollmentResponse
+	23,  // 224: aperio.v1.AperioService.EnableMfa:output_type -> aperio.v1.EnableMfaResponse
+	25,  // 225: aperio.v1.AperioService.DisableMfa:output_type -> aperio.v1.DisableMfaResponse
+	34,  // 226: aperio.v1.AperioService.CheckHealth:output_type -> aperio.v1.CheckHealthResponse
+	37,  // 227: aperio.v1.AperioService.GetDashboardMetrics:output_type -> aperio.v1.GetDashboardMetricsResponse
+	40,  // 228: aperio.v1.AperioService.ListFindings:output_type -> aperio.v1.ListFindingsResponse
+	42,  // 229: aperio.v1.AperioService.GetFinding:output_type -> aperio.v1.GetFindingResponse
+	44,  // 230: aperio.v1.AperioService.UpdateFindingStatus:output_type -> aperio.v1.UpdateFindingStatusResponse
+	47,  // 231: aperio.v1.AperioService.RemediateFinding:output_type -> aperio.v1.RemediateFindingResponse
+	59,  // 232: aperio.v1.AperioService.ListSaasIncidents:output_type -> aperio.v1.ListSaasIncidentsResponse
+	61,  // 233: aperio.v1.AperioService.GetSaasIncident:output_type -> aperio.v1.GetSaasIncidentResponse
+	63,  // 234: aperio.v1.AperioService.CreateSaasIncident:output_type -> aperio.v1.CreateSaasIncidentResponse
+	65,  // 235: aperio.v1.AperioService.UpdateSaasIncidentStatus:output_type -> aperio.v1.UpdateSaasIncidentStatusResponse
+	67,  // 236: aperio.v1.AperioService.ProposeSaasResponseAction:output_type -> aperio.v1.ProposeSaasResponseActionResponse
+	69,  // 237: aperio.v1.AperioService.ApproveSaasResponseAction:output_type -> aperio.v1.ApproveSaasResponseActionResponse
+	71,  // 238: aperio.v1.AperioService.ExecuteSaasResponseAction:output_type -> aperio.v1.ExecuteSaasResponseActionResponse
+	79,  // 239: aperio.v1.AperioService.ListConnectorCatalog:output_type -> aperio.v1.ListConnectorCatalogResponse
+	85,  // 240: aperio.v1.AperioService.ListIntegrations:output_type -> aperio.v1.ListIntegrationsResponse
+	89,  // 241: aperio.v1.AperioService.CreateIntegration:output_type -> aperio.v1.CreateIntegrationResponse
+	91,  // 242: aperio.v1.AperioService.DeleteIntegration:output_type -> aperio.v1.DeleteIntegrationResponse
+	94,  // 243: aperio.v1.AperioService.GetIntegrationChecks:output_type -> aperio.v1.GetIntegrationChecksResponse
+	96,  // 244: aperio.v1.AperioService.UpdateIntegrationChecks:output_type -> aperio.v1.UpdateIntegrationChecksResponse
+	226, // 245: aperio.v1.AperioService.ListConnectorRules:output_type -> aperio.v1.ListConnectorRulesResponse
+	228, // 246: aperio.v1.AperioService.CreateCustomRule:output_type -> aperio.v1.CreateCustomRuleResponse
+	230, // 247: aperio.v1.AperioService.UpdateCustomRule:output_type -> aperio.v1.UpdateCustomRuleResponse
+	232, // 248: aperio.v1.AperioService.DeleteCustomRule:output_type -> aperio.v1.DeleteCustomRuleResponse
+	100, // 249: aperio.v1.AperioService.GetGoogleMailboxScanConfig:output_type -> aperio.v1.GetGoogleMailboxScanConfigResponse
+	102, // 250: aperio.v1.AperioService.UpdateGoogleMailboxScanConfig:output_type -> aperio.v1.UpdateGoogleMailboxScanConfigResponse
+	105, // 251: aperio.v1.AperioService.GetGoogleWorkspaceBigQueryConfig:output_type -> aperio.v1.GetGoogleWorkspaceBigQueryConfigResponse
+	107, // 252: aperio.v1.AperioService.UpdateGoogleWorkspaceBigQueryConfig:output_type -> aperio.v1.UpdateGoogleWorkspaceBigQueryConfigResponse
+	110, // 253: aperio.v1.AperioService.ValidateGoogleWorkspaceBigQueryConfig:output_type -> aperio.v1.ValidateGoogleWorkspaceBigQueryConfigResponse
+	113, // 254: aperio.v1.AperioService.StartGoogleWorkspaceOAuth:output_type -> aperio.v1.StartGoogleWorkspaceOAuthResponse
+	116, // 255: aperio.v1.AperioService.GetIntegrationOAuthClient:output_type -> aperio.v1.GetIntegrationOAuthClientResponse
+	118, // 256: aperio.v1.AperioService.SetIntegrationOAuthClient:output_type -> aperio.v1.SetIntegrationOAuthClientResponse
+	120, // 257: aperio.v1.AperioService.ClearIntegrationOAuthClient:output_type -> aperio.v1.ClearIntegrationOAuthClientResponse
+	123, // 258: aperio.v1.AperioService.ForceSyncIntegration:output_type -> aperio.v1.ForceSyncIntegrationResponse
+	126, // 259: aperio.v1.AperioService.GetIntegrationSyncStatus:output_type -> aperio.v1.GetIntegrationSyncStatusResponse
+	128, // 260: aperio.v1.AperioService.RunIntegrationSourceSync:output_type -> aperio.v1.RunIntegrationSourceSyncResponse
+	130, // 261: aperio.v1.AperioService.BackfillIntegrationSource:output_type -> aperio.v1.BackfillIntegrationSourceResponse
+	135, // 262: aperio.v1.AperioService.ListSiemCatalog:output_type -> aperio.v1.ListSiemCatalogResponse
+	139, // 263: aperio.v1.AperioService.ListSiemDestinations:output_type -> aperio.v1.ListSiemDestinationsResponse
+	142, // 264: aperio.v1.AperioService.CreateSiemDestination:output_type -> aperio.v1.CreateSiemDestinationResponse
+	144, // 265: aperio.v1.AperioService.DeleteSiemDestination:output_type -> aperio.v1.DeleteSiemDestinationResponse
+	146, // 266: aperio.v1.AperioService.TestSiemDestination:output_type -> aperio.v1.TestSiemDestinationResponse
+	149, // 267: aperio.v1.AperioService.ListShadowItOauthApps:output_type -> aperio.v1.ListShadowItOauthAppsResponse
+	152, // 268: aperio.v1.AperioService.ListShadowItOauthAppGrants:output_type -> aperio.v1.ListShadowItOauthAppGrantsResponse
+	157, // 269: aperio.v1.AperioService.GetTenantSettings:output_type -> aperio.v1.GetTenantSettingsResponse
+	159, // 270: aperio.v1.AperioService.UpdateTenantSettings:output_type -> aperio.v1.UpdateTenantSettingsResponse
+	162, // 271: aperio.v1.AperioService.ListTenantMembers:output_type -> aperio.v1.ListTenantMembersResponse
+	164, // 272: aperio.v1.AperioService.CreateTenantMember:output_type -> aperio.v1.CreateTenantMemberResponse
+	166, // 273: aperio.v1.AperioService.CreateMemberResetLink:output_type -> aperio.v1.CreateMemberResetLinkResponse
+	168, // 274: aperio.v1.AperioService.UpdateMemberRole:output_type -> aperio.v1.UpdateMemberRoleResponse
+	172, // 275: aperio.v1.AperioService.ListAuditLogs:output_type -> aperio.v1.ListAuditLogsResponse
+	175, // 276: aperio.v1.AperioService.GetSecurityOverview:output_type -> aperio.v1.GetSecurityOverviewResponse
+	187, // 277: aperio.v1.AperioService.ListEmailDomainHealth:output_type -> aperio.v1.ListEmailDomainHealthResponse
+	189, // 278: aperio.v1.AperioService.GetEmailDomainHealth:output_type -> aperio.v1.GetEmailDomainHealthResponse
+	191, // 279: aperio.v1.AperioService.RefreshEmailDomainHealth:output_type -> aperio.v1.RefreshEmailDomainHealthResponse
+	198, // 280: aperio.v1.AperioService.ListSecurityAssets:output_type -> aperio.v1.ListSecurityAssetsResponse
+	202, // 281: aperio.v1.AperioService.CreateSecurityAsset:output_type -> aperio.v1.CreateSecurityAssetResponse
+	204, // 282: aperio.v1.AperioService.UpdateSecurityAsset:output_type -> aperio.v1.UpdateSecurityAssetResponse
+	206, // 283: aperio.v1.AperioService.ListRiskExceptions:output_type -> aperio.v1.ListRiskExceptionsResponse
+	211, // 284: aperio.v1.AperioService.CreateRiskException:output_type -> aperio.v1.CreateRiskExceptionResponse
+	213, // 285: aperio.v1.AperioService.UpdateRiskException:output_type -> aperio.v1.UpdateRiskExceptionResponse
+	216, // 286: aperio.v1.AperioService.ListExecutiveReports:output_type -> aperio.v1.ListExecutiveReportsResponse
+	218, // 287: aperio.v1.AperioService.GetExecutiveReport:output_type -> aperio.v1.GetExecutiveReportResponse
+	220, // 288: aperio.v1.AperioService.CreateExecutiveReport:output_type -> aperio.v1.CreateExecutiveReportResponse
+	222, // 289: aperio.v1.AperioService.DeleteExecutiveReport:output_type -> aperio.v1.DeleteExecutiveReportResponse
+	213, // [213:290] is the sub-list for method output_type
+	136, // [136:213] is the sub-list for method input_type
+	136, // [136:136] is the sub-list for extension type_name
+	136, // [136:136] is the sub-list for extension extendee
+	0,   // [0:136] is the sub-list for field type_name
 }
 
 func init() { file_aperio_v1_api_proto_init() }
