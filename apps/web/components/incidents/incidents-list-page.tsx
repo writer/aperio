@@ -123,8 +123,8 @@ export function IncidentsListPage() {
               <Metric
                 icon={ShieldAlert}
                 label="Active incidents"
-                value={formatNumber(active.length)}
-                tone={active.length > 0 ? "critical" : "neutral"}
+                value={formatNumber((metrics?.open ?? 0) + (metrics?.investigating ?? 0))}
+                tone={(metrics?.open ?? 0) + (metrics?.investigating ?? 0) > 0 ? "critical" : "neutral"}
               />
               <Metric
                 icon={Zap}

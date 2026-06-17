@@ -3223,7 +3223,11 @@ type ProposeSaasResponseActionRequest struct {
 	TargetType       string                 `protobuf:"bytes,5,opt,name=target_type,json=targetType,proto3" json:"target_type,omitempty"`
 	TargetIdentifier string                 `protobuf:"bytes,6,opt,name=target_identifier,json=targetIdentifier,proto3" json:"target_identifier,omitempty"`
 	Rationale        string                 `protobuf:"bytes,7,opt,name=rationale,proto3" json:"rationale,omitempty"`
-	ApprovalRequired bool                   `protobuf:"varint,8,opt,name=approval_required,json=approvalRequired,proto3" json:"approval_required,omitempty"`
+	// approval_required defaults to true on the server when omitted. This
+	// matches the MCP path and the saas_response_actions DB default so
+	// separation-of-duties cannot be defeated by a client that simply omits the
+	// field (proto3 bools default to false on the wire).
+	ApprovalRequired *bool `protobuf:"varint,8,opt,name=approval_required,json=approvalRequired,proto3,oneof" json:"approval_required,omitempty"`
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
 }
@@ -3308,8 +3312,8 @@ func (x *ProposeSaasResponseActionRequest) GetRationale() string {
 }
 
 func (x *ProposeSaasResponseActionRequest) GetApprovalRequired() bool {
-	if x != nil {
-		return x.ApprovalRequired
+	if x != nil && x.ApprovalRequired != nil {
+		return *x.ApprovalRequired
 	}
 	return false
 }
@@ -14718,7 +14722,7 @@ const file_aperio_v1_api_proto_rawDesc = "" +
 	"\x06status\x18\x02 \x01(\tR\x06status\x12\x12\n" +
 	"\x04note\x18\x03 \x01(\tR\x04note\"O\n" +
 	" UpdateSaasIncidentStatusResponse\x12+\n" +
-	"\x04data\x18\x01 \x01(\v2\x17.aperio.v1.SaasIncidentR\x04data\"\xaf\x02\n" +
+	"\x04data\x18\x01 \x01(\v2\x17.aperio.v1.SaasIncidentR\x04data\"\xca\x02\n" +
 	" ProposeSaasResponseActionRequest\x12\x1f\n" +
 	"\vincident_id\x18\x01 \x01(\tR\n" +
 	"incidentId\x12\x1d\n" +
@@ -14729,8 +14733,9 @@ const file_aperio_v1_api_proto_rawDesc = "" +
 	"\vtarget_type\x18\x05 \x01(\tR\n" +
 	"targetType\x12+\n" +
 	"\x11target_identifier\x18\x06 \x01(\tR\x10targetIdentifier\x12\x1c\n" +
-	"\trationale\x18\a \x01(\tR\trationale\x12+\n" +
-	"\x11approval_required\x18\b \x01(\bR\x10approvalRequired\"V\n" +
+	"\trationale\x18\a \x01(\tR\trationale\x120\n" +
+	"\x11approval_required\x18\b \x01(\bH\x00R\x10approvalRequired\x88\x01\x01B\x14\n" +
+	"\x12_approval_required\"V\n" +
 	"!ProposeSaasResponseActionResponse\x121\n" +
 	"\x04data\x18\x01 \x01(\v2\x1d.aperio.v1.SaasResponseActionR\x04data\"F\n" +
 	" ApproveSaasResponseActionRequest\x12\x0e\n" +
@@ -16338,6 +16343,7 @@ func file_aperio_v1_api_proto_init() {
 	if File_aperio_v1_api_proto != nil {
 		return
 	}
+	file_aperio_v1_api_proto_msgTypes[58].OneofWrappers = []any{}
 	file_aperio_v1_api_proto_msgTypes[150].OneofWrappers = []any{}
 	file_aperio_v1_api_proto_msgTypes[170].OneofWrappers = []any{}
 	file_aperio_v1_api_proto_msgTypes[193].OneofWrappers = []any{}

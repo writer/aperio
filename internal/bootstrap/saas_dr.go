@@ -373,6 +373,11 @@ func saasIncidentFilterWhere(organizationID string, req *aperiov1.ListSaasIncide
 	return where, args
 }
 
+// saasIncidentSelectSQL returns the SELECT that powers both the list and the
+// single-row read paths. Every caller passes the tenant id as $1 (and the
+// single-row path also passes the incident id as $2), so the count CTEs scope
+// to those parameters to keep aggregation tenant-local and avoid scanning the
+// full saas_incident_findings / saas_response_actions tables on every read.
 func saasIncidentSelectSQL(suffix string) string {
 	return `
 		WITH finding_counts AS (
@@ -381,7 +386,10 @@ func saasIncidentSelectSQL(suffix string) string {
 				COUNT(*)::int AS finding_count,
 				COUNT(*) FILTER (WHERE sf.status = 'OPEN')::int AS open_finding_count
 			FROM saas_incident_findings sif
-			JOIN security_findings sf ON sf.id = sif.finding_id
+			JOIN security_findings sf
+				ON sf.id = sif.finding_id
+				AND sf.organization_id = sif.organization_id
+			WHERE sif.organization_id = $1
 			GROUP BY sif.incident_id
 		),
 		action_counts AS (
@@ -390,6 +398,7 @@ func saasIncidentSelectSQL(suffix string) string {
 				COUNT(*)::int AS response_action_count,
 				COUNT(*) FILTER (WHERE status = 'SUCCEEDED')::int AS completed_response_action_count
 			FROM saas_response_actions
+			WHERE organization_id = $1
 			GROUP BY incident_id
 		)
 		SELECT
@@ -987,6 +996,15 @@ func (a *App) proposeSaasResponseAction(ctx context.Context, auth compatAuth, re
 	}
 	incidentID := strings.TrimSpace(req.IncidentId)
 	findingID := strings.TrimSpace(req.FindingId)
+	// proto3 bools default to false on the wire, so a client that omits
+	// approval_required would otherwise persist a non-gated action and defeat
+	// the segregation-of-duties control. Default to true unless the caller
+	// explicitly opts out via the optional field, matching the MCP path and
+	// the saas_response_actions DB default.
+	approvalRequired := true
+	if req.ApprovalRequired != nil {
+		approvalRequired = *req.ApprovalRequired
+	}
 	tx, err := a.db.BeginTx(ctx, nil)
 	if err != nil {
 		return saasResponseActionRow{}, internalServerError("saas_response.begin_tx", err)
@@ -1028,13 +1046,13 @@ func (a *App) proposeSaasResponseAction(ctx context.Context, auth compatAuth, re
 			proposed_by_user_id, created_at, updated_at
 		)
 		VALUES ($1,$2,$3,NULLIF($4,''),$5::"SaasResponseActionKind",$6::"SaaSProvider",$7,$8,'PROPOSED',$9,$10,$11,$12,$12)
-	`, actionID, auth.OrganizationID, incidentID, findingID, req.Action, providerSQL, strings.TrimSpace(req.TargetType), strings.TrimSpace(req.TargetIdentifier), req.ApprovalRequired, strings.TrimSpace(req.Rationale), proposerID, now); err != nil {
+	`, actionID, auth.OrganizationID, incidentID, findingID, req.Action, providerSQL, strings.TrimSpace(req.TargetType), strings.TrimSpace(req.TargetIdentifier), approvalRequired, strings.TrimSpace(req.Rationale), proposerID, now); err != nil {
 		return saasResponseActionRow{}, internalServerError("saas_response.insert", err)
 	}
 	if _, err := tx.ExecContext(ctx, `UPDATE saas_incidents SET last_activity_at = $3, updated_at = $3 WHERE organization_id = $1 AND id = $2`, auth.OrganizationID, incidentID, now); err != nil {
 		return saasResponseActionRow{}, internalServerError("saas_response.touch_incident", err)
 	}
-	if err := insertSaasTimelineEvent(ctx, tx, auth.OrganizationID, incidentID, findingID, actionID, "RESPONSE_ACTION", "Response proposed", req.Action+" proposed for "+req.TargetIdentifier+".", auth.Email, "APERIO", map[string]any{"action": req.Action, "incidentTitle": incidentTitle, "approvalRequired": req.ApprovalRequired}, now); err != nil {
+	if err := insertSaasTimelineEvent(ctx, tx, auth.OrganizationID, incidentID, findingID, actionID, "RESPONSE_ACTION", "Response proposed", req.Action+" proposed for "+req.TargetIdentifier+".", auth.Email, "APERIO", map[string]any{"action": req.Action, "incidentTitle": incidentTitle, "approvalRequired": approvalRequired}, now); err != nil {
 		return saasResponseActionRow{}, err
 	}
 	if err := tx.Commit(); err != nil {
@@ -1043,7 +1061,7 @@ func (a *App) proposeSaasResponseAction(ctx context.Context, auth compatAuth, re
 	a.writeCompatAudit(ctx, auth, "saas_response_action.propose", "saas_response_action", actionID, map[string]any{
 		"incidentId":       incidentID,
 		"action":           req.Action,
-		"approvalRequired": req.ApprovalRequired,
+		"approvalRequired": approvalRequired,
 		"target":           strings.TrimSpace(req.TargetIdentifier),
 	})
 	return a.getSaasResponseAction(ctx, auth.OrganizationID, actionID)

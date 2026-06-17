@@ -400,7 +400,11 @@ message ProposeSaasResponseActionRequest {
   string target_type = 5;
   string target_identifier = 6;
   string rationale = 7;
-  bool approval_required = 8;
+  // approval_required defaults to true on the server when omitted. This
+  // matches the MCP path and the saas_response_actions DB default so
+  // separation-of-duties cannot be defeated by a client that simply omits the
+  // field (proto3 bools default to false on the wire).
+  optional bool approval_required = 8;
 }
 
 message ProposeSaasResponseActionResponse {

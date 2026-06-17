@@ -39,7 +39,7 @@ func proposeAction(t *testing.T, app *App, auth compatAuth, incidentID string, a
 		TargetType:       "oauth_app",
 		TargetIdentifier: "vendor-app",
 		Rationale:        "test rationale",
-		ApprovalRequired: approvalRequired,
+		ApprovalRequired: &approvalRequired,
 	})
 	if err != nil {
 		t.Fatalf("propose response action: %v", err)
@@ -182,5 +182,28 @@ func TestSaasIncidentCreateCapsLinkedFindings(t *testing.T) {
 		t.Fatalf("expected create with too many findings to be rejected")
 	} else if got := connect.CodeOf(err); got != connect.CodeInvalidArgument {
 		t.Fatalf("expected InvalidArgument, got %v (%v)", got, err)
+	}
+}
+
+func TestSaasResponseActionDefaultsApprovalRequiredWhenOmitted(t *testing.T) {
+	app, auth := newTestDBApp(t)
+	auth = seedOrgAdmin(t, app, auth.OrganizationID)
+	incidentID, analyst, _ := seedSaasIncidentSetup(t, app, auth)
+	// Omit ApprovalRequired entirely. A naive proto3 read would persist
+	// `false` and let the proposer also execute, defeating segregation of
+	// duties; we expect the server to back-fill to `true`.
+	row, err := app.proposeSaasResponseAction(context.Background(), analyst, &aperiov1.ProposeSaasResponseActionRequest{
+		IncidentId:       incidentID,
+		Action:           "SUSPEND_USER",
+		Provider:         "GOOGLE_WORKSPACE",
+		TargetType:       "user",
+		TargetIdentifier: "user@example.com",
+		Rationale:        "test default",
+	})
+	if err != nil {
+		t.Fatalf("propose response action: %v", err)
+	}
+	if !row.ApprovalRequired {
+		t.Fatalf("expected approval_required to default to true, got false")
 	}
 }
