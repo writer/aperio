@@ -415,9 +415,17 @@ func (a *App) saasCerebroMCPContext(organizationID string, incidentID string) ma
 
 func saasCerebroNativeMCPTools() []string {
 	return []string{
+		"cerebro.findings.list",
+		"cerebro.findings.get",
 		"cerebro.findings.search",
+		"cerebro.risk.summary",
+		"cerebro.risk.actions.list",
+		"cerebro.risk.actions.explain",
 		"cerebro.graph.neighborhood",
+		"cerebro.graph.impact",
+		"cerebro.graph.paths",
 		"cerebro.investigation.context",
+		"cerebro.findings.action.propose",
 		"cerebro.agent.preflight",
 	}
 }
