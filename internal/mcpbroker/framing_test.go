@@ -114,8 +114,8 @@ func TestServerResourcesListTemplatesAndRead(t *testing.T) {
 	}
 
 	templates := frames[1]["result"].(map[string]any)["resourceTemplates"].([]any)
-	if len(templates) != 2 {
-		t.Fatalf("resourceTemplates count = %d, want 2", len(templates))
+	if len(templates) != 3 {
+		t.Fatalf("resourceTemplates count = %d, want 3", len(templates))
 	}
 	firstTemplate := templates[0].(map[string]any)
 	if firstTemplate["uriTemplate"] != "cerebro://aperio/{organizationId}/incidents/{incidentId}" ||

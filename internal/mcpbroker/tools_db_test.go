@@ -489,6 +489,29 @@ func TestDBBackedCerebroResourceReadsUseAuthAndTenantScope(t *testing.T) {
 		t.Fatalf("finding linked incidents drifted: %#v", incidents)
 	}
 
+	security, securityContent := callMCPResourceReadFrame(t, service, "read-security-overview", cerebroSecurityOverviewResourceURI(orgID))
+	if securityContent["uri"] != cerebroSecurityOverviewResourceURI(orgID) ||
+		securityContent["mimeType"] != cerebroSecurityOverviewMimeType {
+		t.Fatalf("security overview resource content drifted: %#v", securityContent)
+	}
+	summary := security["summary"].(map[string]any)
+	if summary["openFindingCount"].(float64) != 1 ||
+		summary["highFindingCount"].(float64) != 1 ||
+		summary["activeIncidentCount"].(float64) != 1 {
+		t.Fatalf("security overview summary drifted: %#v", summary)
+	}
+	if findings := security["findings"].([]any); len(findings) != 1 || findings[0].(map[string]any)["id"] != findingID {
+		t.Fatalf("security overview findings drifted: %#v", findings)
+	}
+	if incidents := security["incidents"].([]any); len(incidents) != 1 || incidents[0].(map[string]any)["id"] != incidentID {
+		t.Fatalf("security overview incidents drifted: %#v", incidents)
+	}
+	securityContext := security["cerebroContext"].(map[string]any)
+	securityMCP := securityContext["mcp"].(map[string]any)
+	if securityContext["mode"] != "mcp-resource" || securityMCP["resourceUri"] != cerebroSecurityOverviewResourceURI(orgID) {
+		t.Fatalf("security overview Cerebro MCP context drifted: %#v", securityContext)
+	}
+
 	missingTokenOutput := expectMCPResourceReadErrorFrame(t, service, "read-missing-token", cerebroIncidentResourceURI(orgID, incidentID))
 	wrongOrgOutput := expectMCPResourceReadErrorFrame(t, service, "read-wrong-org", cerebroIncidentResourceURI(otherOrgID, otherIncidentID), secret)
 	for label, output := range map[string][]byte{
