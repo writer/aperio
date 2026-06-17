@@ -27,6 +27,10 @@ function compactScope(scope: string) {
   return scope.replace(/^cerebro\./, "").replaceAll(".", " / ");
 }
 
+function compactList(values: string[]) {
+  return values.length ? values.join(", ") : "none";
+}
+
 type AccountMenuProps = {
   align?: "start" | "end";
   showLabel?: boolean;
@@ -68,7 +72,7 @@ export function AccountMenu({
           ) : null}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align={align} className="w-72">
+      <DropdownMenuContent align={align} className="w-80">
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col">
             <span className="truncate text-sm text-foreground">
@@ -101,26 +105,53 @@ export function AccountMenu({
                 Cerebro auth context
               </div>
               <dl className="space-y-1 text-[11px] leading-relaxed">
-                <div className="grid grid-cols-[68px_minmax(0,1fr)] gap-2">
+                <div className="grid grid-cols-[96px_minmax(0,1fr)] gap-2">
                   <dt className="text-muted-foreground">Principal</dt>
                   <dd className="truncate font-mono text-foreground">
                     {authContext.principal || "unknown"}
                   </dd>
                 </div>
-                <div className="grid grid-cols-[68px_minmax(0,1fr)] gap-2">
+                <div className="grid grid-cols-[96px_minmax(0,1fr)] gap-2">
+                  <dt className="text-muted-foreground">Mode</dt>
+                  <dd className="truncate font-mono text-foreground">
+                    {authContext.authMode || authContext.credentialKind}
+                  </dd>
+                </div>
+                <div className="grid grid-cols-[96px_minmax(0,1fr)] gap-2">
                   <dt className="text-muted-foreground">Tenant</dt>
                   <dd className="truncate font-mono text-foreground">
                     {authContext.tenantId || authContext.tenantSlug || "unknown"}
                   </dd>
                 </div>
-                <div className="grid grid-cols-[68px_minmax(0,1fr)] gap-2">
+                <div className="grid grid-cols-[96px_minmax(0,1fr)] gap-2">
+                  <dt className="text-muted-foreground">Resource</dt>
+                  <dd className="truncate font-mono text-foreground">
+                    {authContext.cerebroResource || "cerebro-api"}
+                  </dd>
+                </div>
+                <div className="grid grid-cols-[96px_minmax(0,1fr)] gap-2">
                   <dt className="text-muted-foreground">Transport</dt>
                   <dd className="truncate font-mono text-foreground">
                     {authContext.tokenTransport}
                   </dd>
                 </div>
+                <div className="grid grid-cols-[96px_minmax(0,1fr)] gap-2">
+                  <dt className="text-muted-foreground">Allowed tenants</dt>
+                  <dd className="truncate font-mono text-foreground">
+                    {compactList(authContext.allowedTenants)}
+                  </dd>
+                </div>
+                <div className="grid grid-cols-[96px_minmax(0,1fr)] gap-2">
+                  <dt className="text-muted-foreground">Groups</dt>
+                  <dd className="truncate font-mono text-foreground">
+                    {compactList(authContext.groups)}
+                  </dd>
+                </div>
               </dl>
-              <div className="mt-2 flex flex-wrap gap-1">
+              <div className="mt-2 text-[11px] font-medium text-muted-foreground">
+                Cerebro API scopes
+              </div>
+              <div className="mt-1 flex flex-wrap gap-1">
                 {authContext.cerebroScopes.map((scope) => (
                   <span
                     key={scope}

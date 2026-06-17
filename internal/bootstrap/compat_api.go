@@ -184,6 +184,19 @@ type compatSessionOrg struct {
 	Slug string `json:"slug"`
 }
 
+type compatSessionAuthContext struct {
+	Principal       string   `json:"principal"`
+	TenantID        string   `json:"tenantId"`
+	TenantSlug      string   `json:"tenantSlug"`
+	CredentialKind  string   `json:"credentialKind"`
+	AuthMode        string   `json:"authMode"`
+	TokenTransport  string   `json:"tokenTransport"`
+	CerebroResource string   `json:"cerebroResource"`
+	AllowedTenants  []string `json:"allowedTenants"`
+	CerebroScopes   []string `json:"cerebroScopes"`
+	Groups          []string `json:"groups"`
+}
+
 // normalizeCompatRoute turns a tunneled REST path into a low-cardinality route
 // template by collapsing opaque identifiers (cuids, UUIDs, and seed-style
 // prefixed IDs) into ":id". This keeps the wide event's http.tunnel.route
@@ -2880,7 +2893,81 @@ func expiredCompatSessionCookie() string {
 }
 
 func compatSessionPayload(token string, user compatSessionUser, org compatSessionOrg) map[string]any {
-	return map[string]any{"token": token, "user": user, "organization": org}
+	return map[string]any{
+		"token":        token,
+		"user":         user,
+		"organization": org,
+		"authContext":  compatAuthContextForSession(user, org),
+	}
+}
+
+const (
+	compatCerebroReadScope                 = "cerebro.cosmo.security.read"
+	compatCerebroFindingCandidateScope     = "cerebro.finding_candidates.promote"
+	compatCerebroFindingLifecycleScope     = "cerebro.findings.write"
+	compatCerebroGRCInventoryScope         = "cerebro.grc.inventory.write"
+	compatCerebroConnectorCredentialsRead  = "cerebro.connector_credentials.read"
+	compatCerebroConnectorCredentialsWrite = "cerebro.connector_credentials.write"
+	compatCerebroRuntimeResponseScope      = "cerebro.runtime_response.write"
+)
+
+func compatAuthContextForSession(user compatSessionUser, org compatSessionOrg) compatSessionAuthContext {
+	return compatSessionAuthContext{
+		Principal:       strings.TrimSpace(user.Email),
+		TenantID:        strings.TrimSpace(org.ID),
+		TenantSlug:      strings.TrimSpace(org.Slug),
+		CredentialKind:  "human_workspace_session",
+		AuthMode:        "human_workspace_session",
+		TokenTransport:  "http_only_cookie",
+		CerebroResource: "cerebro-api",
+		AllowedTenants:  compactStrings(org.ID),
+		CerebroScopes:   compatCerebroScopesForRole(user.Role),
+		Groups:          compatCerebroGroupsForRole(user.Role),
+	}
+}
+
+func compatCerebroScopesForRole(role string) []string {
+	switch strings.ToUpper(strings.TrimSpace(role)) {
+	case "OWNER", "ADMIN":
+		return []string{
+			compatCerebroReadScope,
+			compatCerebroFindingCandidateScope,
+			compatCerebroFindingLifecycleScope,
+			compatCerebroGRCInventoryScope,
+			compatCerebroConnectorCredentialsRead,
+			compatCerebroConnectorCredentialsWrite,
+			compatCerebroRuntimeResponseScope,
+		}
+	case "SECURITY_ANALYST":
+		return []string{
+			compatCerebroReadScope,
+			compatCerebroFindingCandidateScope,
+			compatCerebroFindingLifecycleScope,
+			compatCerebroRuntimeResponseScope,
+		}
+	default:
+		return []string{compatCerebroReadScope}
+	}
+}
+
+func compatCerebroGroupsForRole(role string) []string {
+	switch strings.ToUpper(strings.TrimSpace(role)) {
+	case "OWNER", "ADMIN", "SECURITY_ANALYST", "VIEWER":
+		return []string{"security"}
+	default:
+		return nil
+	}
+}
+
+func compactStrings(values ...string) []string {
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value != "" {
+			out = append(out, value)
+		}
+	}
+	return out
 }
 
 func compatAuthLink(path, token string) string {

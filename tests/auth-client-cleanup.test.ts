@@ -122,6 +122,14 @@ test("frontend auth session types do not expose bearer tokens", () => {
     functionBlock(connectClient, "authSessionFromProto"),
     /session\.token/
   );
+  assert.match(
+    functionBlock(connectClient, "authSessionFromProto"),
+    /session\.authContext/,
+    "frontend auth sessions should consume server-provided Cerebro auth context"
+  );
+  assert.match(exportedTypeBlock(webApi, "AuthContext"), /\bauthMode\s*:/);
+  assert.match(exportedTypeBlock(webApi, "AuthContext"), /\ballowedTenants\s*:/);
+  assert.match(exportedTypeBlock(webApi, "AuthContext"), /\bgroups\s*:/);
 });
 
 test("frontend requests rely on cookies instead of Authorization bearer headers", () => {
