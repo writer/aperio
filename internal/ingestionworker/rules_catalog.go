@@ -219,7 +219,7 @@ var RuleCatalog = []RuleCatalogEntry{
 		PackID:          "aperio.google_workspace.mail.v1",
 		MitreTechniques: []string{"T1114.003", "T1098.002"},
 		Intent:          "Adversary stages a multi-vector mailbox takeover that survives password rotation and silently routes mail outbound.",
-		Tags:            []string{TagEmailForwarding, TagEmailDelegation},
+		Tags:            []string{TagEmailForwarding, TagEmailDelegation, TagDataExternalShare},
 	},
 }
 
