@@ -19,6 +19,9 @@ type Payload struct {
 }
 
 type BuildInput struct {
+	// TenantID is the Cerebro tenant id used in URNs. OrganizationID remains
+	// available for compatibility with older Aperio-owned claim paths.
+	TenantID       string
 	OrganizationID string
 	RuntimeID      string
 	Payload        Payload
@@ -26,6 +29,10 @@ type BuildInput struct {
 
 func Build(input BuildInput) ([]cerebroclient.Claim, error) {
 	organizationID := strings.TrimSpace(input.OrganizationID)
+	tenantID := strings.TrimSpace(input.TenantID)
+	if tenantID == "" {
+		tenantID = organizationID
+	}
 	runtimeID := strings.TrimSpace(input.RuntimeID)
 	if runtimeID == "" {
 		return nil, errors.New("Cerebro source runtime ID is not configured")
@@ -54,9 +61,9 @@ func Build(input BuildInput) ([]cerebroclient.Claim, error) {
 		integrationID = "aperio"
 	}
 
-	finding := Ref(organizationID, runtimeID, "finding", findingID, title)
-	target := Ref(organizationID, runtimeID, "asset", provider+":"+targetLabel, targetLabel)
-	integration := Ref(organizationID, runtimeID, "integration", integrationID, provider)
+	finding := Ref(tenantID, runtimeID, "finding", findingID, title)
+	target := Ref(tenantID, runtimeID, "asset", provider+":"+targetLabel, targetLabel)
+	integration := Ref(tenantID, runtimeID, "integration", integrationID, provider)
 	attributes := map[string]string{
 		"aperio_schema": schemaVersion(input.Payload.Kind),
 		"aperio_kind":   input.Payload.Kind,
@@ -191,7 +198,7 @@ func firstString(values ...any) string {
 
 func schemaVersion(kind string) string {
 	switch strings.ToUpper(strings.TrimSpace(kind)) {
-	case "FINDING_CREATED", "FINDING_UPDATED", "FINDING_RESOLVED":
+	case "FINDING", "FINDING_CREATED", "FINDING_UPDATED", "FINDING_RESOLVED":
 		return "aperio/finding/v1"
 	case "SIEM_TEST":
 		return "aperio/siem_test/v1"
