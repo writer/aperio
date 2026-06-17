@@ -19,6 +19,7 @@ import {
   type SecurityCerebroContext,
   type SecurityOverview
 } from "../../lib/api";
+import { CerebroMCPResourceTemplateList } from "../cerebro/mcp-resource-template-list";
 import { PageHeader } from "../layout/page-header";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
@@ -264,6 +265,10 @@ function SecurityCerebroContextCard({
             </div>
           </div>
         ) : null}
+        <CerebroMCPResourceTemplateList
+          className="lg:col-span-2"
+          templates={context.mcp?.resourceTemplates}
+        />
       </CardContent>
     </Card>
   );
