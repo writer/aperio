@@ -160,11 +160,11 @@ test("frontend auth surfaces share Cerebro auth vocabulary", () => {
   assert.match(authModel, /CEREBRO_MCP_RESOURCE\s*=\s*"cerebro-mcp"/);
   assert.match(
     authModel,
-    /CEREBRO_MCP_RESOURCE_METADATA_PATH\s*=\s*\n\s*"\/\.well-known\/oauth-protected-resource\/api\/v1\/mcp"/
+    /CEREBRO_MCP_RESOURCE_METADATA_PATH\s*=\s*discoveryMetadataPath/
   );
   assert.match(
     authModel,
-    /CEREBRO_OAUTH_AUTHORIZATION_SERVER_METADATA_PATH\s*=\s*\n\s*"\/\.well-known\/oauth-authorization-server"/
+    /CEREBRO_OAUTH_AUTHORIZATION_SERVER_METADATA_PATH\s*=\s*\n\s*discoveryMetadataPath/
   );
   assert.match(
     authModel,
@@ -182,6 +182,19 @@ test("frontend auth surfaces share Cerebro auth vocabulary", () => {
     /formatCerebroTransport\(CEREBRO_SESSION_TRANSPORT\)/
   );
   assert.match(authModel, /loadCerebroAuthInsights/);
+  assert.match(
+    authModel,
+    /NEXT_PUBLIC_CEREBRO_MCP_RESOURCE_METADATA_PATH/
+  );
+  assert.match(
+    authModel,
+    /NEXT_PUBLIC_CEREBRO_OAUTH_AUTHORIZATION_SERVER_METADATA_PATH/
+  );
+  assert.match(authModel, /discoveryMetadataPath/);
+  assert.match(
+    authModel,
+    /if\s*\(!resourceMetadataPath\s*&&\s*!authorizationServerMetadataPath\)/
+  );
   assert.match(authModel, /credentials:\s*"same-origin"/);
   assert.match(accountMenu, /cerebroMcpResourceMetadataPath/);
   assert.match(
