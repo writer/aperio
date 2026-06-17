@@ -33,6 +33,7 @@ service AperioService {
   rpc ProposeSaasResponseAction(ProposeSaasResponseActionRequest) returns (ProposeSaasResponseActionResponse);
   rpc ApproveSaasResponseAction(ApproveSaasResponseActionRequest) returns (ApproveSaasResponseActionResponse);
   rpc ExecuteSaasResponseAction(ExecuteSaasResponseActionRequest) returns (ExecuteSaasResponseActionResponse);
+  rpc ListDetectionPacks(ListDetectionPacksRequest) returns (ListDetectionPacksResponse);
   rpc ListConnectorCatalog(ListConnectorCatalogRequest) returns (ListConnectorCatalogResponse);
   rpc ListIntegrations(ListIntegrationsRequest) returns (ListIntegrationsResponse);
   rpc CreateIntegration(CreateIntegrationRequest) returns (CreateIntegrationResponse);
@@ -1593,6 +1594,35 @@ message ConnectorBuiltInRule {
   string severity = 5;
   repeated string event_types = 6;
   bool enabled = 7;
+}
+
+message ListDetectionPacksRequest {
+  // Optional provider filter (e.g. "GOOGLE_WORKSPACE"). Empty returns every pack.
+  string provider = 1;
+}
+
+message ListDetectionPacksResponse {
+  repeated DetectionPack data = 1;
+}
+
+message DetectionPack {
+  string id = 1;
+  string provider = 2;
+  string name = 3;
+  string description = 4;
+  string version = 5;
+  repeated DetectionPackRule rules = 6;
+}
+
+message DetectionPackRule {
+  string id = 1;
+  string title = 2;
+  string description = 3;
+  string severity = 4;
+  repeated string event_types = 5;
+  repeated string mitre_techniques = 6;
+  string intent = 7;
+  repeated string tags = 8;
 }
 
 message ConnectorCustomRule {

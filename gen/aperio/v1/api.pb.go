@@ -14855,6 +14855,279 @@ func (x *ConnectorBuiltInRule) GetEnabled() bool {
 	return false
 }
 
+type ListDetectionPacksRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Optional provider filter (e.g. "GOOGLE_WORKSPACE"). Empty returns every pack.
+	Provider      string `protobuf:"bytes,1,opt,name=provider,proto3" json:"provider,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListDetectionPacksRequest) Reset() {
+	*x = ListDetectionPacksRequest{}
+	mi := &file_aperio_v1_api_proto_msgTypes[224]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListDetectionPacksRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListDetectionPacksRequest) ProtoMessage() {}
+
+func (x *ListDetectionPacksRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_aperio_v1_api_proto_msgTypes[224]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListDetectionPacksRequest.ProtoReflect.Descriptor instead.
+func (*ListDetectionPacksRequest) Descriptor() ([]byte, []int) {
+	return file_aperio_v1_api_proto_rawDescGZIP(), []int{224}
+}
+
+func (x *ListDetectionPacksRequest) GetProvider() string {
+	if x != nil {
+		return x.Provider
+	}
+	return ""
+}
+
+type ListDetectionPacksResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Data          []*DetectionPack       `protobuf:"bytes,1,rep,name=data,proto3" json:"data,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListDetectionPacksResponse) Reset() {
+	*x = ListDetectionPacksResponse{}
+	mi := &file_aperio_v1_api_proto_msgTypes[225]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListDetectionPacksResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListDetectionPacksResponse) ProtoMessage() {}
+
+func (x *ListDetectionPacksResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_aperio_v1_api_proto_msgTypes[225]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListDetectionPacksResponse.ProtoReflect.Descriptor instead.
+func (*ListDetectionPacksResponse) Descriptor() ([]byte, []int) {
+	return file_aperio_v1_api_proto_rawDescGZIP(), []int{225}
+}
+
+func (x *ListDetectionPacksResponse) GetData() []*DetectionPack {
+	if x != nil {
+		return x.Data
+	}
+	return nil
+}
+
+type DetectionPack struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Provider      string                 `protobuf:"bytes,2,opt,name=provider,proto3" json:"provider,omitempty"`
+	Name          string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
+	Description   string                 `protobuf:"bytes,4,opt,name=description,proto3" json:"description,omitempty"`
+	Version       string                 `protobuf:"bytes,5,opt,name=version,proto3" json:"version,omitempty"`
+	Rules         []*DetectionPackRule   `protobuf:"bytes,6,rep,name=rules,proto3" json:"rules,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DetectionPack) Reset() {
+	*x = DetectionPack{}
+	mi := &file_aperio_v1_api_proto_msgTypes[226]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DetectionPack) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DetectionPack) ProtoMessage() {}
+
+func (x *DetectionPack) ProtoReflect() protoreflect.Message {
+	mi := &file_aperio_v1_api_proto_msgTypes[226]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DetectionPack.ProtoReflect.Descriptor instead.
+func (*DetectionPack) Descriptor() ([]byte, []int) {
+	return file_aperio_v1_api_proto_rawDescGZIP(), []int{226}
+}
+
+func (x *DetectionPack) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *DetectionPack) GetProvider() string {
+	if x != nil {
+		return x.Provider
+	}
+	return ""
+}
+
+func (x *DetectionPack) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *DetectionPack) GetDescription() string {
+	if x != nil {
+		return x.Description
+	}
+	return ""
+}
+
+func (x *DetectionPack) GetVersion() string {
+	if x != nil {
+		return x.Version
+	}
+	return ""
+}
+
+func (x *DetectionPack) GetRules() []*DetectionPackRule {
+	if x != nil {
+		return x.Rules
+	}
+	return nil
+}
+
+type DetectionPackRule struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	Id              string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Title           string                 `protobuf:"bytes,2,opt,name=title,proto3" json:"title,omitempty"`
+	Description     string                 `protobuf:"bytes,3,opt,name=description,proto3" json:"description,omitempty"`
+	Severity        string                 `protobuf:"bytes,4,opt,name=severity,proto3" json:"severity,omitempty"`
+	EventTypes      []string               `protobuf:"bytes,5,rep,name=event_types,json=eventTypes,proto3" json:"event_types,omitempty"`
+	MitreTechniques []string               `protobuf:"bytes,6,rep,name=mitre_techniques,json=mitreTechniques,proto3" json:"mitre_techniques,omitempty"`
+	Intent          string                 `protobuf:"bytes,7,opt,name=intent,proto3" json:"intent,omitempty"`
+	Tags            []string               `protobuf:"bytes,8,rep,name=tags,proto3" json:"tags,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *DetectionPackRule) Reset() {
+	*x = DetectionPackRule{}
+	mi := &file_aperio_v1_api_proto_msgTypes[227]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DetectionPackRule) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DetectionPackRule) ProtoMessage() {}
+
+func (x *DetectionPackRule) ProtoReflect() protoreflect.Message {
+	mi := &file_aperio_v1_api_proto_msgTypes[227]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DetectionPackRule.ProtoReflect.Descriptor instead.
+func (*DetectionPackRule) Descriptor() ([]byte, []int) {
+	return file_aperio_v1_api_proto_rawDescGZIP(), []int{227}
+}
+
+func (x *DetectionPackRule) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *DetectionPackRule) GetTitle() string {
+	if x != nil {
+		return x.Title
+	}
+	return ""
+}
+
+func (x *DetectionPackRule) GetDescription() string {
+	if x != nil {
+		return x.Description
+	}
+	return ""
+}
+
+func (x *DetectionPackRule) GetSeverity() string {
+	if x != nil {
+		return x.Severity
+	}
+	return ""
+}
+
+func (x *DetectionPackRule) GetEventTypes() []string {
+	if x != nil {
+		return x.EventTypes
+	}
+	return nil
+}
+
+func (x *DetectionPackRule) GetMitreTechniques() []string {
+	if x != nil {
+		return x.MitreTechniques
+	}
+	return nil
+}
+
+func (x *DetectionPackRule) GetIntent() string {
+	if x != nil {
+		return x.Intent
+	}
+	return ""
+}
+
+func (x *DetectionPackRule) GetTags() []string {
+	if x != nil {
+		return x.Tags
+	}
+	return nil
+}
+
 type ConnectorCustomRule struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -14871,7 +15144,7 @@ type ConnectorCustomRule struct {
 
 func (x *ConnectorCustomRule) Reset() {
 	*x = ConnectorCustomRule{}
-	mi := &file_aperio_v1_api_proto_msgTypes[224]
+	mi := &file_aperio_v1_api_proto_msgTypes[228]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14883,7 +15156,7 @@ func (x *ConnectorCustomRule) String() string {
 func (*ConnectorCustomRule) ProtoMessage() {}
 
 func (x *ConnectorCustomRule) ProtoReflect() protoreflect.Message {
-	mi := &file_aperio_v1_api_proto_msgTypes[224]
+	mi := &file_aperio_v1_api_proto_msgTypes[228]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14896,7 +15169,7 @@ func (x *ConnectorCustomRule) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConnectorCustomRule.ProtoReflect.Descriptor instead.
 func (*ConnectorCustomRule) Descriptor() ([]byte, []int) {
-	return file_aperio_v1_api_proto_rawDescGZIP(), []int{224}
+	return file_aperio_v1_api_proto_rawDescGZIP(), []int{228}
 }
 
 func (x *ConnectorCustomRule) GetId() string {
@@ -14964,7 +15237,7 @@ type ListConnectorRulesRequest struct {
 
 func (x *ListConnectorRulesRequest) Reset() {
 	*x = ListConnectorRulesRequest{}
-	mi := &file_aperio_v1_api_proto_msgTypes[225]
+	mi := &file_aperio_v1_api_proto_msgTypes[229]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14976,7 +15249,7 @@ func (x *ListConnectorRulesRequest) String() string {
 func (*ListConnectorRulesRequest) ProtoMessage() {}
 
 func (x *ListConnectorRulesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_aperio_v1_api_proto_msgTypes[225]
+	mi := &file_aperio_v1_api_proto_msgTypes[229]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14989,7 +15262,7 @@ func (x *ListConnectorRulesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListConnectorRulesRequest.ProtoReflect.Descriptor instead.
 func (*ListConnectorRulesRequest) Descriptor() ([]byte, []int) {
-	return file_aperio_v1_api_proto_rawDescGZIP(), []int{225}
+	return file_aperio_v1_api_proto_rawDescGZIP(), []int{229}
 }
 
 func (x *ListConnectorRulesRequest) GetIntegrationId() string {
@@ -15011,7 +15284,7 @@ type ListConnectorRulesResponse struct {
 
 func (x *ListConnectorRulesResponse) Reset() {
 	*x = ListConnectorRulesResponse{}
-	mi := &file_aperio_v1_api_proto_msgTypes[226]
+	mi := &file_aperio_v1_api_proto_msgTypes[230]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -15023,7 +15296,7 @@ func (x *ListConnectorRulesResponse) String() string {
 func (*ListConnectorRulesResponse) ProtoMessage() {}
 
 func (x *ListConnectorRulesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_aperio_v1_api_proto_msgTypes[226]
+	mi := &file_aperio_v1_api_proto_msgTypes[230]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -15036,7 +15309,7 @@ func (x *ListConnectorRulesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListConnectorRulesResponse.ProtoReflect.Descriptor instead.
 func (*ListConnectorRulesResponse) Descriptor() ([]byte, []int) {
-	return file_aperio_v1_api_proto_rawDescGZIP(), []int{226}
+	return file_aperio_v1_api_proto_rawDescGZIP(), []int{230}
 }
 
 func (x *ListConnectorRulesResponse) GetIntegrationId() string {
@@ -15082,7 +15355,7 @@ type CreateCustomRuleRequest struct {
 
 func (x *CreateCustomRuleRequest) Reset() {
 	*x = CreateCustomRuleRequest{}
-	mi := &file_aperio_v1_api_proto_msgTypes[227]
+	mi := &file_aperio_v1_api_proto_msgTypes[231]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -15094,7 +15367,7 @@ func (x *CreateCustomRuleRequest) String() string {
 func (*CreateCustomRuleRequest) ProtoMessage() {}
 
 func (x *CreateCustomRuleRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_aperio_v1_api_proto_msgTypes[227]
+	mi := &file_aperio_v1_api_proto_msgTypes[231]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -15107,7 +15380,7 @@ func (x *CreateCustomRuleRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateCustomRuleRequest.ProtoReflect.Descriptor instead.
 func (*CreateCustomRuleRequest) Descriptor() ([]byte, []int) {
-	return file_aperio_v1_api_proto_rawDescGZIP(), []int{227}
+	return file_aperio_v1_api_proto_rawDescGZIP(), []int{231}
 }
 
 func (x *CreateCustomRuleRequest) GetIntegrationId() string {
@@ -15168,7 +15441,7 @@ type CreateCustomRuleResponse struct {
 
 func (x *CreateCustomRuleResponse) Reset() {
 	*x = CreateCustomRuleResponse{}
-	mi := &file_aperio_v1_api_proto_msgTypes[228]
+	mi := &file_aperio_v1_api_proto_msgTypes[232]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -15180,7 +15453,7 @@ func (x *CreateCustomRuleResponse) String() string {
 func (*CreateCustomRuleResponse) ProtoMessage() {}
 
 func (x *CreateCustomRuleResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_aperio_v1_api_proto_msgTypes[228]
+	mi := &file_aperio_v1_api_proto_msgTypes[232]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -15193,7 +15466,7 @@ func (x *CreateCustomRuleResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateCustomRuleResponse.ProtoReflect.Descriptor instead.
 func (*CreateCustomRuleResponse) Descriptor() ([]byte, []int) {
-	return file_aperio_v1_api_proto_rawDescGZIP(), []int{228}
+	return file_aperio_v1_api_proto_rawDescGZIP(), []int{232}
 }
 
 func (x *CreateCustomRuleResponse) GetId() string {
@@ -15219,7 +15492,7 @@ type UpdateCustomRuleRequest struct {
 
 func (x *UpdateCustomRuleRequest) Reset() {
 	*x = UpdateCustomRuleRequest{}
-	mi := &file_aperio_v1_api_proto_msgTypes[229]
+	mi := &file_aperio_v1_api_proto_msgTypes[233]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -15231,7 +15504,7 @@ func (x *UpdateCustomRuleRequest) String() string {
 func (*UpdateCustomRuleRequest) ProtoMessage() {}
 
 func (x *UpdateCustomRuleRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_aperio_v1_api_proto_msgTypes[229]
+	mi := &file_aperio_v1_api_proto_msgTypes[233]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -15244,7 +15517,7 @@ func (x *UpdateCustomRuleRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateCustomRuleRequest.ProtoReflect.Descriptor instead.
 func (*UpdateCustomRuleRequest) Descriptor() ([]byte, []int) {
-	return file_aperio_v1_api_proto_rawDescGZIP(), []int{229}
+	return file_aperio_v1_api_proto_rawDescGZIP(), []int{233}
 }
 
 func (x *UpdateCustomRuleRequest) GetIntegrationId() string {
@@ -15312,7 +15585,7 @@ type UpdateCustomRuleResponse struct {
 
 func (x *UpdateCustomRuleResponse) Reset() {
 	*x = UpdateCustomRuleResponse{}
-	mi := &file_aperio_v1_api_proto_msgTypes[230]
+	mi := &file_aperio_v1_api_proto_msgTypes[234]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -15324,7 +15597,7 @@ func (x *UpdateCustomRuleResponse) String() string {
 func (*UpdateCustomRuleResponse) ProtoMessage() {}
 
 func (x *UpdateCustomRuleResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_aperio_v1_api_proto_msgTypes[230]
+	mi := &file_aperio_v1_api_proto_msgTypes[234]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -15337,7 +15610,7 @@ func (x *UpdateCustomRuleResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateCustomRuleResponse.ProtoReflect.Descriptor instead.
 func (*UpdateCustomRuleResponse) Descriptor() ([]byte, []int) {
-	return file_aperio_v1_api_proto_rawDescGZIP(), []int{230}
+	return file_aperio_v1_api_proto_rawDescGZIP(), []int{234}
 }
 
 func (x *UpdateCustomRuleResponse) GetId() string {
@@ -15357,7 +15630,7 @@ type DeleteCustomRuleRequest struct {
 
 func (x *DeleteCustomRuleRequest) Reset() {
 	*x = DeleteCustomRuleRequest{}
-	mi := &file_aperio_v1_api_proto_msgTypes[231]
+	mi := &file_aperio_v1_api_proto_msgTypes[235]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -15369,7 +15642,7 @@ func (x *DeleteCustomRuleRequest) String() string {
 func (*DeleteCustomRuleRequest) ProtoMessage() {}
 
 func (x *DeleteCustomRuleRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_aperio_v1_api_proto_msgTypes[231]
+	mi := &file_aperio_v1_api_proto_msgTypes[235]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -15382,7 +15655,7 @@ func (x *DeleteCustomRuleRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteCustomRuleRequest.ProtoReflect.Descriptor instead.
 func (*DeleteCustomRuleRequest) Descriptor() ([]byte, []int) {
-	return file_aperio_v1_api_proto_rawDescGZIP(), []int{231}
+	return file_aperio_v1_api_proto_rawDescGZIP(), []int{235}
 }
 
 func (x *DeleteCustomRuleRequest) GetIntegrationId() string {
@@ -15408,7 +15681,7 @@ type DeleteCustomRuleResponse struct {
 
 func (x *DeleteCustomRuleResponse) Reset() {
 	*x = DeleteCustomRuleResponse{}
-	mi := &file_aperio_v1_api_proto_msgTypes[232]
+	mi := &file_aperio_v1_api_proto_msgTypes[236]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -15420,7 +15693,7 @@ func (x *DeleteCustomRuleResponse) String() string {
 func (*DeleteCustomRuleResponse) ProtoMessage() {}
 
 func (x *DeleteCustomRuleResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_aperio_v1_api_proto_msgTypes[232]
+	mi := &file_aperio_v1_api_proto_msgTypes[236]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -15433,7 +15706,7 @@ func (x *DeleteCustomRuleResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteCustomRuleResponse.ProtoReflect.Descriptor instead.
 func (*DeleteCustomRuleResponse) Descriptor() ([]byte, []int) {
-	return file_aperio_v1_api_proto_rawDescGZIP(), []int{232}
+	return file_aperio_v1_api_proto_rawDescGZIP(), []int{236}
 }
 
 func (x *DeleteCustomRuleResponse) GetId() string {
@@ -16717,7 +16990,28 @@ const file_aperio_v1_api_proto_rawDesc = "" +
 	"\bseverity\x18\x05 \x01(\tR\bseverity\x12\x1f\n" +
 	"\vevent_types\x18\x06 \x03(\tR\n" +
 	"eventTypes\x12\x18\n" +
-	"\aenabled\x18\a \x01(\bR\aenabled\"\xf9\x01\n" +
+	"\aenabled\x18\a \x01(\bR\aenabled\"7\n" +
+	"\x19ListDetectionPacksRequest\x12\x1a\n" +
+	"\bprovider\x18\x01 \x01(\tR\bprovider\"J\n" +
+	"\x1aListDetectionPacksResponse\x12,\n" +
+	"\x04data\x18\x01 \x03(\v2\x18.aperio.v1.DetectionPackR\x04data\"\xbf\x01\n" +
+	"\rDetectionPack\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n" +
+	"\bprovider\x18\x02 \x01(\tR\bprovider\x12\x12\n" +
+	"\x04name\x18\x03 \x01(\tR\x04name\x12 \n" +
+	"\vdescription\x18\x04 \x01(\tR\vdescription\x12\x18\n" +
+	"\aversion\x18\x05 \x01(\tR\aversion\x122\n" +
+	"\x05rules\x18\x06 \x03(\v2\x1c.aperio.v1.DetectionPackRuleR\x05rules\"\xef\x01\n" +
+	"\x11DetectionPackRule\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
+	"\x05title\x18\x02 \x01(\tR\x05title\x12 \n" +
+	"\vdescription\x18\x03 \x01(\tR\vdescription\x12\x1a\n" +
+	"\bseverity\x18\x04 \x01(\tR\bseverity\x12\x1f\n" +
+	"\vevent_types\x18\x05 \x03(\tR\n" +
+	"eventTypes\x12)\n" +
+	"\x10mitre_techniques\x18\x06 \x03(\tR\x0fmitreTechniques\x12\x16\n" +
+	"\x06intent\x18\a \x01(\tR\x06intent\x12\x12\n" +
+	"\x04tags\x18\b \x03(\tR\x04tags\"\xf9\x01\n" +
 	"\x13ConnectorCustomRule\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1a\n" +
@@ -16763,7 +17057,7 @@ const file_aperio_v1_api_proto_rawDesc = "" +
 	"\x0eintegration_id\x18\x01 \x01(\tR\rintegrationId\x12\x17\n" +
 	"\arule_id\x18\x02 \x01(\tR\x06ruleId\"*\n" +
 	"\x18DeleteCustomRuleResponse\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id2\xe8=\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id2\xcb>\n" +
 	"\rAperioService\x12@\n" +
 	"\aCallApi\x12\x19.aperio.v1.CallApiRequest\x1a\x1a.aperio.v1.CallApiResponse\x12=\n" +
 	"\x06Signup\x12\x18.aperio.v1.SignupRequest\x1a\x19.aperio.v1.SignupResponse\x12:\n" +
@@ -16792,7 +17086,8 @@ const file_aperio_v1_api_proto_rawDesc = "" +
 	"\x18UpdateSaasIncidentStatus\x12*.aperio.v1.UpdateSaasIncidentStatusRequest\x1a+.aperio.v1.UpdateSaasIncidentStatusResponse\x12v\n" +
 	"\x19ProposeSaasResponseAction\x12+.aperio.v1.ProposeSaasResponseActionRequest\x1a,.aperio.v1.ProposeSaasResponseActionResponse\x12v\n" +
 	"\x19ApproveSaasResponseAction\x12+.aperio.v1.ApproveSaasResponseActionRequest\x1a,.aperio.v1.ApproveSaasResponseActionResponse\x12v\n" +
-	"\x19ExecuteSaasResponseAction\x12+.aperio.v1.ExecuteSaasResponseActionRequest\x1a,.aperio.v1.ExecuteSaasResponseActionResponse\x12g\n" +
+	"\x19ExecuteSaasResponseAction\x12+.aperio.v1.ExecuteSaasResponseActionRequest\x1a,.aperio.v1.ExecuteSaasResponseActionResponse\x12a\n" +
+	"\x12ListDetectionPacks\x12$.aperio.v1.ListDetectionPacksRequest\x1a%.aperio.v1.ListDetectionPacksResponse\x12g\n" +
 	"\x14ListConnectorCatalog\x12&.aperio.v1.ListConnectorCatalogRequest\x1a'.aperio.v1.ListConnectorCatalogResponse\x12[\n" +
 	"\x10ListIntegrations\x12\".aperio.v1.ListIntegrationsRequest\x1a#.aperio.v1.ListIntegrationsResponse\x12^\n" +
 	"\x11CreateIntegration\x12#.aperio.v1.CreateIntegrationRequest\x1a$.aperio.v1.CreateIntegrationResponse\x12^\n" +
@@ -16857,7 +17152,7 @@ func file_aperio_v1_api_proto_rawDescGZIP() []byte {
 	return file_aperio_v1_api_proto_rawDescData
 }
 
-var file_aperio_v1_api_proto_msgTypes = make([]protoimpl.MessageInfo, 233)
+var file_aperio_v1_api_proto_msgTypes = make([]protoimpl.MessageInfo, 237)
 var file_aperio_v1_api_proto_goTypes = []any{
 	(*CallApiRequest)(nil),                                // 0: aperio.v1.CallApiRequest
 	(*CallApiResponse)(nil),                               // 1: aperio.v1.CallApiResponse
@@ -17083,16 +17378,20 @@ var file_aperio_v1_api_proto_goTypes = []any{
 	(*DeleteExecutiveReportRequest)(nil),                  // 221: aperio.v1.DeleteExecutiveReportRequest
 	(*DeleteExecutiveReportResponse)(nil),                 // 222: aperio.v1.DeleteExecutiveReportResponse
 	(*ConnectorBuiltInRule)(nil),                          // 223: aperio.v1.ConnectorBuiltInRule
-	(*ConnectorCustomRule)(nil),                           // 224: aperio.v1.ConnectorCustomRule
-	(*ListConnectorRulesRequest)(nil),                     // 225: aperio.v1.ListConnectorRulesRequest
-	(*ListConnectorRulesResponse)(nil),                    // 226: aperio.v1.ListConnectorRulesResponse
-	(*CreateCustomRuleRequest)(nil),                       // 227: aperio.v1.CreateCustomRuleRequest
-	(*CreateCustomRuleResponse)(nil),                      // 228: aperio.v1.CreateCustomRuleResponse
-	(*UpdateCustomRuleRequest)(nil),                       // 229: aperio.v1.UpdateCustomRuleRequest
-	(*UpdateCustomRuleResponse)(nil),                      // 230: aperio.v1.UpdateCustomRuleResponse
-	(*DeleteCustomRuleRequest)(nil),                       // 231: aperio.v1.DeleteCustomRuleRequest
-	(*DeleteCustomRuleResponse)(nil),                      // 232: aperio.v1.DeleteCustomRuleResponse
-	(*timestamppb.Timestamp)(nil),                         // 233: google.protobuf.Timestamp
+	(*ListDetectionPacksRequest)(nil),                     // 224: aperio.v1.ListDetectionPacksRequest
+	(*ListDetectionPacksResponse)(nil),                    // 225: aperio.v1.ListDetectionPacksResponse
+	(*DetectionPack)(nil),                                 // 226: aperio.v1.DetectionPack
+	(*DetectionPackRule)(nil),                             // 227: aperio.v1.DetectionPackRule
+	(*ConnectorCustomRule)(nil),                           // 228: aperio.v1.ConnectorCustomRule
+	(*ListConnectorRulesRequest)(nil),                     // 229: aperio.v1.ListConnectorRulesRequest
+	(*ListConnectorRulesResponse)(nil),                    // 230: aperio.v1.ListConnectorRulesResponse
+	(*CreateCustomRuleRequest)(nil),                       // 231: aperio.v1.CreateCustomRuleRequest
+	(*CreateCustomRuleResponse)(nil),                      // 232: aperio.v1.CreateCustomRuleResponse
+	(*UpdateCustomRuleRequest)(nil),                       // 233: aperio.v1.UpdateCustomRuleRequest
+	(*UpdateCustomRuleResponse)(nil),                      // 234: aperio.v1.UpdateCustomRuleResponse
+	(*DeleteCustomRuleRequest)(nil),                       // 235: aperio.v1.DeleteCustomRuleRequest
+	(*DeleteCustomRuleResponse)(nil),                      // 236: aperio.v1.DeleteCustomRuleResponse
+	(*timestamppb.Timestamp)(nil),                         // 237: google.protobuf.Timestamp
 }
 var file_aperio_v1_api_proto_depIdxs = []int32{
 	26,  // 0: aperio.v1.SignupResponse.data:type_name -> aperio.v1.AuthSession
@@ -17110,7 +17409,7 @@ var file_aperio_v1_api_proto_depIdxs = []int32{
 	27,  // 12: aperio.v1.AuthSession.user:type_name -> aperio.v1.AuthUser
 	28,  // 13: aperio.v1.AuthSession.organization:type_name -> aperio.v1.AuthOrganization
 	29,  // 14: aperio.v1.AuthSession.auth_context:type_name -> aperio.v1.AuthContext
-	233, // 15: aperio.v1.CheckHealthResponse.checked_at:type_name -> google.protobuf.Timestamp
+	237, // 15: aperio.v1.CheckHealthResponse.checked_at:type_name -> google.protobuf.Timestamp
 	35,  // 16: aperio.v1.CheckHealthResponse.components:type_name -> aperio.v1.HealthComponent
 	38,  // 17: aperio.v1.GetDashboardMetricsResponse.data:type_name -> aperio.v1.DashboardMetrics
 	49,  // 18: aperio.v1.ListFindingsResponse.data:type_name -> aperio.v1.Finding
@@ -17229,167 +17528,171 @@ var file_aperio_v1_api_proto_depIdxs = []int32{
 	214, // 131: aperio.v1.ListExecutiveReportsResponse.data:type_name -> aperio.v1.ExecutiveReport
 	214, // 132: aperio.v1.GetExecutiveReportResponse.data:type_name -> aperio.v1.ExecutiveReport
 	214, // 133: aperio.v1.CreateExecutiveReportResponse.data:type_name -> aperio.v1.ExecutiveReport
-	223, // 134: aperio.v1.ListConnectorRulesResponse.built_in:type_name -> aperio.v1.ConnectorBuiltInRule
-	224, // 135: aperio.v1.ListConnectorRulesResponse.custom:type_name -> aperio.v1.ConnectorCustomRule
-	0,   // 136: aperio.v1.AperioService.CallApi:input_type -> aperio.v1.CallApiRequest
-	2,   // 137: aperio.v1.AperioService.Signup:input_type -> aperio.v1.SignupRequest
-	4,   // 138: aperio.v1.AperioService.Login:input_type -> aperio.v1.LoginRequest
-	6,   // 139: aperio.v1.AperioService.GetCurrentSession:input_type -> aperio.v1.GetCurrentSessionRequest
-	8,   // 140: aperio.v1.AperioService.LogoutCurrentSession:input_type -> aperio.v1.LogoutCurrentSessionRequest
-	10,  // 141: aperio.v1.AperioService.ListWorkspaces:input_type -> aperio.v1.ListWorkspacesRequest
-	12,  // 142: aperio.v1.AperioService.SwitchWorkspace:input_type -> aperio.v1.SwitchWorkspaceRequest
-	14,  // 143: aperio.v1.AperioService.RequestPasswordReset:input_type -> aperio.v1.RequestPasswordResetRequest
-	16,  // 144: aperio.v1.AperioService.ResetPassword:input_type -> aperio.v1.ResetPasswordRequest
-	18,  // 145: aperio.v1.AperioService.AcceptInvite:input_type -> aperio.v1.AcceptInviteRequest
-	20,  // 146: aperio.v1.AperioService.BeginMfaEnrollment:input_type -> aperio.v1.BeginMfaEnrollmentRequest
-	22,  // 147: aperio.v1.AperioService.EnableMfa:input_type -> aperio.v1.EnableMfaRequest
-	24,  // 148: aperio.v1.AperioService.DisableMfa:input_type -> aperio.v1.DisableMfaRequest
-	33,  // 149: aperio.v1.AperioService.CheckHealth:input_type -> aperio.v1.CheckHealthRequest
-	36,  // 150: aperio.v1.AperioService.GetDashboardMetrics:input_type -> aperio.v1.GetDashboardMetricsRequest
-	39,  // 151: aperio.v1.AperioService.ListFindings:input_type -> aperio.v1.ListFindingsRequest
-	41,  // 152: aperio.v1.AperioService.GetFinding:input_type -> aperio.v1.GetFindingRequest
-	43,  // 153: aperio.v1.AperioService.UpdateFindingStatus:input_type -> aperio.v1.UpdateFindingStatusRequest
-	46,  // 154: aperio.v1.AperioService.RemediateFinding:input_type -> aperio.v1.RemediateFindingRequest
-	58,  // 155: aperio.v1.AperioService.ListSaasIncidents:input_type -> aperio.v1.ListSaasIncidentsRequest
-	60,  // 156: aperio.v1.AperioService.GetSaasIncident:input_type -> aperio.v1.GetSaasIncidentRequest
-	62,  // 157: aperio.v1.AperioService.CreateSaasIncident:input_type -> aperio.v1.CreateSaasIncidentRequest
-	64,  // 158: aperio.v1.AperioService.UpdateSaasIncidentStatus:input_type -> aperio.v1.UpdateSaasIncidentStatusRequest
-	66,  // 159: aperio.v1.AperioService.ProposeSaasResponseAction:input_type -> aperio.v1.ProposeSaasResponseActionRequest
-	68,  // 160: aperio.v1.AperioService.ApproveSaasResponseAction:input_type -> aperio.v1.ApproveSaasResponseActionRequest
-	70,  // 161: aperio.v1.AperioService.ExecuteSaasResponseAction:input_type -> aperio.v1.ExecuteSaasResponseActionRequest
-	78,  // 162: aperio.v1.AperioService.ListConnectorCatalog:input_type -> aperio.v1.ListConnectorCatalogRequest
-	84,  // 163: aperio.v1.AperioService.ListIntegrations:input_type -> aperio.v1.ListIntegrationsRequest
-	87,  // 164: aperio.v1.AperioService.CreateIntegration:input_type -> aperio.v1.CreateIntegrationRequest
-	90,  // 165: aperio.v1.AperioService.DeleteIntegration:input_type -> aperio.v1.DeleteIntegrationRequest
-	93,  // 166: aperio.v1.AperioService.GetIntegrationChecks:input_type -> aperio.v1.GetIntegrationChecksRequest
-	95,  // 167: aperio.v1.AperioService.UpdateIntegrationChecks:input_type -> aperio.v1.UpdateIntegrationChecksRequest
-	225, // 168: aperio.v1.AperioService.ListConnectorRules:input_type -> aperio.v1.ListConnectorRulesRequest
-	227, // 169: aperio.v1.AperioService.CreateCustomRule:input_type -> aperio.v1.CreateCustomRuleRequest
-	229, // 170: aperio.v1.AperioService.UpdateCustomRule:input_type -> aperio.v1.UpdateCustomRuleRequest
-	231, // 171: aperio.v1.AperioService.DeleteCustomRule:input_type -> aperio.v1.DeleteCustomRuleRequest
-	99,  // 172: aperio.v1.AperioService.GetGoogleMailboxScanConfig:input_type -> aperio.v1.GetGoogleMailboxScanConfigRequest
-	101, // 173: aperio.v1.AperioService.UpdateGoogleMailboxScanConfig:input_type -> aperio.v1.UpdateGoogleMailboxScanConfigRequest
-	104, // 174: aperio.v1.AperioService.GetGoogleWorkspaceBigQueryConfig:input_type -> aperio.v1.GetGoogleWorkspaceBigQueryConfigRequest
-	106, // 175: aperio.v1.AperioService.UpdateGoogleWorkspaceBigQueryConfig:input_type -> aperio.v1.UpdateGoogleWorkspaceBigQueryConfigRequest
-	109, // 176: aperio.v1.AperioService.ValidateGoogleWorkspaceBigQueryConfig:input_type -> aperio.v1.ValidateGoogleWorkspaceBigQueryConfigRequest
-	112, // 177: aperio.v1.AperioService.StartGoogleWorkspaceOAuth:input_type -> aperio.v1.StartGoogleWorkspaceOAuthRequest
-	115, // 178: aperio.v1.AperioService.GetIntegrationOAuthClient:input_type -> aperio.v1.GetIntegrationOAuthClientRequest
-	117, // 179: aperio.v1.AperioService.SetIntegrationOAuthClient:input_type -> aperio.v1.SetIntegrationOAuthClientRequest
-	119, // 180: aperio.v1.AperioService.ClearIntegrationOAuthClient:input_type -> aperio.v1.ClearIntegrationOAuthClientRequest
-	122, // 181: aperio.v1.AperioService.ForceSyncIntegration:input_type -> aperio.v1.ForceSyncIntegrationRequest
-	125, // 182: aperio.v1.AperioService.GetIntegrationSyncStatus:input_type -> aperio.v1.GetIntegrationSyncStatusRequest
-	127, // 183: aperio.v1.AperioService.RunIntegrationSourceSync:input_type -> aperio.v1.RunIntegrationSourceSyncRequest
-	129, // 184: aperio.v1.AperioService.BackfillIntegrationSource:input_type -> aperio.v1.BackfillIntegrationSourceRequest
-	134, // 185: aperio.v1.AperioService.ListSiemCatalog:input_type -> aperio.v1.ListSiemCatalogRequest
-	138, // 186: aperio.v1.AperioService.ListSiemDestinations:input_type -> aperio.v1.ListSiemDestinationsRequest
-	141, // 187: aperio.v1.AperioService.CreateSiemDestination:input_type -> aperio.v1.CreateSiemDestinationRequest
-	143, // 188: aperio.v1.AperioService.DeleteSiemDestination:input_type -> aperio.v1.DeleteSiemDestinationRequest
-	145, // 189: aperio.v1.AperioService.TestSiemDestination:input_type -> aperio.v1.TestSiemDestinationRequest
-	148, // 190: aperio.v1.AperioService.ListShadowItOauthApps:input_type -> aperio.v1.ListShadowItOauthAppsRequest
-	151, // 191: aperio.v1.AperioService.ListShadowItOauthAppGrants:input_type -> aperio.v1.ListShadowItOauthAppGrantsRequest
-	156, // 192: aperio.v1.AperioService.GetTenantSettings:input_type -> aperio.v1.GetTenantSettingsRequest
-	158, // 193: aperio.v1.AperioService.UpdateTenantSettings:input_type -> aperio.v1.UpdateTenantSettingsRequest
-	161, // 194: aperio.v1.AperioService.ListTenantMembers:input_type -> aperio.v1.ListTenantMembersRequest
-	163, // 195: aperio.v1.AperioService.CreateTenantMember:input_type -> aperio.v1.CreateTenantMemberRequest
-	165, // 196: aperio.v1.AperioService.CreateMemberResetLink:input_type -> aperio.v1.CreateMemberResetLinkRequest
-	167, // 197: aperio.v1.AperioService.UpdateMemberRole:input_type -> aperio.v1.UpdateMemberRoleRequest
-	171, // 198: aperio.v1.AperioService.ListAuditLogs:input_type -> aperio.v1.ListAuditLogsRequest
-	174, // 199: aperio.v1.AperioService.GetSecurityOverview:input_type -> aperio.v1.GetSecurityOverviewRequest
-	186, // 200: aperio.v1.AperioService.ListEmailDomainHealth:input_type -> aperio.v1.ListEmailDomainHealthRequest
-	188, // 201: aperio.v1.AperioService.GetEmailDomainHealth:input_type -> aperio.v1.GetEmailDomainHealthRequest
-	190, // 202: aperio.v1.AperioService.RefreshEmailDomainHealth:input_type -> aperio.v1.RefreshEmailDomainHealthRequest
-	197, // 203: aperio.v1.AperioService.ListSecurityAssets:input_type -> aperio.v1.ListSecurityAssetsRequest
-	201, // 204: aperio.v1.AperioService.CreateSecurityAsset:input_type -> aperio.v1.CreateSecurityAssetRequest
-	203, // 205: aperio.v1.AperioService.UpdateSecurityAsset:input_type -> aperio.v1.UpdateSecurityAssetRequest
-	205, // 206: aperio.v1.AperioService.ListRiskExceptions:input_type -> aperio.v1.ListRiskExceptionsRequest
-	210, // 207: aperio.v1.AperioService.CreateRiskException:input_type -> aperio.v1.CreateRiskExceptionRequest
-	212, // 208: aperio.v1.AperioService.UpdateRiskException:input_type -> aperio.v1.UpdateRiskExceptionRequest
-	215, // 209: aperio.v1.AperioService.ListExecutiveReports:input_type -> aperio.v1.ListExecutiveReportsRequest
-	217, // 210: aperio.v1.AperioService.GetExecutiveReport:input_type -> aperio.v1.GetExecutiveReportRequest
-	219, // 211: aperio.v1.AperioService.CreateExecutiveReport:input_type -> aperio.v1.CreateExecutiveReportRequest
-	221, // 212: aperio.v1.AperioService.DeleteExecutiveReport:input_type -> aperio.v1.DeleteExecutiveReportRequest
-	1,   // 213: aperio.v1.AperioService.CallApi:output_type -> aperio.v1.CallApiResponse
-	3,   // 214: aperio.v1.AperioService.Signup:output_type -> aperio.v1.SignupResponse
-	5,   // 215: aperio.v1.AperioService.Login:output_type -> aperio.v1.LoginResponse
-	7,   // 216: aperio.v1.AperioService.GetCurrentSession:output_type -> aperio.v1.GetCurrentSessionResponse
-	9,   // 217: aperio.v1.AperioService.LogoutCurrentSession:output_type -> aperio.v1.LogoutCurrentSessionResponse
-	11,  // 218: aperio.v1.AperioService.ListWorkspaces:output_type -> aperio.v1.ListWorkspacesResponse
-	13,  // 219: aperio.v1.AperioService.SwitchWorkspace:output_type -> aperio.v1.SwitchWorkspaceResponse
-	15,  // 220: aperio.v1.AperioService.RequestPasswordReset:output_type -> aperio.v1.RequestPasswordResetResponse
-	17,  // 221: aperio.v1.AperioService.ResetPassword:output_type -> aperio.v1.ResetPasswordResponse
-	19,  // 222: aperio.v1.AperioService.AcceptInvite:output_type -> aperio.v1.AcceptInviteResponse
-	21,  // 223: aperio.v1.AperioService.BeginMfaEnrollment:output_type -> aperio.v1.BeginMfaEnrollmentResponse
-	23,  // 224: aperio.v1.AperioService.EnableMfa:output_type -> aperio.v1.EnableMfaResponse
-	25,  // 225: aperio.v1.AperioService.DisableMfa:output_type -> aperio.v1.DisableMfaResponse
-	34,  // 226: aperio.v1.AperioService.CheckHealth:output_type -> aperio.v1.CheckHealthResponse
-	37,  // 227: aperio.v1.AperioService.GetDashboardMetrics:output_type -> aperio.v1.GetDashboardMetricsResponse
-	40,  // 228: aperio.v1.AperioService.ListFindings:output_type -> aperio.v1.ListFindingsResponse
-	42,  // 229: aperio.v1.AperioService.GetFinding:output_type -> aperio.v1.GetFindingResponse
-	44,  // 230: aperio.v1.AperioService.UpdateFindingStatus:output_type -> aperio.v1.UpdateFindingStatusResponse
-	47,  // 231: aperio.v1.AperioService.RemediateFinding:output_type -> aperio.v1.RemediateFindingResponse
-	59,  // 232: aperio.v1.AperioService.ListSaasIncidents:output_type -> aperio.v1.ListSaasIncidentsResponse
-	61,  // 233: aperio.v1.AperioService.GetSaasIncident:output_type -> aperio.v1.GetSaasIncidentResponse
-	63,  // 234: aperio.v1.AperioService.CreateSaasIncident:output_type -> aperio.v1.CreateSaasIncidentResponse
-	65,  // 235: aperio.v1.AperioService.UpdateSaasIncidentStatus:output_type -> aperio.v1.UpdateSaasIncidentStatusResponse
-	67,  // 236: aperio.v1.AperioService.ProposeSaasResponseAction:output_type -> aperio.v1.ProposeSaasResponseActionResponse
-	69,  // 237: aperio.v1.AperioService.ApproveSaasResponseAction:output_type -> aperio.v1.ApproveSaasResponseActionResponse
-	71,  // 238: aperio.v1.AperioService.ExecuteSaasResponseAction:output_type -> aperio.v1.ExecuteSaasResponseActionResponse
-	79,  // 239: aperio.v1.AperioService.ListConnectorCatalog:output_type -> aperio.v1.ListConnectorCatalogResponse
-	85,  // 240: aperio.v1.AperioService.ListIntegrations:output_type -> aperio.v1.ListIntegrationsResponse
-	89,  // 241: aperio.v1.AperioService.CreateIntegration:output_type -> aperio.v1.CreateIntegrationResponse
-	91,  // 242: aperio.v1.AperioService.DeleteIntegration:output_type -> aperio.v1.DeleteIntegrationResponse
-	94,  // 243: aperio.v1.AperioService.GetIntegrationChecks:output_type -> aperio.v1.GetIntegrationChecksResponse
-	96,  // 244: aperio.v1.AperioService.UpdateIntegrationChecks:output_type -> aperio.v1.UpdateIntegrationChecksResponse
-	226, // 245: aperio.v1.AperioService.ListConnectorRules:output_type -> aperio.v1.ListConnectorRulesResponse
-	228, // 246: aperio.v1.AperioService.CreateCustomRule:output_type -> aperio.v1.CreateCustomRuleResponse
-	230, // 247: aperio.v1.AperioService.UpdateCustomRule:output_type -> aperio.v1.UpdateCustomRuleResponse
-	232, // 248: aperio.v1.AperioService.DeleteCustomRule:output_type -> aperio.v1.DeleteCustomRuleResponse
-	100, // 249: aperio.v1.AperioService.GetGoogleMailboxScanConfig:output_type -> aperio.v1.GetGoogleMailboxScanConfigResponse
-	102, // 250: aperio.v1.AperioService.UpdateGoogleMailboxScanConfig:output_type -> aperio.v1.UpdateGoogleMailboxScanConfigResponse
-	105, // 251: aperio.v1.AperioService.GetGoogleWorkspaceBigQueryConfig:output_type -> aperio.v1.GetGoogleWorkspaceBigQueryConfigResponse
-	107, // 252: aperio.v1.AperioService.UpdateGoogleWorkspaceBigQueryConfig:output_type -> aperio.v1.UpdateGoogleWorkspaceBigQueryConfigResponse
-	110, // 253: aperio.v1.AperioService.ValidateGoogleWorkspaceBigQueryConfig:output_type -> aperio.v1.ValidateGoogleWorkspaceBigQueryConfigResponse
-	113, // 254: aperio.v1.AperioService.StartGoogleWorkspaceOAuth:output_type -> aperio.v1.StartGoogleWorkspaceOAuthResponse
-	116, // 255: aperio.v1.AperioService.GetIntegrationOAuthClient:output_type -> aperio.v1.GetIntegrationOAuthClientResponse
-	118, // 256: aperio.v1.AperioService.SetIntegrationOAuthClient:output_type -> aperio.v1.SetIntegrationOAuthClientResponse
-	120, // 257: aperio.v1.AperioService.ClearIntegrationOAuthClient:output_type -> aperio.v1.ClearIntegrationOAuthClientResponse
-	123, // 258: aperio.v1.AperioService.ForceSyncIntegration:output_type -> aperio.v1.ForceSyncIntegrationResponse
-	126, // 259: aperio.v1.AperioService.GetIntegrationSyncStatus:output_type -> aperio.v1.GetIntegrationSyncStatusResponse
-	128, // 260: aperio.v1.AperioService.RunIntegrationSourceSync:output_type -> aperio.v1.RunIntegrationSourceSyncResponse
-	130, // 261: aperio.v1.AperioService.BackfillIntegrationSource:output_type -> aperio.v1.BackfillIntegrationSourceResponse
-	135, // 262: aperio.v1.AperioService.ListSiemCatalog:output_type -> aperio.v1.ListSiemCatalogResponse
-	139, // 263: aperio.v1.AperioService.ListSiemDestinations:output_type -> aperio.v1.ListSiemDestinationsResponse
-	142, // 264: aperio.v1.AperioService.CreateSiemDestination:output_type -> aperio.v1.CreateSiemDestinationResponse
-	144, // 265: aperio.v1.AperioService.DeleteSiemDestination:output_type -> aperio.v1.DeleteSiemDestinationResponse
-	146, // 266: aperio.v1.AperioService.TestSiemDestination:output_type -> aperio.v1.TestSiemDestinationResponse
-	149, // 267: aperio.v1.AperioService.ListShadowItOauthApps:output_type -> aperio.v1.ListShadowItOauthAppsResponse
-	152, // 268: aperio.v1.AperioService.ListShadowItOauthAppGrants:output_type -> aperio.v1.ListShadowItOauthAppGrantsResponse
-	157, // 269: aperio.v1.AperioService.GetTenantSettings:output_type -> aperio.v1.GetTenantSettingsResponse
-	159, // 270: aperio.v1.AperioService.UpdateTenantSettings:output_type -> aperio.v1.UpdateTenantSettingsResponse
-	162, // 271: aperio.v1.AperioService.ListTenantMembers:output_type -> aperio.v1.ListTenantMembersResponse
-	164, // 272: aperio.v1.AperioService.CreateTenantMember:output_type -> aperio.v1.CreateTenantMemberResponse
-	166, // 273: aperio.v1.AperioService.CreateMemberResetLink:output_type -> aperio.v1.CreateMemberResetLinkResponse
-	168, // 274: aperio.v1.AperioService.UpdateMemberRole:output_type -> aperio.v1.UpdateMemberRoleResponse
-	172, // 275: aperio.v1.AperioService.ListAuditLogs:output_type -> aperio.v1.ListAuditLogsResponse
-	175, // 276: aperio.v1.AperioService.GetSecurityOverview:output_type -> aperio.v1.GetSecurityOverviewResponse
-	187, // 277: aperio.v1.AperioService.ListEmailDomainHealth:output_type -> aperio.v1.ListEmailDomainHealthResponse
-	189, // 278: aperio.v1.AperioService.GetEmailDomainHealth:output_type -> aperio.v1.GetEmailDomainHealthResponse
-	191, // 279: aperio.v1.AperioService.RefreshEmailDomainHealth:output_type -> aperio.v1.RefreshEmailDomainHealthResponse
-	198, // 280: aperio.v1.AperioService.ListSecurityAssets:output_type -> aperio.v1.ListSecurityAssetsResponse
-	202, // 281: aperio.v1.AperioService.CreateSecurityAsset:output_type -> aperio.v1.CreateSecurityAssetResponse
-	204, // 282: aperio.v1.AperioService.UpdateSecurityAsset:output_type -> aperio.v1.UpdateSecurityAssetResponse
-	206, // 283: aperio.v1.AperioService.ListRiskExceptions:output_type -> aperio.v1.ListRiskExceptionsResponse
-	211, // 284: aperio.v1.AperioService.CreateRiskException:output_type -> aperio.v1.CreateRiskExceptionResponse
-	213, // 285: aperio.v1.AperioService.UpdateRiskException:output_type -> aperio.v1.UpdateRiskExceptionResponse
-	216, // 286: aperio.v1.AperioService.ListExecutiveReports:output_type -> aperio.v1.ListExecutiveReportsResponse
-	218, // 287: aperio.v1.AperioService.GetExecutiveReport:output_type -> aperio.v1.GetExecutiveReportResponse
-	220, // 288: aperio.v1.AperioService.CreateExecutiveReport:output_type -> aperio.v1.CreateExecutiveReportResponse
-	222, // 289: aperio.v1.AperioService.DeleteExecutiveReport:output_type -> aperio.v1.DeleteExecutiveReportResponse
-	213, // [213:290] is the sub-list for method output_type
-	136, // [136:213] is the sub-list for method input_type
-	136, // [136:136] is the sub-list for extension type_name
-	136, // [136:136] is the sub-list for extension extendee
-	0,   // [0:136] is the sub-list for field type_name
+	226, // 134: aperio.v1.ListDetectionPacksResponse.data:type_name -> aperio.v1.DetectionPack
+	227, // 135: aperio.v1.DetectionPack.rules:type_name -> aperio.v1.DetectionPackRule
+	223, // 136: aperio.v1.ListConnectorRulesResponse.built_in:type_name -> aperio.v1.ConnectorBuiltInRule
+	228, // 137: aperio.v1.ListConnectorRulesResponse.custom:type_name -> aperio.v1.ConnectorCustomRule
+	0,   // 138: aperio.v1.AperioService.CallApi:input_type -> aperio.v1.CallApiRequest
+	2,   // 139: aperio.v1.AperioService.Signup:input_type -> aperio.v1.SignupRequest
+	4,   // 140: aperio.v1.AperioService.Login:input_type -> aperio.v1.LoginRequest
+	6,   // 141: aperio.v1.AperioService.GetCurrentSession:input_type -> aperio.v1.GetCurrentSessionRequest
+	8,   // 142: aperio.v1.AperioService.LogoutCurrentSession:input_type -> aperio.v1.LogoutCurrentSessionRequest
+	10,  // 143: aperio.v1.AperioService.ListWorkspaces:input_type -> aperio.v1.ListWorkspacesRequest
+	12,  // 144: aperio.v1.AperioService.SwitchWorkspace:input_type -> aperio.v1.SwitchWorkspaceRequest
+	14,  // 145: aperio.v1.AperioService.RequestPasswordReset:input_type -> aperio.v1.RequestPasswordResetRequest
+	16,  // 146: aperio.v1.AperioService.ResetPassword:input_type -> aperio.v1.ResetPasswordRequest
+	18,  // 147: aperio.v1.AperioService.AcceptInvite:input_type -> aperio.v1.AcceptInviteRequest
+	20,  // 148: aperio.v1.AperioService.BeginMfaEnrollment:input_type -> aperio.v1.BeginMfaEnrollmentRequest
+	22,  // 149: aperio.v1.AperioService.EnableMfa:input_type -> aperio.v1.EnableMfaRequest
+	24,  // 150: aperio.v1.AperioService.DisableMfa:input_type -> aperio.v1.DisableMfaRequest
+	33,  // 151: aperio.v1.AperioService.CheckHealth:input_type -> aperio.v1.CheckHealthRequest
+	36,  // 152: aperio.v1.AperioService.GetDashboardMetrics:input_type -> aperio.v1.GetDashboardMetricsRequest
+	39,  // 153: aperio.v1.AperioService.ListFindings:input_type -> aperio.v1.ListFindingsRequest
+	41,  // 154: aperio.v1.AperioService.GetFinding:input_type -> aperio.v1.GetFindingRequest
+	43,  // 155: aperio.v1.AperioService.UpdateFindingStatus:input_type -> aperio.v1.UpdateFindingStatusRequest
+	46,  // 156: aperio.v1.AperioService.RemediateFinding:input_type -> aperio.v1.RemediateFindingRequest
+	58,  // 157: aperio.v1.AperioService.ListSaasIncidents:input_type -> aperio.v1.ListSaasIncidentsRequest
+	60,  // 158: aperio.v1.AperioService.GetSaasIncident:input_type -> aperio.v1.GetSaasIncidentRequest
+	62,  // 159: aperio.v1.AperioService.CreateSaasIncident:input_type -> aperio.v1.CreateSaasIncidentRequest
+	64,  // 160: aperio.v1.AperioService.UpdateSaasIncidentStatus:input_type -> aperio.v1.UpdateSaasIncidentStatusRequest
+	66,  // 161: aperio.v1.AperioService.ProposeSaasResponseAction:input_type -> aperio.v1.ProposeSaasResponseActionRequest
+	68,  // 162: aperio.v1.AperioService.ApproveSaasResponseAction:input_type -> aperio.v1.ApproveSaasResponseActionRequest
+	70,  // 163: aperio.v1.AperioService.ExecuteSaasResponseAction:input_type -> aperio.v1.ExecuteSaasResponseActionRequest
+	224, // 164: aperio.v1.AperioService.ListDetectionPacks:input_type -> aperio.v1.ListDetectionPacksRequest
+	78,  // 165: aperio.v1.AperioService.ListConnectorCatalog:input_type -> aperio.v1.ListConnectorCatalogRequest
+	84,  // 166: aperio.v1.AperioService.ListIntegrations:input_type -> aperio.v1.ListIntegrationsRequest
+	87,  // 167: aperio.v1.AperioService.CreateIntegration:input_type -> aperio.v1.CreateIntegrationRequest
+	90,  // 168: aperio.v1.AperioService.DeleteIntegration:input_type -> aperio.v1.DeleteIntegrationRequest
+	93,  // 169: aperio.v1.AperioService.GetIntegrationChecks:input_type -> aperio.v1.GetIntegrationChecksRequest
+	95,  // 170: aperio.v1.AperioService.UpdateIntegrationChecks:input_type -> aperio.v1.UpdateIntegrationChecksRequest
+	229, // 171: aperio.v1.AperioService.ListConnectorRules:input_type -> aperio.v1.ListConnectorRulesRequest
+	231, // 172: aperio.v1.AperioService.CreateCustomRule:input_type -> aperio.v1.CreateCustomRuleRequest
+	233, // 173: aperio.v1.AperioService.UpdateCustomRule:input_type -> aperio.v1.UpdateCustomRuleRequest
+	235, // 174: aperio.v1.AperioService.DeleteCustomRule:input_type -> aperio.v1.DeleteCustomRuleRequest
+	99,  // 175: aperio.v1.AperioService.GetGoogleMailboxScanConfig:input_type -> aperio.v1.GetGoogleMailboxScanConfigRequest
+	101, // 176: aperio.v1.AperioService.UpdateGoogleMailboxScanConfig:input_type -> aperio.v1.UpdateGoogleMailboxScanConfigRequest
+	104, // 177: aperio.v1.AperioService.GetGoogleWorkspaceBigQueryConfig:input_type -> aperio.v1.GetGoogleWorkspaceBigQueryConfigRequest
+	106, // 178: aperio.v1.AperioService.UpdateGoogleWorkspaceBigQueryConfig:input_type -> aperio.v1.UpdateGoogleWorkspaceBigQueryConfigRequest
+	109, // 179: aperio.v1.AperioService.ValidateGoogleWorkspaceBigQueryConfig:input_type -> aperio.v1.ValidateGoogleWorkspaceBigQueryConfigRequest
+	112, // 180: aperio.v1.AperioService.StartGoogleWorkspaceOAuth:input_type -> aperio.v1.StartGoogleWorkspaceOAuthRequest
+	115, // 181: aperio.v1.AperioService.GetIntegrationOAuthClient:input_type -> aperio.v1.GetIntegrationOAuthClientRequest
+	117, // 182: aperio.v1.AperioService.SetIntegrationOAuthClient:input_type -> aperio.v1.SetIntegrationOAuthClientRequest
+	119, // 183: aperio.v1.AperioService.ClearIntegrationOAuthClient:input_type -> aperio.v1.ClearIntegrationOAuthClientRequest
+	122, // 184: aperio.v1.AperioService.ForceSyncIntegration:input_type -> aperio.v1.ForceSyncIntegrationRequest
+	125, // 185: aperio.v1.AperioService.GetIntegrationSyncStatus:input_type -> aperio.v1.GetIntegrationSyncStatusRequest
+	127, // 186: aperio.v1.AperioService.RunIntegrationSourceSync:input_type -> aperio.v1.RunIntegrationSourceSyncRequest
+	129, // 187: aperio.v1.AperioService.BackfillIntegrationSource:input_type -> aperio.v1.BackfillIntegrationSourceRequest
+	134, // 188: aperio.v1.AperioService.ListSiemCatalog:input_type -> aperio.v1.ListSiemCatalogRequest
+	138, // 189: aperio.v1.AperioService.ListSiemDestinations:input_type -> aperio.v1.ListSiemDestinationsRequest
+	141, // 190: aperio.v1.AperioService.CreateSiemDestination:input_type -> aperio.v1.CreateSiemDestinationRequest
+	143, // 191: aperio.v1.AperioService.DeleteSiemDestination:input_type -> aperio.v1.DeleteSiemDestinationRequest
+	145, // 192: aperio.v1.AperioService.TestSiemDestination:input_type -> aperio.v1.TestSiemDestinationRequest
+	148, // 193: aperio.v1.AperioService.ListShadowItOauthApps:input_type -> aperio.v1.ListShadowItOauthAppsRequest
+	151, // 194: aperio.v1.AperioService.ListShadowItOauthAppGrants:input_type -> aperio.v1.ListShadowItOauthAppGrantsRequest
+	156, // 195: aperio.v1.AperioService.GetTenantSettings:input_type -> aperio.v1.GetTenantSettingsRequest
+	158, // 196: aperio.v1.AperioService.UpdateTenantSettings:input_type -> aperio.v1.UpdateTenantSettingsRequest
+	161, // 197: aperio.v1.AperioService.ListTenantMembers:input_type -> aperio.v1.ListTenantMembersRequest
+	163, // 198: aperio.v1.AperioService.CreateTenantMember:input_type -> aperio.v1.CreateTenantMemberRequest
+	165, // 199: aperio.v1.AperioService.CreateMemberResetLink:input_type -> aperio.v1.CreateMemberResetLinkRequest
+	167, // 200: aperio.v1.AperioService.UpdateMemberRole:input_type -> aperio.v1.UpdateMemberRoleRequest
+	171, // 201: aperio.v1.AperioService.ListAuditLogs:input_type -> aperio.v1.ListAuditLogsRequest
+	174, // 202: aperio.v1.AperioService.GetSecurityOverview:input_type -> aperio.v1.GetSecurityOverviewRequest
+	186, // 203: aperio.v1.AperioService.ListEmailDomainHealth:input_type -> aperio.v1.ListEmailDomainHealthRequest
+	188, // 204: aperio.v1.AperioService.GetEmailDomainHealth:input_type -> aperio.v1.GetEmailDomainHealthRequest
+	190, // 205: aperio.v1.AperioService.RefreshEmailDomainHealth:input_type -> aperio.v1.RefreshEmailDomainHealthRequest
+	197, // 206: aperio.v1.AperioService.ListSecurityAssets:input_type -> aperio.v1.ListSecurityAssetsRequest
+	201, // 207: aperio.v1.AperioService.CreateSecurityAsset:input_type -> aperio.v1.CreateSecurityAssetRequest
+	203, // 208: aperio.v1.AperioService.UpdateSecurityAsset:input_type -> aperio.v1.UpdateSecurityAssetRequest
+	205, // 209: aperio.v1.AperioService.ListRiskExceptions:input_type -> aperio.v1.ListRiskExceptionsRequest
+	210, // 210: aperio.v1.AperioService.CreateRiskException:input_type -> aperio.v1.CreateRiskExceptionRequest
+	212, // 211: aperio.v1.AperioService.UpdateRiskException:input_type -> aperio.v1.UpdateRiskExceptionRequest
+	215, // 212: aperio.v1.AperioService.ListExecutiveReports:input_type -> aperio.v1.ListExecutiveReportsRequest
+	217, // 213: aperio.v1.AperioService.GetExecutiveReport:input_type -> aperio.v1.GetExecutiveReportRequest
+	219, // 214: aperio.v1.AperioService.CreateExecutiveReport:input_type -> aperio.v1.CreateExecutiveReportRequest
+	221, // 215: aperio.v1.AperioService.DeleteExecutiveReport:input_type -> aperio.v1.DeleteExecutiveReportRequest
+	1,   // 216: aperio.v1.AperioService.CallApi:output_type -> aperio.v1.CallApiResponse
+	3,   // 217: aperio.v1.AperioService.Signup:output_type -> aperio.v1.SignupResponse
+	5,   // 218: aperio.v1.AperioService.Login:output_type -> aperio.v1.LoginResponse
+	7,   // 219: aperio.v1.AperioService.GetCurrentSession:output_type -> aperio.v1.GetCurrentSessionResponse
+	9,   // 220: aperio.v1.AperioService.LogoutCurrentSession:output_type -> aperio.v1.LogoutCurrentSessionResponse
+	11,  // 221: aperio.v1.AperioService.ListWorkspaces:output_type -> aperio.v1.ListWorkspacesResponse
+	13,  // 222: aperio.v1.AperioService.SwitchWorkspace:output_type -> aperio.v1.SwitchWorkspaceResponse
+	15,  // 223: aperio.v1.AperioService.RequestPasswordReset:output_type -> aperio.v1.RequestPasswordResetResponse
+	17,  // 224: aperio.v1.AperioService.ResetPassword:output_type -> aperio.v1.ResetPasswordResponse
+	19,  // 225: aperio.v1.AperioService.AcceptInvite:output_type -> aperio.v1.AcceptInviteResponse
+	21,  // 226: aperio.v1.AperioService.BeginMfaEnrollment:output_type -> aperio.v1.BeginMfaEnrollmentResponse
+	23,  // 227: aperio.v1.AperioService.EnableMfa:output_type -> aperio.v1.EnableMfaResponse
+	25,  // 228: aperio.v1.AperioService.DisableMfa:output_type -> aperio.v1.DisableMfaResponse
+	34,  // 229: aperio.v1.AperioService.CheckHealth:output_type -> aperio.v1.CheckHealthResponse
+	37,  // 230: aperio.v1.AperioService.GetDashboardMetrics:output_type -> aperio.v1.GetDashboardMetricsResponse
+	40,  // 231: aperio.v1.AperioService.ListFindings:output_type -> aperio.v1.ListFindingsResponse
+	42,  // 232: aperio.v1.AperioService.GetFinding:output_type -> aperio.v1.GetFindingResponse
+	44,  // 233: aperio.v1.AperioService.UpdateFindingStatus:output_type -> aperio.v1.UpdateFindingStatusResponse
+	47,  // 234: aperio.v1.AperioService.RemediateFinding:output_type -> aperio.v1.RemediateFindingResponse
+	59,  // 235: aperio.v1.AperioService.ListSaasIncidents:output_type -> aperio.v1.ListSaasIncidentsResponse
+	61,  // 236: aperio.v1.AperioService.GetSaasIncident:output_type -> aperio.v1.GetSaasIncidentResponse
+	63,  // 237: aperio.v1.AperioService.CreateSaasIncident:output_type -> aperio.v1.CreateSaasIncidentResponse
+	65,  // 238: aperio.v1.AperioService.UpdateSaasIncidentStatus:output_type -> aperio.v1.UpdateSaasIncidentStatusResponse
+	67,  // 239: aperio.v1.AperioService.ProposeSaasResponseAction:output_type -> aperio.v1.ProposeSaasResponseActionResponse
+	69,  // 240: aperio.v1.AperioService.ApproveSaasResponseAction:output_type -> aperio.v1.ApproveSaasResponseActionResponse
+	71,  // 241: aperio.v1.AperioService.ExecuteSaasResponseAction:output_type -> aperio.v1.ExecuteSaasResponseActionResponse
+	225, // 242: aperio.v1.AperioService.ListDetectionPacks:output_type -> aperio.v1.ListDetectionPacksResponse
+	79,  // 243: aperio.v1.AperioService.ListConnectorCatalog:output_type -> aperio.v1.ListConnectorCatalogResponse
+	85,  // 244: aperio.v1.AperioService.ListIntegrations:output_type -> aperio.v1.ListIntegrationsResponse
+	89,  // 245: aperio.v1.AperioService.CreateIntegration:output_type -> aperio.v1.CreateIntegrationResponse
+	91,  // 246: aperio.v1.AperioService.DeleteIntegration:output_type -> aperio.v1.DeleteIntegrationResponse
+	94,  // 247: aperio.v1.AperioService.GetIntegrationChecks:output_type -> aperio.v1.GetIntegrationChecksResponse
+	96,  // 248: aperio.v1.AperioService.UpdateIntegrationChecks:output_type -> aperio.v1.UpdateIntegrationChecksResponse
+	230, // 249: aperio.v1.AperioService.ListConnectorRules:output_type -> aperio.v1.ListConnectorRulesResponse
+	232, // 250: aperio.v1.AperioService.CreateCustomRule:output_type -> aperio.v1.CreateCustomRuleResponse
+	234, // 251: aperio.v1.AperioService.UpdateCustomRule:output_type -> aperio.v1.UpdateCustomRuleResponse
+	236, // 252: aperio.v1.AperioService.DeleteCustomRule:output_type -> aperio.v1.DeleteCustomRuleResponse
+	100, // 253: aperio.v1.AperioService.GetGoogleMailboxScanConfig:output_type -> aperio.v1.GetGoogleMailboxScanConfigResponse
+	102, // 254: aperio.v1.AperioService.UpdateGoogleMailboxScanConfig:output_type -> aperio.v1.UpdateGoogleMailboxScanConfigResponse
+	105, // 255: aperio.v1.AperioService.GetGoogleWorkspaceBigQueryConfig:output_type -> aperio.v1.GetGoogleWorkspaceBigQueryConfigResponse
+	107, // 256: aperio.v1.AperioService.UpdateGoogleWorkspaceBigQueryConfig:output_type -> aperio.v1.UpdateGoogleWorkspaceBigQueryConfigResponse
+	110, // 257: aperio.v1.AperioService.ValidateGoogleWorkspaceBigQueryConfig:output_type -> aperio.v1.ValidateGoogleWorkspaceBigQueryConfigResponse
+	113, // 258: aperio.v1.AperioService.StartGoogleWorkspaceOAuth:output_type -> aperio.v1.StartGoogleWorkspaceOAuthResponse
+	116, // 259: aperio.v1.AperioService.GetIntegrationOAuthClient:output_type -> aperio.v1.GetIntegrationOAuthClientResponse
+	118, // 260: aperio.v1.AperioService.SetIntegrationOAuthClient:output_type -> aperio.v1.SetIntegrationOAuthClientResponse
+	120, // 261: aperio.v1.AperioService.ClearIntegrationOAuthClient:output_type -> aperio.v1.ClearIntegrationOAuthClientResponse
+	123, // 262: aperio.v1.AperioService.ForceSyncIntegration:output_type -> aperio.v1.ForceSyncIntegrationResponse
+	126, // 263: aperio.v1.AperioService.GetIntegrationSyncStatus:output_type -> aperio.v1.GetIntegrationSyncStatusResponse
+	128, // 264: aperio.v1.AperioService.RunIntegrationSourceSync:output_type -> aperio.v1.RunIntegrationSourceSyncResponse
+	130, // 265: aperio.v1.AperioService.BackfillIntegrationSource:output_type -> aperio.v1.BackfillIntegrationSourceResponse
+	135, // 266: aperio.v1.AperioService.ListSiemCatalog:output_type -> aperio.v1.ListSiemCatalogResponse
+	139, // 267: aperio.v1.AperioService.ListSiemDestinations:output_type -> aperio.v1.ListSiemDestinationsResponse
+	142, // 268: aperio.v1.AperioService.CreateSiemDestination:output_type -> aperio.v1.CreateSiemDestinationResponse
+	144, // 269: aperio.v1.AperioService.DeleteSiemDestination:output_type -> aperio.v1.DeleteSiemDestinationResponse
+	146, // 270: aperio.v1.AperioService.TestSiemDestination:output_type -> aperio.v1.TestSiemDestinationResponse
+	149, // 271: aperio.v1.AperioService.ListShadowItOauthApps:output_type -> aperio.v1.ListShadowItOauthAppsResponse
+	152, // 272: aperio.v1.AperioService.ListShadowItOauthAppGrants:output_type -> aperio.v1.ListShadowItOauthAppGrantsResponse
+	157, // 273: aperio.v1.AperioService.GetTenantSettings:output_type -> aperio.v1.GetTenantSettingsResponse
+	159, // 274: aperio.v1.AperioService.UpdateTenantSettings:output_type -> aperio.v1.UpdateTenantSettingsResponse
+	162, // 275: aperio.v1.AperioService.ListTenantMembers:output_type -> aperio.v1.ListTenantMembersResponse
+	164, // 276: aperio.v1.AperioService.CreateTenantMember:output_type -> aperio.v1.CreateTenantMemberResponse
+	166, // 277: aperio.v1.AperioService.CreateMemberResetLink:output_type -> aperio.v1.CreateMemberResetLinkResponse
+	168, // 278: aperio.v1.AperioService.UpdateMemberRole:output_type -> aperio.v1.UpdateMemberRoleResponse
+	172, // 279: aperio.v1.AperioService.ListAuditLogs:output_type -> aperio.v1.ListAuditLogsResponse
+	175, // 280: aperio.v1.AperioService.GetSecurityOverview:output_type -> aperio.v1.GetSecurityOverviewResponse
+	187, // 281: aperio.v1.AperioService.ListEmailDomainHealth:output_type -> aperio.v1.ListEmailDomainHealthResponse
+	189, // 282: aperio.v1.AperioService.GetEmailDomainHealth:output_type -> aperio.v1.GetEmailDomainHealthResponse
+	191, // 283: aperio.v1.AperioService.RefreshEmailDomainHealth:output_type -> aperio.v1.RefreshEmailDomainHealthResponse
+	198, // 284: aperio.v1.AperioService.ListSecurityAssets:output_type -> aperio.v1.ListSecurityAssetsResponse
+	202, // 285: aperio.v1.AperioService.CreateSecurityAsset:output_type -> aperio.v1.CreateSecurityAssetResponse
+	204, // 286: aperio.v1.AperioService.UpdateSecurityAsset:output_type -> aperio.v1.UpdateSecurityAssetResponse
+	206, // 287: aperio.v1.AperioService.ListRiskExceptions:output_type -> aperio.v1.ListRiskExceptionsResponse
+	211, // 288: aperio.v1.AperioService.CreateRiskException:output_type -> aperio.v1.CreateRiskExceptionResponse
+	213, // 289: aperio.v1.AperioService.UpdateRiskException:output_type -> aperio.v1.UpdateRiskExceptionResponse
+	216, // 290: aperio.v1.AperioService.ListExecutiveReports:output_type -> aperio.v1.ListExecutiveReportsResponse
+	218, // 291: aperio.v1.AperioService.GetExecutiveReport:output_type -> aperio.v1.GetExecutiveReportResponse
+	220, // 292: aperio.v1.AperioService.CreateExecutiveReport:output_type -> aperio.v1.CreateExecutiveReportResponse
+	222, // 293: aperio.v1.AperioService.DeleteExecutiveReport:output_type -> aperio.v1.DeleteExecutiveReportResponse
+	216, // [216:294] is the sub-list for method output_type
+	138, // [138:216] is the sub-list for method input_type
+	138, // [138:138] is the sub-list for extension type_name
+	138, // [138:138] is the sub-list for extension extendee
+	0,   // [0:138] is the sub-list for field type_name
 }
 
 func init() { file_aperio_v1_api_proto_init() }
@@ -17408,7 +17711,7 @@ func file_aperio_v1_api_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_aperio_v1_api_proto_rawDesc), len(file_aperio_v1_api_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   233,
+			NumMessages:   237,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
