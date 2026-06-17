@@ -77,6 +77,8 @@ test("smoke harness exports the canonical localhost route matrix and report sect
   const routes = smoke.CANONICAL_ROUTES.map((route: { path: string }) => route.path);
   assert.deepEqual(routes, [
     "/",
+    "/incidents",
+    "/incidents/inc_demo_vendor_drive_response",
     "/findings",
     "/findings/fnd_demo_public_repo",
     "/connectors",
@@ -193,4 +195,7 @@ test("seed data includes E2E-critical shadow IT grants and local SIEM destinatio
   assert.match(seed, /siemDestination\.upsert/);
   assert.match(seed, /siem_demo_json_file/);
   assert.match(seed, /JSON_FILE/);
+  assert.match(seed, /saasIncident\.upsert/);
+  assert.match(seed, /inc_demo_vendor_drive_response/);
+  assert.match(seed, /saasResponseAction\.upsert/);
 });

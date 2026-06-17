@@ -27,7 +27,17 @@ export const CANONICAL_ROUTES = Object.freeze([
   {
     path: "/",
     url: `${WEB_ORIGIN}/`,
-    expectedText: "Posture dashboard"
+    expectedText: "SaaS Detection & Response"
+  },
+  {
+    path: "/incidents",
+    url: `${WEB_ORIGIN}/incidents`,
+    expectedText: "SaaS incidents"
+  },
+  {
+    path: "/incidents/inc_demo_vendor_drive_response",
+    url: `${WEB_ORIGIN}/incidents/inc_demo_vendor_drive_response`,
+    expectedText: "Vendor app Drive access may expose board materials"
   },
   {
     path: "/findings",
@@ -1479,7 +1489,7 @@ async function runBrowserValidation(report) {
     await waitForExpression(
       cdp,
       "login redirect",
-      `location.pathname === "/" && document.body.innerText.includes("Posture dashboard") && !document.body.innerText.includes("Sign in")`,
+      `location.pathname === "/" && document.body.innerText.includes(${JSON.stringify(CANONICAL_ROUTES[0].expectedText)}) && !document.body.innerText.includes("Sign in")`,
       90_000
     );
     await waitFor(

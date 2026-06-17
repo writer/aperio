@@ -56,7 +56,9 @@ func mcpSideEffectCount(t *testing.T, db *sql.DB, orgID string) int {
 			(SELECT COUNT(*) FROM agent_tasks WHERE organization_id = $1) +
 			(SELECT COUNT(*) FROM agent_messages WHERE organization_id = $1) +
 			(SELECT COUNT(*) FROM agent_proposals WHERE organization_id = $1) +
-			(SELECT COUNT(*) FROM siem_deliveries WHERE organization_id = $1)
+			(SELECT COUNT(*) FROM siem_deliveries WHERE organization_id = $1) +
+			(SELECT COUNT(*) FROM saas_response_actions WHERE organization_id = $1) +
+			(SELECT COUNT(*) FROM saas_incident_timeline_events WHERE organization_id = $1)
 	`, orgID).Scan(&count)
 	if err != nil {
 		t.Fatalf("count MCP side effects: %v", err)
