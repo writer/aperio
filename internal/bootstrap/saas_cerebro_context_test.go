@@ -15,15 +15,18 @@ type fakeSaasCerebroContextClient struct {
 	listErr       error
 	graphErr      error
 	listRequests  []cerebroclient.ListClaimsRequest
+	listDeadlines []bool
 	graphRoots    []string
 	listDeadline  bool
 }
 
 func (c *fakeSaasCerebroContextClient) ListClaims(ctx context.Context, request cerebroclient.ListClaimsRequest) (*cerebroclient.ListClaimsResponse, error) {
 	c.listRequests = append(c.listRequests, request)
-	if _, ok := ctx.Deadline(); ok {
+	_, hasDeadline := ctx.Deadline()
+	if hasDeadline {
 		c.listDeadline = true
 	}
+	c.listDeadlines = append(c.listDeadlines, hasDeadline)
 	if c.listErr != nil {
 		return nil, c.listErr
 	}

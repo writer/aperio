@@ -81,6 +81,7 @@ type findingRow struct {
 	IntegrationID    string
 	Provider         string
 	DisplayName      string
+	CerebroContext   *aperiov1.FindingCerebroContext
 }
 
 type integrationRow struct {
@@ -440,6 +441,9 @@ func (a *App) GetFinding(
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, errors.New("finding unavailable"))
 	}
+	enrichCtx, cancel := context.WithTimeout(ctx, 6*time.Second)
+	defer cancel()
+	a.enrichFindingCerebroContext(enrichCtx, organizationID, &finding)
 	return connect.NewResponse(&aperiov1.GetFindingResponse{Data: finding.toProto()}), nil
 }
 
@@ -1863,6 +1867,7 @@ func (finding findingRow) toProto() *aperiov1.Finding {
 			Provider:    finding.Provider,
 			DisplayName: finding.DisplayName,
 		},
+		CerebroContext: finding.CerebroContext,
 	}
 }
 
