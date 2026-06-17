@@ -54,7 +54,7 @@ test("Droid preflight treats Go SIEM and MCP runtime paths as high-risk review s
   });
 
   assert.equal(result.run_droid_review, "true");
-  assert.equal(result.review_model, "claude-opus-4-8");
+  assert.equal(result.review_model, "claude-sonnet-4-6");
   assert.match(result.review_reason, /Agents\/remediation\/MCP\/SIEM/);
 
   const category = result.risk_categories.find((entry) => entry.id === "agents_remediation_mcp_siem");
@@ -84,7 +84,7 @@ test("Droid preflight preserves legacy Agents/remediation/MCP/SIEM high-risk pat
     changedFiles
   });
 
-  assert.equal(result.review_model, "claude-opus-4-8");
+  assert.equal(result.review_model, "claude-sonnet-4-6");
   assert.deepEqual(
     result.risk_categories.find((entry) => entry.id === "agents_remediation_mcp_siem")?.files,
     changedFiles

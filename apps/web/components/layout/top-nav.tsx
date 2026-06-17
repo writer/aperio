@@ -31,6 +31,7 @@ export const NAV_TREE: NavNode[] = [
     label: "Issues",
     children: [
       { href: "/findings", label: "Findings" },
+      { href: "/incidents", label: "Incidents" },
       { href: "/shadow-it", label: "Shadow IT" },
       { href: "/security", label: "Security Graph" },
       { href: "/security/email-domain-health", label: "Email Domain Health" }
