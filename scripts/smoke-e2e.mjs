@@ -1518,7 +1518,7 @@ async function runBrowserValidation(report) {
       `location.pathname === "/"`,
       90_000
     );
-    const sessionReady = await waitFor(
+    await waitFor(
       "cookie-backed current session after login",
       () =>
         evaluate(
@@ -1537,7 +1537,7 @@ async function runBrowserValidation(report) {
     report.browser.login = {
       status: "passed",
       path: await evaluate(cdp, "location.pathname"),
-      cookieBackedSession: sessionReady ? "passed" : "failed",
+      cookieBackedSession: "passed",
       credentialSource: process.env.DEMO_OWNER_PASSWORD
         ? "DEMO_OWNER_PASSWORD"
         : "seed-default"
