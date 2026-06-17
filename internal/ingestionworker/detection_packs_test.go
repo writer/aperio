@@ -131,4 +131,3 @@ func TestRulesInPackPreservesCatalogOrder(t *testing.T) {
 		}
 	}
 }
-
