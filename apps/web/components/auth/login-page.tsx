@@ -48,7 +48,8 @@ export function LoginPage() {
   return (
     <AuthLayout
       title="Sign in"
-      description="Use your workspace slug, email, and password to access your tenant."
+      description="Use workspace credentials to bind this browser session to a tenant, principal, and scoped Cerebro action set."
+      showSessionMessaging
       footer={
         <>
           Need a workspace?{" "}

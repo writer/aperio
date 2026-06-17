@@ -270,6 +270,15 @@ type ConnectProvider = ConnectFinding["integration"]["provider"];
 
 type ConnectTenantRole = "OWNER" | "ADMIN" | "SECURITY_ANALYST" | "VIEWER";
 
+export type ConnectAuthContext = {
+  principal: string;
+  tenantId: string;
+  tenantSlug: string;
+  credentialKind: "human_workspace_session";
+  tokenTransport: "http_only_cookie";
+  cerebroScopes: string[];
+};
+
 export type ConnectAuthSession = {
   user: {
     id: string;
@@ -283,6 +292,7 @@ export type ConnectAuthSession = {
     name: string;
     slug: string;
   };
+  authContext: ConnectAuthContext;
 };
 
 export type ConnectWorkspaceMembership = {
@@ -975,19 +985,70 @@ function parseMetadata(metadataJson: string): Record<string, unknown> | null {
     : null;
 }
 
+const CEREBRO_READ_SCOPE = "cerebro.cosmo.security.read";
+
+const CEREBRO_SCOPES_BY_ROLE: Record<ConnectTenantRole, string[]> = {
+  OWNER: [
+    CEREBRO_READ_SCOPE,
+    "cerebro.finding_candidates.promote",
+    "cerebro.findings.write",
+    "cerebro.grc.inventory.write",
+    "cerebro.runtime_response.write"
+  ],
+  ADMIN: [
+    CEREBRO_READ_SCOPE,
+    "cerebro.finding_candidates.promote",
+    "cerebro.findings.write",
+    "cerebro.grc.inventory.write",
+    "cerebro.runtime_response.write"
+  ],
+  SECURITY_ANALYST: [
+    CEREBRO_READ_SCOPE,
+    "cerebro.finding_candidates.promote",
+    "cerebro.findings.write",
+    "cerebro.grc.inventory.write",
+    "cerebro.runtime_response.write"
+  ],
+  VIEWER: [CEREBRO_READ_SCOPE]
+};
+
+function normalizeTenantRole(role: string | undefined): ConnectTenantRole {
+  if (
+    role === "OWNER" ||
+    role === "ADMIN" ||
+    role === "SECURITY_ANALYST" ||
+    role === "VIEWER"
+  ) {
+    return role;
+  }
+  return "VIEWER";
+}
+
 function authSessionFromProto(session: ProtoAuthSession): ConnectAuthSession {
+  const role = normalizeTenantRole(session.user?.role);
+  const user = {
+    id: session.user?.id ?? "",
+    email: session.user?.email ?? "",
+    displayName: session.user?.displayName || null,
+    mfaEnabled: session.user?.mfaEnabled ?? false,
+    role
+  };
+  const organization = {
+    id: session.organization?.id ?? "",
+    name: session.organization?.name ?? "",
+    slug: session.organization?.slug ?? ""
+  };
+
   return {
-    user: {
-      id: session.user?.id ?? "",
-      email: session.user?.email ?? "",
-      displayName: session.user?.displayName || null,
-      mfaEnabled: session.user?.mfaEnabled ?? false,
-      role: (session.user?.role ?? "VIEWER") as ConnectTenantRole
-    },
-    organization: {
-      id: session.organization?.id ?? "",
-      name: session.organization?.name ?? "",
-      slug: session.organization?.slug ?? ""
+    user,
+    organization,
+    authContext: {
+      principal: user.email,
+      tenantId: organization.id,
+      tenantSlug: organization.slug,
+      credentialKind: "human_workspace_session",
+      tokenTransport: "http_only_cookie",
+      cerebroScopes: [...CEREBRO_SCOPES_BY_ROLE[role]]
     }
   };
 }
