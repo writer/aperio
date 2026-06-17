@@ -23,6 +23,28 @@ export const EXPECTED_PORTS = Object.freeze({
   web: 3000
 });
 
+export function isOAuthWellKnownMetadataRequest(url) {
+  try {
+    const parsed = new URL(url);
+    return (
+      parsed.origin === WEB_ORIGIN &&
+      (parsed.pathname === "/.well-known/oauth-protected-resource" ||
+        parsed.pathname === "/.well-known/oauth-protected-resource/api/v1/mcp" ||
+        parsed.pathname === "/.well-known/oauth-authorization-server")
+    );
+  } catch {
+    return false;
+  }
+}
+
+export function isDirectProductApiV1BrowserRequest(url, requestType) {
+  return (
+    requestType !== "Document" &&
+    /\/api\/v1\//.test(url) &&
+    !isOAuthWellKnownMetadataRequest(url)
+  );
+}
+
 export const CANONICAL_ROUTES = Object.freeze([
   {
     path: "/",
@@ -1390,7 +1412,7 @@ async function runBrowserValidation(report) {
         type: params.type,
         phase: currentPhase
       });
-      if (/\/api\/v1\//.test(url) && params.type !== "Document") {
+      if (isDirectProductApiV1BrowserRequest(url, params.type)) {
         report.browser.directApiV1Requests.push({
           phase: currentPhase,
           method: params.request?.method,

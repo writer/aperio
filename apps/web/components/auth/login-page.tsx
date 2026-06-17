@@ -1,12 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { useRouter } from "next/navigation";
 import { login } from "../../lib/api";
 import {
   CEREBRO_API_RESOURCE,
-  CEREBRO_HUMAN_AUTH_MODE
+  CEREBRO_AUTH_INSIGHTS,
+  CEREBRO_HUMAN_AUTH_MODE,
+  loadCerebroAuthInsights,
+  type CerebroAuthInsight
 } from "../../lib/cerebro-auth";
 import { useAuth } from "./auth-shell";
 import { AuthLayout } from "./auth-layout";
@@ -22,11 +25,25 @@ export function LoginPage() {
   const [totpCode, setTotpCode] = useState("");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+  const [sessionInsights, setSessionInsights] =
+    useState<readonly CerebroAuthInsight[]>(CEREBRO_AUTH_INSIGHTS);
 
   const slugId = useId();
   const emailId = useId();
   const passwordId = useId();
   const totpId = useId();
+
+  useEffect(() => {
+    let active = true;
+    void loadCerebroAuthInsights().then((insights) => {
+      if (active) {
+        setSessionInsights(insights);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -54,6 +71,7 @@ export function LoginPage() {
       title="Sign in"
       description={`Use workspace credentials to bind this browser session to ${CEREBRO_API_RESOURCE} as ${CEREBRO_HUMAN_AUTH_MODE}.`}
       showSessionMessaging
+      sessionInsights={sessionInsights}
       footer={
         <>
           Need a workspace?{" "}

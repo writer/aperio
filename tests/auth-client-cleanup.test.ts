@@ -151,6 +151,7 @@ test("frontend auth surfaces share Cerebro auth vocabulary", () => {
   );
   const authLayout = readRepoFile("apps/web/components/auth/auth-layout.tsx");
   const loginPage = readRepoFile("apps/web/components/auth/login-page.tsx");
+  const nextConfig = readRepoFile("apps/web/next.config.mjs");
   const workspaceSwitcher = readRepoFile(
     "apps/web/components/layout/workspace-switcher.tsx"
   );
@@ -159,11 +160,11 @@ test("frontend auth surfaces share Cerebro auth vocabulary", () => {
   assert.match(authModel, /CEREBRO_MCP_RESOURCE\s*=\s*"cerebro-mcp"/);
   assert.match(
     authModel,
-    /CEREBRO_MCP_RESOURCE_METADATA_PATH\s*=\s*\n\s*"\/\.well-known\/oauth-protected-resource\/api\/v1\/mcp"/
+    /CEREBRO_MCP_RESOURCE_METADATA_PATH\s*=\s*discoveryMetadataPath/
   );
   assert.match(
     authModel,
-    /CEREBRO_OAUTH_AUTHORIZATION_SERVER_METADATA_PATH\s*=\s*\n\s*"\/\.well-known\/oauth-authorization-server"/
+    /CEREBRO_OAUTH_AUTHORIZATION_SERVER_METADATA_PATH\s*=\s*\n\s*discoveryMetadataPath/
   );
   assert.match(
     authModel,
@@ -180,6 +181,21 @@ test("frontend auth surfaces share Cerebro auth vocabulary", () => {
     authModel,
     /formatCerebroTransport\(CEREBRO_SESSION_TRANSPORT\)/
   );
+  assert.match(authModel, /loadCerebroAuthInsights/);
+  assert.match(
+    authModel,
+    /NEXT_PUBLIC_CEREBRO_MCP_RESOURCE_METADATA_PATH/
+  );
+  assert.match(
+    authModel,
+    /NEXT_PUBLIC_CEREBRO_OAUTH_AUTHORIZATION_SERVER_METADATA_PATH/
+  );
+  assert.match(authModel, /discoveryMetadataPath/);
+  assert.match(
+    authModel,
+    /if\s*\(!resourceMetadataPath\s*&&\s*!authorizationServerMetadataPath\)/
+  );
+  assert.match(authModel, /credentials:\s*"same-origin"/);
   assert.match(accountMenu, /cerebroMcpResourceMetadataPath/);
   assert.match(
     accountMenu,
@@ -191,9 +207,15 @@ test("frontend auth surfaces share Cerebro auth vocabulary", () => {
     /CEREBRO_OAUTH_AUTHORIZATION_SERVER_METADATA_PATH/
   );
   assert.match(accountMenu, /cerebroMcpGrantTypes/);
-  assert.match(authLayout, /CEREBRO_AUTH_INSIGHTS/);
+  assert.match(authLayout, /sessionInsights/);
   assert.match(authLayout, /CEREBRO_MCP_RESOURCE/);
   assert.match(loginPage, /CEREBRO_HUMAN_AUTH_MODE/);
+  assert.match(loginPage, /loadCerebroAuthInsights/);
+  assert.match(nextConfig, /\/\.well-known\/oauth-protected-resource/);
+  assert.match(
+    nextConfig,
+    /\/\.well-known\/oauth-authorization-server/
+  );
   assert.match(workspaceSwitcher, /CEREBRO_API_RESOURCE/);
 });
 
