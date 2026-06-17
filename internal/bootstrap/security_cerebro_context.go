@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	cerebrov1 "github.com/writer/aperio/gen/cerebro/v1"
 	"github.com/writer/aperio/internal/cerebroclient"
 )
 
@@ -75,8 +76,8 @@ func (a *App) enrichSecurityOverviewCerebroContext(ctx context.Context, organiza
 	findingRoots := []string{}
 	for _, claim := range claims {
 		entities.addClaim(claim)
-		if isCerebroFindingURN(claim.SubjectURN) && !containsString(findingRoots, claim.SubjectURN) {
-			findingRoots = append(findingRoots, claim.SubjectURN)
+		if subjectURN := claim.GetSubjectUrn(); isCerebroFindingURN(subjectURN) && !containsString(findingRoots, subjectURN) {
+			findingRoots = append(findingRoots, subjectURN)
 		}
 	}
 	graphPaths := []map[string]any{}
@@ -102,8 +103,8 @@ func (a *App) enrichSecurityOverviewCerebroContext(ctx context.Context, organiza
 	return overview
 }
 
-func (a *App) securityOverviewCerebroClaims(ctx context.Context, findings []overviewFinding) ([]cerebroclient.Claim, error) {
-	claims := []cerebroclient.Claim{}
+func (a *App) securityOverviewCerebroClaims(ctx context.Context, findings []overviewFinding) ([]*cerebrov1.Claim, error) {
+	claims := []*cerebrov1.Claim{}
 	seenEvents := map[string]struct{}{}
 	for _, finding := range findings {
 		sourceEventID := strings.TrimSpace(finding.SourceEventID)
@@ -126,7 +127,7 @@ func (a *App) securityOverviewCerebroClaims(ctx context.Context, findings []over
 			}
 			return claims, err
 		}
-		claims = append(claims, cerebroclient.ClaimsFromProto(response.Claims)...)
+		claims = append(claims, response.Claims...)
 		if len(claims) >= maxSecurityCerebroClaims || len(seenEvents) >= maxSecurityCerebroClaimQueries {
 			break
 		}

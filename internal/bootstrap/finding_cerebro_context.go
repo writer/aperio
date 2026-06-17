@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	aperiov1 "github.com/writer/aperio/gen/aperio/v1"
+	cerebrov1 "github.com/writer/aperio/gen/cerebro/v1"
 	"github.com/writer/aperio/internal/cerebroclient"
 )
 
@@ -75,8 +76,8 @@ func (a *App) enrichFindingCerebroContext(ctx context.Context, organizationID st
 	findingRoots := []string{}
 	for _, claim := range claims {
 		entities.addClaim(claim)
-		if isCerebroFindingURN(claim.SubjectURN) && !containsString(findingRoots, claim.SubjectURN) {
-			findingRoots = append(findingRoots, claim.SubjectURN)
+		if subjectURN := claim.GetSubjectUrn(); isCerebroFindingURN(subjectURN) && !containsString(findingRoots, subjectURN) {
+			findingRoots = append(findingRoots, subjectURN)
 		}
 	}
 
@@ -102,7 +103,7 @@ func (a *App) enrichFindingCerebroContext(ctx context.Context, organizationID st
 	finding.CerebroContext = contextPayload
 }
 
-func (a *App) findingCerebroClaims(ctx context.Context, sourceEventID string) ([]cerebroclient.Claim, error) {
+func (a *App) findingCerebroClaims(ctx context.Context, sourceEventID string) ([]*cerebrov1.Claim, error) {
 	if a == nil || a.cerebroContextClient == nil {
 		return nil, nil
 	}
@@ -118,7 +119,7 @@ func (a *App) findingCerebroClaims(ctx context.Context, sourceEventID string) ([
 		}
 		return nil, err
 	}
-	return cerebroclient.ClaimsFromProto(response.Claims), nil
+	return response.Claims, nil
 }
 
 func (a *App) findingCerebroMCPContext(organizationID string, findingID string) *aperiov1.CerebroMCPContext {
@@ -141,24 +142,26 @@ func findingCerebroResourceURI(organizationID string, findingID string) string {
 	return "cerebro://aperio/" + url.PathEscape(strings.TrimSpace(organizationID)) + "/findings/" + url.PathEscape(strings.TrimSpace(findingID))
 }
 
-func findingCerebroClaimSummaries(claims []cerebroclient.Claim) []*aperiov1.CerebroClaimSummary {
+func findingCerebroClaimSummaries(claims []*cerebrov1.Claim) []*aperiov1.CerebroClaimSummary {
 	summaries := make([]*aperiov1.CerebroClaimSummary, 0, minInt(len(claims), 8))
 	seen := map[string]struct{}{}
 	for _, claim := range claims {
-		if strings.TrimSpace(claim.SubjectURN) == "" || strings.TrimSpace(claim.Predicate) == "" {
+		subjectURN := claim.GetSubjectUrn()
+		predicate := claim.GetPredicate()
+		if strings.TrimSpace(subjectURN) == "" || strings.TrimSpace(predicate) == "" {
 			continue
 		}
-		key := strings.Join([]string{claim.ClaimType, claim.Predicate, claim.SubjectURN, claim.ObjectURN, claim.SourceEventID}, "\x00")
+		key := strings.Join([]string{claim.GetClaimType(), predicate, subjectURN, claim.GetObjectUrn(), claim.GetSourceEventId()}, "\x00")
 		if _, ok := seen[key]; ok {
 			continue
 		}
 		seen[key] = struct{}{}
 		summaries = append(summaries, &aperiov1.CerebroClaimSummary{
-			ClaimType:   claim.ClaimType,
-			Predicate:   claim.Predicate,
-			SubjectUrn:  claim.SubjectURN,
-			ObjectUrn:   strings.TrimSpace(claim.ObjectURN),
-			SourceEvent: strings.TrimSpace(claim.SourceEventID),
+			ClaimType:   claim.GetClaimType(),
+			Predicate:   predicate,
+			SubjectUrn:  subjectURN,
+			ObjectUrn:   strings.TrimSpace(claim.GetObjectUrn()),
+			SourceEvent: strings.TrimSpace(claim.GetSourceEventId()),
 		})
 		if len(summaries) >= 8 {
 			break
@@ -167,24 +170,26 @@ func findingCerebroClaimSummaries(claims []cerebroclient.Claim) []*aperiov1.Cere
 	return summaries
 }
 
-func findingCerebroGraphSignals(claims []cerebroclient.Claim) []*aperiov1.CerebroGraphSignal {
+func findingCerebroGraphSignals(claims []*cerebrov1.Claim) []*aperiov1.CerebroGraphSignal {
 	signals := make([]*aperiov1.CerebroGraphSignal, 0, minInt(len(claims), 6))
 	seen := map[string]struct{}{}
 	for _, claim := range claims {
-		evidence := firstString(claim.ObjectValue, claim.ObjectURN)
-		if evidence == "" || strings.TrimSpace(claim.Predicate) == "" || strings.TrimSpace(claim.SubjectURN) == "" {
+		subjectURN := claim.GetSubjectUrn()
+		predicate := claim.GetPredicate()
+		evidence := firstString(claim.GetObjectValue(), claim.GetObjectUrn())
+		if evidence == "" || strings.TrimSpace(predicate) == "" || strings.TrimSpace(subjectURN) == "" {
 			continue
 		}
-		key := claim.Predicate + "\x00" + claim.SubjectURN + "\x00" + evidence
+		key := predicate + "\x00" + subjectURN + "\x00" + evidence
 		if _, ok := seen[key]; ok {
 			continue
 		}
 		seen[key] = struct{}{}
 		signals = append(signals, &aperiov1.CerebroGraphSignal{
-			Label:      firstString(claim.SubjectRef.Label, shortCerebroURN(claim.SubjectURN)),
-			Predicate:  claim.Predicate,
+			Label:      firstString(claim.GetSubjectRef().GetLabel(), shortCerebroURN(subjectURN)),
+			Predicate:  predicate,
 			Confidence: 1,
-			EntityUrn:  claim.SubjectURN,
+			EntityUrn:  subjectURN,
 			Evidence:   evidence,
 		})
 		if len(signals) >= 6 {
