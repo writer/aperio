@@ -66,7 +66,7 @@ func (s *Service) FanoutFinding(ctx context.Context, payload FindingPayload) (Re
 		DedupeKey:     firstString(payload.Record["dedupeKey"]),
 		SourceEventID: firstString(payload.Record["sourceEventId"]),
 	}
-	claims, err := cerebroclaims.Build(cerebroclaims.BuildInput{
+	claims, err := cerebroclaims.BuildProto(cerebroclaims.BuildInput{
 		TenantID:       s.tenantID,
 		OrganizationID: payload.OrganizationID,
 		RuntimeID:      s.runtimeID,
@@ -80,10 +80,9 @@ func (s *Service) FanoutFinding(ctx context.Context, payload FindingPayload) (Re
 		return result, err
 	}
 	result.ClaimCount = len(claims)
-	protoClaims := cerebroclient.ClaimsToProto(claims)
 	response, err := s.writer.WriteProtoClaims(ctx, cerebroclient.WriteProtoClaimsRequest{
 		RuntimeID: s.runtimeID,
-		Claims:    protoClaims,
+		Claims:    claims,
 	})
 	if err != nil {
 		return result, err
