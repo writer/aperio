@@ -1,8 +1,9 @@
 package mcpbroker
 
 const (
-	ProtocolVersion = "2024-11-05"
+	ProtocolVersion = "2025-11-25"
 	ServerName      = "aperio-a2a-broker"
+	ServerTitle     = "Aperio Cerebro MCP Broker"
 	ServerVersion   = "0.1.0"
 )
 
