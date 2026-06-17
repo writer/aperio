@@ -417,6 +417,7 @@ message CerebroMCPContext {
   string resource_uri = 2;
   string mime_type = 3;
   repeated string tools = 4;
+  repeated CerebroMCPResourceTemplate resource_templates = 5;
 }
 
 message CerebroMCPResourceTemplate {

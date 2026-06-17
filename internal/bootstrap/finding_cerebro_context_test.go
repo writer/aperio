@@ -121,11 +121,20 @@ func TestFindingCerebroContextHydratesClaimsAndGraph(t *testing.T) {
 	if !containsString(contextPayload.Mcp.Tools, "cerebro.findings.get") || !containsString(contextPayload.Mcp.Tools, "cerebro.findings.action.propose") {
 		t.Fatalf("finding Cerebro MCP tools = %#v", contextPayload.Mcp.Tools)
 	}
+	if got := len(contextPayload.Mcp.ResourceTemplates); got != 3 {
+		t.Fatalf("finding Cerebro MCP resource templates = %d, want 3", got)
+	}
+	if contextPayload.Mcp.ResourceTemplates[1].UriTemplate != "cerebro://aperio/{organizationId}/findings/{findingId}" {
+		t.Fatalf("finding resource template drifted: %#v", contextPayload.Mcp.ResourceTemplates[1])
+	}
 	if len(client.listRequests) != 1 || client.listRequests[0].SourceEventID != "evt-1" || client.listRequests[0].RuntimeID != "runtime-a" {
 		t.Fatalf("list requests = %#v", client.listRequests)
 	}
 	proto := finding.toProto()
 	if proto.CerebroContext == nil || proto.CerebroContext.ClaimCount != 2 || proto.CerebroContext.Mcp == nil {
 		t.Fatalf("proto Cerebro context = %#v", proto.CerebroContext)
+	}
+	if got := len(proto.CerebroContext.Mcp.ResourceTemplates); got != 3 {
+		t.Fatalf("proto MCP resource templates = %d, want 3", got)
 	}
 }
