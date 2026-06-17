@@ -34,7 +34,7 @@ func (a *App) WithCerebroMCPServerURL(serverURL string) *App {
 
 func (a *App) enrichSaasCerebroContext(ctx context.Context, organizationID string, incidentID string, raw string, findings []findingRow) string {
 	base := normalizeCerebroContextJSON(raw)
-	if a == nil || a.cerebroContextClient == nil || strings.TrimSpace(a.cerebroRuntimeID) == "" || len(findings) == 0 {
+	if a == nil || a.cerebroContextClient == nil || strings.TrimSpace(a.cerebroRuntimeID) == "" {
 		return base
 	}
 	payload := cerebroContextMap(base)
@@ -43,6 +43,9 @@ func (a *App) enrichSaasCerebroContext(ctx context.Context, organizationID strin
 	payload["findingContract"] = "cerebro.v1.Finding"
 	payload["mcp"] = a.saasCerebroMCPContext(organizationID, incidentID)
 
+	if len(findings) == 0 {
+		return encodeCerebroContextMap(payload, base)
+	}
 	claims := a.saasCerebroIncidentClaims(ctx, findings)
 	if len(claims) == 0 {
 		return encodeCerebroContextMap(payload, base)

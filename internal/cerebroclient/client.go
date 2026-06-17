@@ -60,18 +60,39 @@ func (c Config) MCPServerURL() string {
 		return ""
 	}
 	value := *baseURL
-	path := strings.TrimRight(value.Path, "/")
-	rawPath := strings.TrimRight(value.EscapedPath(), "/")
-	if strings.HasSuffix(path, "/api") {
-		value.Path = path + "/v1/mcp"
-		value.RawPath = rawPath + "/v1/mcp"
-	} else {
-		value.Path = path + "/api/v1/mcp"
-		value.RawPath = rawPath + "/api/v1/mcp"
-	}
+	value.Path, value.RawPath = mcpPathFromBase(value.Path, value.EscapedPath())
 	value.RawQuery = ""
 	value.Fragment = ""
 	return value.String()
+}
+
+func mcpPathFromBase(path string, rawPath string) (string, string) {
+	path = strings.TrimRight(path, "/")
+	rawPath = strings.TrimRight(rawPath, "/")
+	suffix := "/api/v1/mcp"
+	if strings.HasSuffix(path, "/api") {
+		suffix = "/v1/mcp"
+	} else if hasVersionedAPISuffix(path) {
+		suffix = "/mcp"
+	}
+	return path + suffix, rawPath + suffix
+}
+
+func hasVersionedAPISuffix(path string) bool {
+	versionStart := strings.LastIndex(path, "/")
+	if versionStart < 0 || !strings.HasSuffix(path[:versionStart], "/api") {
+		return false
+	}
+	version := path[versionStart+1:]
+	if len(version) < 2 || version[0] != 'v' {
+		return false
+	}
+	for _, ch := range version[1:] {
+		if ch < '0' || ch > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 func (c Config) Enabled() bool {
