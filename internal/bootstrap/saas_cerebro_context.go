@@ -84,6 +84,23 @@ func (a *App) enrichSaasCerebroContext(ctx context.Context, organizationID strin
 	return encodeCerebroContextMap(payload, base)
 }
 
+func (a *App) enrichAndPersistSaasCerebroContext(ctx context.Context, organizationID string, incidentID string, raw string, findings []findingRow) (string, error) {
+	base := normalizeCerebroContextJSON(raw)
+	enriched := a.enrichSaasCerebroContext(ctx, organizationID, incidentID, raw, findings)
+	if a == nil || a.db == nil || enriched == base {
+		return enriched, nil
+	}
+	if _, err := a.db.ExecContext(ctx, `
+		UPDATE saas_incidents
+		SET cerebro_context = $3::jsonb,
+		    updated_at = NOW()
+		WHERE organization_id = $1 AND id = $2
+	`, organizationID, incidentID, enriched); err != nil {
+		return "", internalServerError("saas_incident.cerebro_context.update", err)
+	}
+	return enriched, nil
+}
+
 func (a *App) saasCerebroIncidentClaims(ctx context.Context, findings []findingRow) []cerebroclient.Claim {
 	claims := []cerebroclient.Claim{}
 	seenEvents := map[string]struct{}{}

@@ -2,10 +2,12 @@ package bootstrap
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	"connectrpc.com/connect"
 	aperiov1 "github.com/writer/aperio/gen/aperio/v1"
+	"github.com/writer/aperio/internal/cerebroclient"
 )
 
 // seedSaasIncidentSetup provisions an analyst, an admin, and an open SaaS
@@ -164,6 +166,95 @@ func TestSaasIncidentTenantIsolation(t *testing.T) {
 		t.Fatalf("expected cross-tenant propose to be rejected")
 	} else if got := connect.CodeOf(err); got != connect.CodeNotFound {
 		t.Fatalf("expected NotFound on cross-tenant propose, got %v (%v)", got, err)
+	}
+}
+
+func TestGetSaasIncidentPersistsEnrichedCerebroContext(t *testing.T) {
+	app, auth := newTestDBApp(t)
+	auth = seedOrgAdmin(t, app, auth.OrganizationID)
+	ctx := context.Background()
+	_, findingID := seedRemediationFixture(t, app, auth, "GITHUB")
+	sourceEventID := "evt-" + randomBase36(8)
+	evidence, err := json.Marshal(map[string]any{
+		"sourceEventId": sourceEventID,
+		"subject":       "writer/aperio",
+	})
+	if err != nil {
+		t.Fatalf("marshal evidence: %v", err)
+	}
+	if _, err := app.db.ExecContext(ctx, `
+		UPDATE security_findings
+		SET evidence = $3::jsonb
+		WHERE organization_id = $1 AND id = $2
+	`, auth.OrganizationID, findingID, string(evidence)); err != nil {
+		t.Fatalf("seed finding evidence: %v", err)
+	}
+	incidentID, err := app.createSaasIncident(ctx, auth, &aperiov1.CreateSaasIncidentRequest{
+		Title:      "Cerebro linked incident",
+		Summary:    "Hydration should update shared context.",
+		Severity:   "HIGH",
+		FindingIds: []string{findingID},
+	})
+	if err != nil {
+		t.Fatalf("create incident: %v", err)
+	}
+
+	rootURN := "urn:cerebro:" + auth.OrganizationID + ":runtime:runtime-a:finding:" + findingID
+	app.WithCerebroContextClient("runtime-a", &fakeSaasCerebroContextClient{
+		claims: map[string][]cerebroclient.Claim{
+			sourceEventID: {
+				{
+					SubjectURN:    rootURN,
+					SubjectRef:    cerebroclient.EntityRef{URN: rootURN, EntityType: "finding", Label: "Public repository created"},
+					Predicate:     "severity",
+					ObjectValue:   "HIGH",
+					ClaimType:     "attribute",
+					Status:        "asserted",
+					SourceEventID: sourceEventID,
+				},
+			},
+		},
+	})
+
+	detail, err := app.getSaasIncidentDetail(ctx, auth.OrganizationID, incidentID)
+	if err != nil {
+		t.Fatalf("get incident detail: %v", err)
+	}
+	detailContext := decodeSaasCerebroContext(t, detail.Incident.CerebroContextJson)
+	assertCerebroContextHydrated(t, "detail", detailContext)
+
+	row, err := app.getSaasIncidentRow(ctx, auth.OrganizationID, incidentID)
+	if err != nil {
+		t.Fatalf("reload incident: %v", err)
+	}
+	persistedContext := decodeSaasCerebroContext(t, row.CerebroContextJSON)
+	assertCerebroContextHydrated(t, "persisted row", persistedContext)
+
+	rows, _, err := app.listSaasIncidents(ctx, auth.OrganizationID, &aperiov1.ListSaasIncidentsRequest{Limit: 10})
+	if err != nil {
+		t.Fatalf("list incidents: %v", err)
+	}
+	for _, row := range rows {
+		if row.ID != incidentID {
+			continue
+		}
+		listContext := decodeSaasCerebroContext(t, row.CerebroContextJSON)
+		assertCerebroContextHydrated(t, "list row", listContext)
+		return
+	}
+	t.Fatalf("incident %s missing from list rows", incidentID)
+}
+
+func assertCerebroContextHydrated(t *testing.T, label string, contextPayload map[string]any) {
+	t.Helper()
+	if contextPayload["mode"] != "claim-linked" {
+		t.Fatalf("%s mode = %#v, want claim-linked", label, contextPayload["mode"])
+	}
+	if contextPayload["claimCount"] != float64(1) {
+		t.Fatalf("%s claimCount = %#v, want 1", label, contextPayload["claimCount"])
+	}
+	if contextPayload["sourceRuntimeId"] != "runtime-a" {
+		t.Fatalf("%s sourceRuntimeId = %#v, want runtime-a", label, contextPayload["sourceRuntimeId"])
 	}
 }
 
