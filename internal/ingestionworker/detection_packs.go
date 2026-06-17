@@ -68,8 +68,7 @@ var DetectionPacks = []DetectionPack{
 }
 
 // DetectionPackByID returns the pack with the given ID, or false if no
-// pack matches. The API uses this to validate referenced pack IDs and
-// to hydrate the rules under each pack for the operator UI.
+// pack matches.
 func DetectionPackByID(id string) (DetectionPack, bool) {
 	for _, pack := range DetectionPacks {
 		if pack.ID == id {
