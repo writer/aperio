@@ -48,6 +48,58 @@ func TestBuildCreatesFindingAssetAndIntegrationClaims(t *testing.T) {
 	}
 }
 
+func TestBuildCreatesOAuthGrantGraphClaims(t *testing.T) {
+	claims, err := Build(BuildInput{
+		TenantID:       "tenant-a",
+		OrganizationID: "org-a",
+		RuntimeID:      "runtime-main",
+		Payload: Payload{
+			Kind:       "finding",
+			OccurredAt: "2026-06-16T12:00:00Z",
+			Record: map[string]any{
+				"provider":         "GOOGLE_WORKSPACE",
+				"title":            "Critical Gmail-scoped OAuth grant",
+				"target":           "Vendor Mail App",
+				"dedupeKey":        "dedupe-oauth",
+				"sourceEventId":    "evt-oauth",
+				"riskScore":        97,
+				"severity":         "CRITICAL",
+				"oauthAppId":       "client-123",
+				"oauthAppName":     "Vendor Mail App",
+				"oauthClientType":  "WEB",
+				"oauthUserEmail":   "analyst@example.com",
+				"oauthScopes":      []any{"https://mail.google.com/", "https://www.googleapis.com/auth/drive.file"},
+				"oauthRiskReason":  "Granted full mailbox or mailbox-settings access",
+				"oauthGrantStatus": "active",
+				"oauthScopeCount":  2,
+				"oauthAnonymous":   false,
+				"oauthNativeApp":   true,
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Build() error = %v", err)
+	}
+	if !hasClaim(claims, "relation", "concerns_oauth_app", "") {
+		t.Fatal("missing finding to OAuth app relation")
+	}
+	if !hasClaim(claims, "relation", "has_oauth_grant", "") {
+		t.Fatal("missing user to OAuth grant relation")
+	}
+	if !hasClaim(claims, "relation", "has_scope", "") {
+		t.Fatal("missing OAuth scope relation")
+	}
+	if !hasClaim(claims, "relation", "accesses", "") {
+		t.Fatal("missing OAuth app resource-family access relation")
+	}
+	if !hasClaim(claims, "attribute", "riskReason", "Granted full mailbox or mailbox-settings access") {
+		t.Fatal("missing OAuth risk reason attribute")
+	}
+	if !hasSubjectType(claims, "oauth_app") || !hasSubjectType(claims, "oauth_grant") || !hasSubjectType(claims, "oauth_scope") {
+		t.Fatalf("missing OAuth subject refs in claims: %#v", claims)
+	}
+}
+
 func TestBuildProtoCreatesCanonicalCerebroClaims(t *testing.T) {
 	claims, err := BuildProto(BuildInput{
 		TenantID:       "cerebro-tenant",
@@ -129,6 +181,15 @@ func hasClaim(claims []cerebroclient.Claim, claimType string, predicate string, 
 			if objectValue == "" || claim.ObjectValue == objectValue {
 				return true
 			}
+		}
+	}
+	return false
+}
+
+func hasSubjectType(claims []cerebroclient.Claim, entityType string) bool {
+	for _, claim := range claims {
+		if claim.SubjectRef.EntityType == entityType {
+			return true
 		}
 	}
 	return false

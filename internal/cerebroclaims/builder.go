@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -84,6 +85,7 @@ func Build(input BuildInput) ([]cerebroclient.Claim, error) {
 		sdkclaims.Attribute(finding, "title", title, claimSource(input.Payload, nil)),
 		sdkclaims.Attribute(finding, "provider", provider, claimSource(input.Payload, nil)),
 	}
+	claims = appendOAuthGrantClaims(claims, input, finding, integration, provider)
 	for _, key := range []string{"severity", "riskScore", "status", "ruleId"} {
 		if value := firstString(input.Payload.Record[key]); value != "" {
 			claims = append(claims, sdkclaims.Attribute(finding, key, value, claimSource(input.Payload, nil)))
@@ -93,6 +95,111 @@ func Build(input BuildInput) ([]cerebroclient.Claim, error) {
 		claims = append(claims, sdkclaims.Attribute(finding, "description", description, claimSource(input.Payload, nil)))
 	}
 	return claims, nil
+}
+
+func appendOAuthGrantClaims(claims []cerebroclient.Claim, input BuildInput, finding, integration cerebroclient.EntityRef, provider string) []cerebroclient.Claim {
+	record := input.Payload.Record
+	appID := firstString(record["oauthAppId"], record["oauthClientId"], record["clientId"], record["externalAppId"])
+	appName := firstString(record["oauthAppName"], record["oauthApp"], record["appName"], record["app"])
+	if appID == "" && appName == "" {
+		return claims
+	}
+	if appID == "" {
+		appID = appName
+	}
+	if appName == "" {
+		appName = appID
+	}
+	tenantID := strings.TrimSpace(input.TenantID)
+	if tenantID == "" {
+		tenantID = strings.TrimSpace(input.OrganizationID)
+	}
+	app := Ref(tenantID, input.RuntimeID, "oauth_app", provider+":"+appID, appName)
+	grantID := firstString(record["oauthGrantId"])
+	userID := firstString(record["oauthUserId"], record["userExternalId"], record["oauthUserEmail"], record["userEmail"], record["actor"])
+	if grantID == "" {
+		grantID = provider + ":" + appID
+		if userID != "" {
+			grantID += ":" + userID
+		}
+	}
+	grantLabel := "OAuth grant for " + appName
+	if user := firstString(record["oauthUserEmail"], record["userEmail"], record["actor"]); user != "" {
+		grantLabel += " by " + user
+	}
+	grant := Ref(tenantID, input.RuntimeID, "oauth_grant", grantID, grantLabel)
+	source := claimSource(input.Payload, map[string]string{
+		"aperio_schema": "aperio/oauth_grant/v1",
+		"provider":      provider,
+	})
+	claims = append(claims,
+		sdkclaims.Exists(app, source),
+		sdkclaims.Exists(grant, source),
+		sdkclaims.Relation(finding, "concerns_oauth_app", app, source),
+		sdkclaims.Relation(finding, "concerns_oauth_grant", grant, source),
+		sdkclaims.Relation(grant, "authorized_app", app, source),
+		sdkclaims.Relation(app, "observed_by", integration, source),
+		sdkclaims.Attribute(app, "provider", provider, source),
+		sdkclaims.Attribute(app, "externalAppId", appID, source),
+		sdkclaims.Attribute(app, "displayName", appName, source),
+	)
+	for _, attr := range []struct {
+		predicate string
+		keys      []string
+		subject   cerebroclient.EntityRef
+	}{
+		{"riskScore", []string{"oauthRiskScore", "riskScore"}, app},
+		{"criticality", []string{"oauthAppCriticality", "criticality", "severity"}, app},
+		{"riskReason", []string{"oauthRiskReason", "riskReason"}, app},
+		{"clientType", []string{"oauthClientType", "clientType"}, app},
+		{"status", []string{"oauthGrantStatus", "status"}, grant},
+		{"scopeCount", []string{"oauthScopeCount", "scopeCount"}, grant},
+		{"lastObservedAt", []string{"oauthGrantLastObservedAt", "lastObservedAt"}, grant},
+		{"anonymous", []string{"oauthAnonymous", "anonymous"}, grant},
+		{"nativeApp", []string{"oauthNativeApp", "nativeApp"}, grant},
+	} {
+		if value := firstStringFromRecord(record, attr.keys...); value != "" {
+			claims = append(claims, sdkclaims.Attribute(attr.subject, attr.predicate, value, source))
+		}
+	}
+	if userID != "" {
+		userLabel := firstString(record["oauthUserDisplayName"], record["userDisplayName"], record["oauthUserEmail"], record["userEmail"], record["actor"], userID)
+		user := Ref(tenantID, input.RuntimeID, "identity", provider+":"+userID, userLabel)
+		claims = append(claims,
+			sdkclaims.Exists(user, source),
+			sdkclaims.Relation(user, "has_oauth_grant", grant, source),
+			sdkclaims.Relation(grant, "granted_by", user, source),
+		)
+		if email := firstString(record["oauthUserEmail"], record["userEmail"], record["actor"]); email != "" {
+			claims = append(claims, sdkclaims.Attribute(user, "email", email, source))
+		}
+	}
+	families := map[string]string{}
+	for _, scope := range firstStringSlice(record["oauthScopes"], record["scopes"], record["scope"]) {
+		scopeRef := Ref(tenantID, input.RuntimeID, "oauth_scope", provider+":"+scope, shortOAuthScope(scope))
+		claims = append(claims,
+			sdkclaims.Exists(scopeRef, source),
+			sdkclaims.Relation(grant, "has_scope", scopeRef, source),
+			sdkclaims.Attribute(scopeRef, "scope", scope, source),
+		)
+		if family, label := oauthScopeResourceFamily(scope); family != "" {
+			families[family] = label
+			claims = append(claims, sdkclaims.Attribute(scopeRef, "resourceFamily", family, source))
+		}
+	}
+	familyKeys := make([]string, 0, len(families))
+	for family := range families {
+		familyKeys = append(familyKeys, family)
+	}
+	sort.Strings(familyKeys)
+	for _, family := range familyKeys {
+		resource := Ref(tenantID, input.RuntimeID, "resource_family", provider+":"+family, families[family])
+		claims = append(claims,
+			sdkclaims.Exists(resource, source),
+			sdkclaims.Relation(app, "accesses", resource, source),
+		)
+	}
+	return claims
 }
 
 func BuildProto(input BuildInput) ([]*cerebrov1.Claim, error) {
@@ -150,6 +257,86 @@ func firstString(values ...any) string {
 		}
 	}
 	return ""
+}
+
+func firstStringFromRecord(record map[string]any, keys ...string) string {
+	for _, key := range keys {
+		if value := firstString(record[key]); value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func firstStringSlice(values ...any) []string {
+	for _, value := range values {
+		out := []string{}
+		seen := map[string]struct{}{}
+		switch typed := value.(type) {
+		case []string:
+			for _, item := range typed {
+				appendUniqueString(&out, seen, item)
+			}
+		case []any:
+			for _, item := range typed {
+				appendUniqueString(&out, seen, firstString(item))
+			}
+		case string:
+			for _, item := range strings.FieldsFunc(typed, func(r rune) bool {
+				return r == ',' || r == ';' || r == '|'
+			}) {
+				appendUniqueString(&out, seen, item)
+			}
+		}
+		if len(out) > 0 {
+			return out
+		}
+	}
+	return nil
+}
+
+func appendUniqueString(out *[]string, seen map[string]struct{}, value string) {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return
+	}
+	key := strings.ToLower(trimmed)
+	if _, ok := seen[key]; ok {
+		return
+	}
+	seen[key] = struct{}{}
+	*out = append(*out, trimmed)
+}
+
+func shortOAuthScope(scope string) string {
+	trimmed := strings.TrimRight(strings.TrimSpace(scope), "/")
+	if trimmed == "" {
+		return "OAuth scope"
+	}
+	parts := strings.Split(trimmed, "/")
+	return parts[len(parts)-1]
+}
+
+func oauthScopeResourceFamily(scope string) (string, string) {
+	normalized := strings.ToLower(strings.TrimSpace(scope))
+	switch {
+	case normalized == "https://mail.google.com/" || strings.Contains(normalized, "gmail"):
+		return "gmail_mailbox", "Gmail mailbox"
+	case strings.Contains(normalized, "/auth/drive"):
+		return "google_drive", "Google Drive"
+	case strings.Contains(normalized, "admin") || strings.Contains(normalized, "directory"):
+		return "google_admin_directory", "Google Admin Directory"
+	case strings.Contains(normalized, "cloud-platform") || strings.Contains(normalized, "bigquery"):
+		return "google_cloud_data", "Google Cloud data"
+	case strings.Contains(normalized, "calendar"):
+		return "google_calendar", "Google Calendar"
+	case strings.Contains(normalized, "repo") || strings.Contains(normalized, "organization") || strings.Contains(normalized, "members"):
+		return "github_org_repo", "GitHub organization and repositories"
+	case strings.Contains(normalized, "channels") || strings.Contains(normalized, "files") || strings.Contains(normalized, "users"):
+		return "slack_workspace_data", "Slack workspace data"
+	default:
+		return "", ""
+	}
 }
 
 func schemaVersion(kind string) string {
