@@ -24,6 +24,93 @@
   "source": "internal/ingestionworker/worker.go:evaluateSecurityRules",
   "rules": [
     {
+      "ruleId": "atlassian.anonymous_access_enabled",
+      "provider": "ATLASSIAN",
+      "state": "go-default",
+      "typescriptEventAliases": [
+        "ANONYMOUS_ACCESS_ENABLED",
+        "PUBLIC_ACCESS_ENABLED"
+      ],
+      "typescriptPayloadPredicates": [],
+      "goClaimedEventTypes": [
+        "ANONYMOUS_ACCESS_ENABLED",
+        "PUBLIC_ACCESS_ENABLED",
+        "anonymous_access.enabled",
+        "public_access.enabled"
+      ],
+      "fixtures": [
+        "tests/fixtures/worker-parity/saas-pack-rules.json"
+      ],
+      "tests": [
+        "tests/ingestion-parity-matrix.test.ts",
+        "internal/ingestionworker/worker_test.go",
+        "internal/ingestionworker/worker_db_test.go",
+        "internal/ingestionworker/saas_pack_rules_test.go"
+      ],
+      "cutoverBlockers": [],
+      "goDefaultBlocked": false
+    },
+    {
+      "ruleId": "atlassian.org_admin_granted",
+      "provider": "ATLASSIAN",
+      "state": "go-default",
+      "typescriptEventAliases": [
+        "ORG_ADMIN_GRANTED",
+        "SITE_ADMIN_GRANTED",
+        "PRODUCT_ADMIN_GRANTED"
+      ],
+      "typescriptPayloadPredicates": [],
+      "goClaimedEventTypes": [
+        "ORG_ADMIN_GRANTED",
+        "SITE_ADMIN_GRANTED",
+        "PRODUCT_ADMIN_GRANTED",
+        "org_admin.granted",
+        "site_admin.granted",
+        "product_admin.granted"
+      ],
+      "fixtures": [
+        "tests/fixtures/worker-parity/saas-pack-rules.json"
+      ],
+      "tests": [
+        "tests/ingestion-parity-matrix.test.ts",
+        "internal/ingestionworker/worker_test.go",
+        "internal/ingestionworker/worker_db_test.go",
+        "internal/ingestionworker/saas_pack_rules_test.go"
+      ],
+      "cutoverBlockers": [],
+      "goDefaultBlocked": false
+    },
+    {
+      "ruleId": "atlassian.public_space_created",
+      "provider": "ATLASSIAN",
+      "state": "go-default",
+      "typescriptEventAliases": [
+        "PUBLIC_SPACE_CREATED",
+        "SPACE_PUBLIC_ACCESS_ENABLED",
+        "PROJECT_PUBLIC_ACCESS_ENABLED"
+      ],
+      "typescriptPayloadPredicates": [],
+      "goClaimedEventTypes": [
+        "PUBLIC_SPACE_CREATED",
+        "SPACE_PUBLIC_ACCESS_ENABLED",
+        "PROJECT_PUBLIC_ACCESS_ENABLED",
+        "public_space.created",
+        "space_public_access.enabled",
+        "project_public_access.enabled"
+      ],
+      "fixtures": [
+        "tests/fixtures/worker-parity/saas-pack-rules.json"
+      ],
+      "tests": [
+        "tests/ingestion-parity-matrix.test.ts",
+        "internal/ingestionworker/worker_test.go",
+        "internal/ingestionworker/worker_db_test.go",
+        "internal/ingestionworker/saas_pack_rules_test.go"
+      ],
+      "cutoverBlockers": [],
+      "goDefaultBlocked": false
+    },
+    {
       "ruleId": "github.public_repository_created",
       "provider": "GITHUB",
       "state": "go-default",
@@ -50,6 +137,70 @@
       "goDefaultBlocked": false
     },
     {
+      "ruleId": "github.branch_protection_disabled",
+      "provider": "GITHUB",
+      "state": "go-default",
+      "typescriptEventAliases": [
+        "BRANCH_PROTECTION_DISABLED",
+        "BRANCH_PROTECTION_RULE_DELETED",
+        "BRANCH_PROTECTION_RULE_UPDATED"
+      ],
+      "typescriptPayloadPredicates": [
+        "recordSuggestsWeakenedPolicy(payload) for generic updates"
+      ],
+      "goClaimedEventTypes": [
+        "BRANCH_PROTECTION_DISABLED",
+        "BRANCH_PROTECTION_RULE_DELETED",
+        "BRANCH_PROTECTION_RULE_UPDATED",
+        "branch_protection.disabled",
+        "branch_protection_rule.deleted",
+        "branch_protection_rule.updated"
+      ],
+      "fixtures": [
+        "tests/fixtures/worker-parity/saas-pack-rules.json"
+      ],
+      "tests": [
+        "tests/ingestion-parity-matrix.test.ts",
+        "internal/ingestionworker/worker_test.go",
+        "internal/ingestionworker/worker_db_test.go",
+        "internal/ingestionworker/saas_pack_rules_test.go"
+      ],
+      "cutoverBlockers": [],
+      "goDefaultBlocked": false
+    },
+    {
+      "ruleId": "github.oauth_app_installed",
+      "provider": "GITHUB",
+      "state": "go-default",
+      "typescriptEventAliases": [
+        "OAUTH_APP_INSTALLED",
+        "GITHUB_APP_INSTALLED",
+        "ORG_OAUTH_APP_ACCESS_APPROVED"
+      ],
+      "typescriptPayloadPredicates": [
+        "requested scope or permission is admin, repo, write, organization, or members when scopes are present"
+      ],
+      "goClaimedEventTypes": [
+        "OAUTH_APP_INSTALLED",
+        "GITHUB_APP_INSTALLED",
+        "ORG_OAUTH_APP_ACCESS_APPROVED",
+        "oauth_app.installed",
+        "github_app.installed",
+        "org.oauth_app_access_approved"
+      ],
+      "fixtures": [
+        "tests/fixtures/worker-parity/saas-pack-rules.json"
+      ],
+      "tests": [
+        "tests/ingestion-parity-matrix.test.ts",
+        "internal/ingestionworker/worker_test.go",
+        "internal/ingestionworker/worker_db_test.go",
+        "internal/ingestionworker/saas_pack_rules_test.go"
+      ],
+      "cutoverBlockers": [],
+      "goDefaultBlocked": false
+    },
+    {
       "ruleId": "slack.mfa_disabled",
       "provider": "SLACK",
       "state": "go-default",
@@ -71,6 +222,90 @@
         "tests/slack-rules.test.ts",
         "internal/ingestionworker/worker_test.go",
         "internal/ingestionworker/worker_db_test.go"
+      ],
+      "cutoverBlockers": [],
+      "goDefaultBlocked": false
+    },
+    {
+      "ruleId": "slack.external_shared_channel_created",
+      "provider": "SLACK",
+      "state": "go-default",
+      "typescriptEventAliases": [
+        "EXTERNAL_SHARED_CHANNEL_CREATED",
+        "SHARED_CHANNEL_INVITE_ACCEPTED"
+      ],
+      "typescriptPayloadPredicates": [],
+      "goClaimedEventTypes": [
+        "EXTERNAL_SHARED_CHANNEL_CREATED",
+        "SHARED_CHANNEL_INVITE_ACCEPTED",
+        "external_shared_channel.created",
+        "shared_channel_invite.accepted"
+      ],
+      "fixtures": [
+        "tests/fixtures/worker-parity/saas-pack-rules.json"
+      ],
+      "tests": [
+        "tests/ingestion-parity-matrix.test.ts",
+        "internal/ingestionworker/worker_test.go",
+        "internal/ingestionworker/worker_db_test.go",
+        "internal/ingestionworker/saas_pack_rules_test.go"
+      ],
+      "cutoverBlockers": [],
+      "goDefaultBlocked": false
+    },
+    {
+      "ruleId": "slack.workspace_invite_link_enabled",
+      "provider": "SLACK",
+      "state": "go-default",
+      "typescriptEventAliases": [
+        "WORKSPACE_INVITE_LINK_ENABLED",
+        "INVITE_LINK_CREATED"
+      ],
+      "typescriptPayloadPredicates": [],
+      "goClaimedEventTypes": [
+        "WORKSPACE_INVITE_LINK_ENABLED",
+        "INVITE_LINK_CREATED",
+        "workspace_invite_link.enabled",
+        "invite_link.created"
+      ],
+      "fixtures": [
+        "tests/fixtures/worker-parity/saas-pack-rules.json"
+      ],
+      "tests": [
+        "tests/ingestion-parity-matrix.test.ts",
+        "internal/ingestionworker/worker_test.go",
+        "internal/ingestionworker/worker_db_test.go",
+        "internal/ingestionworker/saas_pack_rules_test.go"
+      ],
+      "cutoverBlockers": [],
+      "goDefaultBlocked": false
+    },
+    {
+      "ruleId": "slack.app_installed",
+      "provider": "SLACK",
+      "state": "go-default",
+      "typescriptEventAliases": [
+        "APP_INSTALLED",
+        "APP_APPROVED",
+        "APP_SCOPES_APPROVED"
+      ],
+      "typescriptPayloadPredicates": [],
+      "goClaimedEventTypes": [
+        "APP_INSTALLED",
+        "APP_APPROVED",
+        "APP_SCOPES_APPROVED",
+        "app.installed",
+        "app.approved",
+        "app_scopes.approved"
+      ],
+      "fixtures": [
+        "tests/fixtures/worker-parity/saas-pack-rules.json"
+      ],
+      "tests": [
+        "tests/ingestion-parity-matrix.test.ts",
+        "internal/ingestionworker/worker_test.go",
+        "internal/ingestionworker/worker_db_test.go",
+        "internal/ingestionworker/saas_pack_rules_test.go"
       ],
       "cutoverBlockers": [],
       "goDefaultBlocked": false
@@ -440,6 +675,191 @@
         "tests/ingestion-parity-matrix.test.ts",
         "internal/ingestionworker/worker_test.go",
         "internal/ingestionworker/worker_db_test.go"
+      ],
+      "cutoverBlockers": [],
+      "goDefaultBlocked": false
+    },
+    {
+      "ruleId": "ms365.guest_user_invited",
+      "provider": "MICROSOFT_365",
+      "state": "go-default",
+      "typescriptEventAliases": [
+        "GUEST_USER_INVITED",
+        "GUEST_INVITATION_CREATED",
+        "USER_INVITED"
+      ],
+      "typescriptPayloadPredicates": [],
+      "goClaimedEventTypes": [
+        "GUEST_USER_INVITED",
+        "GUEST_INVITATION_CREATED",
+        "USER_INVITED",
+        "guest_user.invited",
+        "guest_invitation.created",
+        "user.invited"
+      ],
+      "fixtures": [
+        "tests/fixtures/worker-parity/saas-pack-rules.json"
+      ],
+      "tests": [
+        "tests/ingestion-parity-matrix.test.ts",
+        "internal/ingestionworker/worker_test.go",
+        "internal/ingestionworker/worker_db_test.go",
+        "internal/ingestionworker/saas_pack_rules_test.go"
+      ],
+      "cutoverBlockers": [],
+      "goDefaultBlocked": false
+    },
+    {
+      "ruleId": "ms365.conditional_access_disabled",
+      "provider": "MICROSOFT_365",
+      "state": "go-default",
+      "typescriptEventAliases": [
+        "CONDITIONAL_ACCESS_DISABLED",
+        "CONDITIONAL_ACCESS_POLICY_DISABLED",
+        "CONDITIONAL_ACCESS_POLICY_UPDATED"
+      ],
+      "typescriptPayloadPredicates": [
+        "recordSuggestsDisabledState(payload) for generic updates"
+      ],
+      "goClaimedEventTypes": [
+        "CONDITIONAL_ACCESS_DISABLED",
+        "CONDITIONAL_ACCESS_POLICY_DISABLED",
+        "CONDITIONAL_ACCESS_POLICY_UPDATED",
+        "conditional_access.disabled",
+        "conditional_access_policy.disabled",
+        "conditional_access_policy.updated"
+      ],
+      "fixtures": [
+        "tests/fixtures/worker-parity/saas-pack-rules.json"
+      ],
+      "tests": [
+        "tests/ingestion-parity-matrix.test.ts",
+        "internal/ingestionworker/worker_test.go",
+        "internal/ingestionworker/worker_db_test.go",
+        "internal/ingestionworker/saas_pack_rules_test.go"
+      ],
+      "cutoverBlockers": [],
+      "goDefaultBlocked": false
+    },
+    {
+      "ruleId": "ms365.global_admin_granted",
+      "provider": "MICROSOFT_365",
+      "state": "go-default",
+      "typescriptEventAliases": [
+        "GLOBAL_ADMIN_GRANTED",
+        "DIRECTORY_ROLE_ASSIGNED",
+        "ROLE_ASSIGNMENT_CREATED"
+      ],
+      "typescriptPayloadPredicates": [
+        "role contains Global Administrator for generic role assignments"
+      ],
+      "goClaimedEventTypes": [
+        "GLOBAL_ADMIN_GRANTED",
+        "DIRECTORY_ROLE_ASSIGNED",
+        "ROLE_ASSIGNMENT_CREATED",
+        "global_admin.granted",
+        "directory_role.assigned",
+        "role_assignment.created"
+      ],
+      "fixtures": [
+        "tests/fixtures/worker-parity/saas-pack-rules.json"
+      ],
+      "tests": [
+        "tests/ingestion-parity-matrix.test.ts",
+        "internal/ingestionworker/worker_test.go",
+        "internal/ingestionworker/worker_db_test.go",
+        "internal/ingestionworker/saas_pack_rules_test.go"
+      ],
+      "cutoverBlockers": [],
+      "goDefaultBlocked": false
+    },
+    {
+      "ruleId": "salesforce.admin_profile_assigned",
+      "provider": "SALESFORCE",
+      "state": "go-default",
+      "typescriptEventAliases": [
+        "ADMIN_PROFILE_ASSIGNED",
+        "PERMISSION_SET_ASSIGNED",
+        "PROFILE_ASSIGNED"
+      ],
+      "typescriptPayloadPredicates": [
+        "entitlement contains admin, modify all, or view all for generic assignments"
+      ],
+      "goClaimedEventTypes": [
+        "ADMIN_PROFILE_ASSIGNED",
+        "PERMISSION_SET_ASSIGNED",
+        "PROFILE_ASSIGNED",
+        "admin_profile.assigned",
+        "permission_set.assigned",
+        "profile.assigned"
+      ],
+      "fixtures": [
+        "tests/fixtures/worker-parity/saas-pack-rules.json"
+      ],
+      "tests": [
+        "tests/ingestion-parity-matrix.test.ts",
+        "internal/ingestionworker/worker_test.go",
+        "internal/ingestionworker/worker_db_test.go",
+        "internal/ingestionworker/saas_pack_rules_test.go"
+      ],
+      "cutoverBlockers": [],
+      "goDefaultBlocked": false
+    },
+    {
+      "ruleId": "salesforce.connected_app_policy_weakened",
+      "provider": "SALESFORCE",
+      "state": "go-default",
+      "typescriptEventAliases": [
+        "CONNECTED_APP_POLICY_WEAKENED",
+        "CONNECTED_APP_UPDATED"
+      ],
+      "typescriptPayloadPredicates": [
+        "recordSuggestsWeakenedPolicy(payload) for generic updates"
+      ],
+      "goClaimedEventTypes": [
+        "CONNECTED_APP_POLICY_WEAKENED",
+        "CONNECTED_APP_UPDATED",
+        "connected_app_policy.weakened",
+        "connected_app.updated"
+      ],
+      "fixtures": [
+        "tests/fixtures/worker-parity/saas-pack-rules.json"
+      ],
+      "tests": [
+        "tests/ingestion-parity-matrix.test.ts",
+        "internal/ingestionworker/worker_test.go",
+        "internal/ingestionworker/worker_db_test.go",
+        "internal/ingestionworker/saas_pack_rules_test.go"
+      ],
+      "cutoverBlockers": [],
+      "goDefaultBlocked": false
+    },
+    {
+      "ruleId": "salesforce.report_exported",
+      "provider": "SALESFORCE",
+      "state": "go-default",
+      "typescriptEventAliases": [
+        "REPORT_EXPORTED",
+        "BULK_DATA_EXPORT",
+        "DATA_EXPORT_DOWNLOADED"
+      ],
+      "typescriptPayloadPredicates": [],
+      "goClaimedEventTypes": [
+        "REPORT_EXPORTED",
+        "BULK_DATA_EXPORT",
+        "DATA_EXPORT_DOWNLOADED",
+        "report.exported",
+        "bulk_data.export",
+        "data_export.downloaded"
+      ],
+      "fixtures": [
+        "tests/fixtures/worker-parity/saas-pack-rules.json"
+      ],
+      "tests": [
+        "tests/ingestion-parity-matrix.test.ts",
+        "internal/ingestionworker/worker_test.go",
+        "internal/ingestionworker/worker_db_test.go",
+        "internal/ingestionworker/saas_pack_rules_test.go"
       ],
       "cutoverBlockers": [],
       "goDefaultBlocked": false

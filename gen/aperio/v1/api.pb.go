@@ -14764,16 +14764,21 @@ func (x *DeleteExecutiveReportResponse) GetDeleted() bool {
 }
 
 type ConnectorBuiltInRule struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Provider      string                 `protobuf:"bytes,2,opt,name=provider,proto3" json:"provider,omitempty"`
-	Title         string                 `protobuf:"bytes,3,opt,name=title,proto3" json:"title,omitempty"`
-	Description   string                 `protobuf:"bytes,4,opt,name=description,proto3" json:"description,omitempty"`
-	Severity      string                 `protobuf:"bytes,5,opt,name=severity,proto3" json:"severity,omitempty"`
-	EventTypes    []string               `protobuf:"bytes,6,rep,name=event_types,json=eventTypes,proto3" json:"event_types,omitempty"`
-	Enabled       bool                   `protobuf:"varint,7,opt,name=enabled,proto3" json:"enabled,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	Id              string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Provider        string                 `protobuf:"bytes,2,opt,name=provider,proto3" json:"provider,omitempty"`
+	Title           string                 `protobuf:"bytes,3,opt,name=title,proto3" json:"title,omitempty"`
+	Description     string                 `protobuf:"bytes,4,opt,name=description,proto3" json:"description,omitempty"`
+	Severity        string                 `protobuf:"bytes,5,opt,name=severity,proto3" json:"severity,omitempty"`
+	EventTypes      []string               `protobuf:"bytes,6,rep,name=event_types,json=eventTypes,proto3" json:"event_types,omitempty"`
+	Enabled         bool                   `protobuf:"varint,7,opt,name=enabled,proto3" json:"enabled,omitempty"`
+	PackId          string                 `protobuf:"bytes,8,opt,name=pack_id,json=packId,proto3" json:"pack_id,omitempty"`
+	PackName        string                 `protobuf:"bytes,9,opt,name=pack_name,json=packName,proto3" json:"pack_name,omitempty"`
+	MitreTechniques []string               `protobuf:"bytes,10,rep,name=mitre_techniques,json=mitreTechniques,proto3" json:"mitre_techniques,omitempty"`
+	Intent          string                 `protobuf:"bytes,11,opt,name=intent,proto3" json:"intent,omitempty"`
+	Tags            []string               `protobuf:"bytes,12,rep,name=tags,proto3" json:"tags,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *ConnectorBuiltInRule) Reset() {
@@ -14853,6 +14858,41 @@ func (x *ConnectorBuiltInRule) GetEnabled() bool {
 		return x.Enabled
 	}
 	return false
+}
+
+func (x *ConnectorBuiltInRule) GetPackId() string {
+	if x != nil {
+		return x.PackId
+	}
+	return ""
+}
+
+func (x *ConnectorBuiltInRule) GetPackName() string {
+	if x != nil {
+		return x.PackName
+	}
+	return ""
+}
+
+func (x *ConnectorBuiltInRule) GetMitreTechniques() []string {
+	if x != nil {
+		return x.MitreTechniques
+	}
+	return nil
+}
+
+func (x *ConnectorBuiltInRule) GetIntent() string {
+	if x != nil {
+		return x.Intent
+	}
+	return ""
+}
+
+func (x *ConnectorBuiltInRule) GetTags() []string {
+	if x != nil {
+		return x.Tags
+	}
+	return nil
 }
 
 type ListDetectionPacksRequest struct {
@@ -16981,7 +17021,7 @@ const file_aperio_v1_api_proto_rawDesc = "" +
 	"\x1cDeleteExecutiveReportRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"9\n" +
 	"\x1dDeleteExecutiveReportResponse\x12\x18\n" +
-	"\adeleted\x18\x01 \x01(\bR\adeleted\"\xd1\x01\n" +
+	"\adeleted\x18\x01 \x01(\bR\adeleted\"\xde\x02\n" +
 	"\x14ConnectorBuiltInRule\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n" +
 	"\bprovider\x18\x02 \x01(\tR\bprovider\x12\x14\n" +
@@ -16990,7 +17030,13 @@ const file_aperio_v1_api_proto_rawDesc = "" +
 	"\bseverity\x18\x05 \x01(\tR\bseverity\x12\x1f\n" +
 	"\vevent_types\x18\x06 \x03(\tR\n" +
 	"eventTypes\x12\x18\n" +
-	"\aenabled\x18\a \x01(\bR\aenabled\"7\n" +
+	"\aenabled\x18\a \x01(\bR\aenabled\x12\x17\n" +
+	"\apack_id\x18\b \x01(\tR\x06packId\x12\x1b\n" +
+	"\tpack_name\x18\t \x01(\tR\bpackName\x12)\n" +
+	"\x10mitre_techniques\x18\n" +
+	" \x03(\tR\x0fmitreTechniques\x12\x16\n" +
+	"\x06intent\x18\v \x01(\tR\x06intent\x12\x12\n" +
+	"\x04tags\x18\f \x03(\tR\x04tags\"7\n" +
 	"\x19ListDetectionPacksRequest\x12\x1a\n" +
 	"\bprovider\x18\x01 \x01(\tR\bprovider\"J\n" +
 	"\x1aListDetectionPacksResponse\x12,\n" +

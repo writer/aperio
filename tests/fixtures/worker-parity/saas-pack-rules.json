@@ -1,0 +1,89 @@
+{
+  "description": "Representative local payloads for expanded SaaS detection pack coverage across GitHub, Slack, Microsoft 365, Atlassian, and Salesforce.",
+  "cases": [
+    {
+      "provider": "GITHUB",
+      "eventType": "BRANCH_PROTECTION_DISABLED",
+      "ruleId": "github.branch_protection_disabled",
+      "payload": {
+        "repository": {
+          "full_name": "acme/api"
+        },
+        "branch": "main"
+      }
+    },
+    {
+      "provider": "GITHUB",
+      "eventType": "OAUTH_APP_INSTALLED",
+      "ruleId": "github.oauth_app_installed",
+      "payload": {
+        "app": {
+          "name": "Build Bot"
+        },
+        "scopes": ["repo", "admin:org"]
+      }
+    },
+    {
+      "provider": "SLACK",
+      "eventType": "EXTERNAL_SHARED_CHANNEL_CREATED",
+      "ruleId": "slack.external_shared_channel_created",
+      "payload": {
+        "channel": {
+          "name": "customer-data"
+        },
+        "external_organization": {
+          "name": "Partner Co"
+        }
+      }
+    },
+    {
+      "provider": "SLACK",
+      "eventType": "APP_INSTALLED",
+      "ruleId": "slack.app_installed",
+      "payload": {
+        "app": {
+          "name": "Transcript Exporter",
+          "scopes": ["channels:history", "files:read"]
+        }
+      }
+    },
+    {
+      "provider": "MICROSOFT_365",
+      "eventType": "DIRECTORY_ROLE_ASSIGNED",
+      "ruleId": "ms365.global_admin_granted",
+      "payload": {
+        "target": {
+          "userPrincipalName": "alice@example.com"
+        },
+        "role": {
+          "displayName": "Global Administrator"
+        }
+      }
+    },
+    {
+      "provider": "ATLASSIAN",
+      "eventType": "ANONYMOUS_ACCESS_ENABLED",
+      "ruleId": "atlassian.anonymous_access_enabled",
+      "payload": {
+        "space": {
+          "key": "FIN",
+          "name": "Finance"
+        }
+      }
+    },
+    {
+      "provider": "SALESFORCE",
+      "eventType": "CONNECTED_APP_UPDATED",
+      "ruleId": "salesforce.connected_app_policy_weakened",
+      "payload": {
+        "connectedApp": {
+          "name": "Pipeline Exporter"
+        },
+        "changes": [
+          "admin approved users disabled",
+          "refresh token never expires"
+        ]
+      }
+    }
+  ]
+}

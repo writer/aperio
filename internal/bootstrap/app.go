@@ -656,6 +656,13 @@ func (a *App) ListConnectorRules(
 				Severity:    stringFromAny(rule["severity"]),
 				EventTypes:  stringSlice(rule["eventTypes"]),
 				Enabled:     boolFromAny(rule["enabled"]),
+				PackId:      stringFromAny(rule["packId"]),
+				PackName:    stringFromAny(rule["packName"]),
+				MitreTechniques: stringSlice(
+					rule["mitreTechniques"],
+				),
+				Intent: stringFromAny(rule["intent"]),
+				Tags:   stringSlice(rule["tags"]),
 			})
 		}
 	}

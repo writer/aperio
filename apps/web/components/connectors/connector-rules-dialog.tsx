@@ -333,14 +333,32 @@ export function ConnectorRulesDialog({
                       className="flex items-start gap-3 rounded border border-border bg-background p-3"
                     >
                       <div className="flex-1">
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
                           <span className="text-sm font-medium text-foreground">{rule.title}</span>
                           <Badge variant="outline">{rule.severity}</Badge>
+                          {rule.packName ? <Badge variant="secondary">{rule.packName}</Badge> : null}
                         </div>
                         <p className="mt-1 text-xs text-muted-foreground">{rule.description}</p>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          Triggers on: {rule.eventTypes.join(", ")}
-                        </p>
+                        {rule.intent ? (
+                          <p className="mt-1 text-xs text-foreground/80">{rule.intent}</p>
+                        ) : null}
+                        <div className="mt-2 flex flex-wrap gap-1">
+                          {rule.eventTypes.map((eventType) => (
+                            <Badge key={eventType} variant="outline" className="font-mono text-[10px]">
+                              {eventType}
+                            </Badge>
+                          ))}
+                          {rule.mitreTechniques.map((technique) => (
+                            <Badge key={technique} variant="secondary" className="font-mono text-[10px]">
+                              MITRE {technique}
+                            </Badge>
+                          ))}
+                          {rule.tags.map((tag) => (
+                            <Badge key={tag} variant="outline" className="text-[10px]">
+                              {tag.replaceAll("_", " ")}
+                            </Badge>
+                          ))}
+                        </div>
                       </div>
                       <Switch
                         checked={rule.enabled}

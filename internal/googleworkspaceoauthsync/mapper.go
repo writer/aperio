@@ -53,6 +53,7 @@ func (p parsedToken) Summary() string {
 	if len(p.Scopes) == 0 {
 		return "Third-party OAuth app"
 	}
+	risk := googleOAuthAssetRisk(p.Scopes)
 	preview := p.Scopes
 	if len(preview) > 3 {
 		preview = preview[:3]
@@ -60,6 +61,9 @@ func (p parsedToken) Summary() string {
 	suffix := ""
 	if len(p.Scopes) > 3 {
 		suffix = ", +" + itoa(len(p.Scopes)-3) + " more"
+	}
+	if len(risk.riskReasons) > 0 {
+		return "Risk drivers: " + strings.Join(risk.riskReasons, "; ") + ". OAuth scopes: " + strings.Join(preview, ", ") + suffix
 	}
 	return "OAuth scopes: " + strings.Join(preview, ", ") + suffix
 }
@@ -96,6 +100,7 @@ type oauthAssetRisk struct {
 	riskScore             int
 	containsSensitiveData bool
 	isPrivileged          bool
+	riskReasons           []string
 }
 
 func googleOAuthAssetRisk(scopes []string) oauthAssetRisk {
@@ -115,8 +120,9 @@ func googleOAuthAssetRisk(scopes []string) oauthAssetRisk {
 		"https://www.googleapis.com/auth/gmail.insert":           {},
 		"https://www.googleapis.com/auth/gmail.settings.basic":   {},
 		"https://www.googleapis.com/auth/gmail.settings.sharing": {},
+		"https://www.googleapis.com/auth/drive":                  {},
 	}
-	highMailboxScopeSet := map[string]struct{}{
+	highScopeSet := map[string]struct{}{
 		"https://www.googleapis.com/auth/gmail.readonly":                        {},
 		"https://www.googleapis.com/auth/gmail.metadata":                        {},
 		"https://www.googleapis.com/auth/gmail.send":                            {},
@@ -125,35 +131,73 @@ func googleOAuthAssetRisk(scopes []string) oauthAssetRisk {
 		"https://www.googleapis.com/auth/gmail.addons.current.message.readonly": {},
 		"https://www.googleapis.com/auth/gmail.addons.current.message.action":   {},
 		"https://www.googleapis.com/auth/gmail.addons.execute":                  {},
+		"https://www.googleapis.com/auth/drive.readonly":                        {},
+		"https://www.googleapis.com/auth/drive.file":                            {},
+		"https://www.googleapis.com/auth/drive.metadata":                        {},
+		"https://www.googleapis.com/auth/drive.metadata.readonly":               {},
+		"https://www.googleapis.com/auth/admin.directory.user.readonly":         {},
+		"https://www.googleapis.com/auth/admin.directory.group.readonly":        {},
+		"https://www.googleapis.com/auth/cloud-platform":                        {},
+		"https://www.googleapis.com/auth/bigquery":                              {},
 	}
 	criticalMatches := 0
-	highMailboxMatches := 0
+	highMatches := 0
 	highValueMatches := 0
 	isPrivileged := false
+	riskReasons := []string{}
 	for _, scope := range normalized {
 		if _, ok := criticalScopeSet[scope]; ok {
 			criticalMatches++
 		}
-		if _, ok := highMailboxScopeSet[scope]; ok {
-			highMailboxMatches++
+		if _, ok := highScopeSet[scope]; ok {
+			highMatches++
+		}
+		switch {
+		case scope == "https://mail.google.com/" ||
+			strings.Contains(scope, "gmail.modify") ||
+			strings.Contains(scope, "gmail.settings"):
+			riskReasons = appendOAuthReason(riskReasons, "Full mailbox access")
+		case strings.Contains(scope, "gmail.readonly") ||
+			strings.Contains(scope, "gmail.metadata") ||
+			strings.Contains(scope, "gmail.send") ||
+			strings.Contains(scope, "gmail.compose"):
+			riskReasons = appendOAuthReason(riskReasons, "Mailbox read/send access")
+		}
+		if scope == "https://www.googleapis.com/auth/drive" ||
+			strings.Contains(scope, "/auth/drive.") {
+			riskReasons = appendOAuthReason(riskReasons, "Google Drive file access")
 		}
 		if strings.Contains(scope, "admin") || strings.Contains(scope, "drive") || strings.Contains(scope, "directory") {
 			highValueMatches++
 		}
 		if strings.Contains(scope, "admin") || strings.Contains(scope, "directory") {
 			isPrivileged = true
+			riskReasons = appendOAuthReason(riskReasons, "Directory or admin access")
+		}
+		if strings.Contains(scope, "cloud-platform") || strings.Contains(scope, "bigquery") {
+			highValueMatches++
+			riskReasons = appendOAuthReason(riskReasons, "Google Cloud data access")
 		}
 	}
 	if criticalMatches > 0 {
-		return oauthAssetRisk{criticality: "CRITICAL", riskScore: minOAuthRisk(97, 92+criticalMatches), containsSensitiveData: true, isPrivileged: isPrivileged}
+		return oauthAssetRisk{criticality: "CRITICAL", riskScore: minOAuthRisk(97, 92+criticalMatches), containsSensitiveData: true, isPrivileged: isPrivileged, riskReasons: riskReasons}
 	}
-	if highMailboxMatches > 0 {
-		return oauthAssetRisk{criticality: "HIGH", riskScore: minOAuthRisk(91, 84+highMailboxMatches), containsSensitiveData: true, isPrivileged: isPrivileged}
+	if highMatches > 0 {
+		return oauthAssetRisk{criticality: "HIGH", riskScore: minOAuthRisk(91, 84+highMatches), containsSensitiveData: true, isPrivileged: isPrivileged, riskReasons: riskReasons}
 	}
 	if highValueMatches > 0 {
-		return oauthAssetRisk{criticality: "HIGH", riskScore: 82, containsSensitiveData: true, isPrivileged: isPrivileged}
+		return oauthAssetRisk{criticality: "HIGH", riskScore: 82, containsSensitiveData: true, isPrivileged: isPrivileged, riskReasons: riskReasons}
 	}
 	return oauthAssetRisk{criticality: "MEDIUM", riskScore: 45}
+}
+
+func appendOAuthReason(reasons []string, reason string) []string {
+	for _, existing := range reasons {
+		if existing == reason {
+			return reasons
+		}
+	}
+	return append(reasons, reason)
 }
 
 func minOAuthRisk(a, b int) int {

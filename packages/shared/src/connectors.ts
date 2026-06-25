@@ -640,6 +640,14 @@ const rawConnectorCatalog: ConnectorDefinition[] = [
         description: "Flag creation of globally readable Confluence spaces.",
         severityHint: "MEDIUM",
         defaultEnabled: true
+      },
+      {
+        key: "atlassian.org_admin_granted",
+        title: "Atlassian administrator granted",
+        description:
+          "Flag organization, site, or product administrator grants.",
+        severityHint: "HIGH",
+        defaultEnabled: true
       }
     ],
     docsUrl:
@@ -671,7 +679,32 @@ const rawConnectorCatalog: ConnectorDefinition[] = [
     readScopes: ["api", "refresh_token"],
     remediationScopes: [],
     remediationActions: [],
-    findingChecks: [],
+    findingChecks: [
+      {
+        key: "salesforce.admin_profile_assigned",
+        title: "Admin profile assigned",
+        description:
+          "Flag administrator profile or broad permission set assignments.",
+        severityHint: "CRITICAL",
+        defaultEnabled: true
+      },
+      {
+        key: "salesforce.connected_app_policy_weakened",
+        title: "Connected app policy weakened",
+        description:
+          "Flag connected-app OAuth policy changes that broaden access or weaken session controls.",
+        severityHint: "HIGH",
+        defaultEnabled: true
+      },
+      {
+        key: "salesforce.report_exported",
+        title: "Report or data export downloaded",
+        description:
+          "Flag report exports, bulk data exports, or tenant data export downloads.",
+        severityHint: "HIGH",
+        defaultEnabled: true
+      }
+    ],
     docsUrl:
       "https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/intro_rest.htm",
     fields: [

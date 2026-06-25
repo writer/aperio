@@ -1594,6 +1594,11 @@ message ConnectorBuiltInRule {
   string severity = 5;
   repeated string event_types = 6;
   bool enabled = 7;
+  string pack_id = 8;
+  string pack_name = 9;
+  repeated string mitre_techniques = 10;
+  string intent = 11;
+  repeated string tags = 12;
 }
 
 message ListDetectionPacksRequest {

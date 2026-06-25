@@ -500,6 +500,11 @@ export type ConnectConnectorBuiltInRule = {
   description: string;
   severity: string;
   eventTypes: string[];
+  packId: string;
+  packName: string;
+  mitreTechniques: string[];
+  intent: string;
+  tags: string[];
   enabled: boolean;
 };
 
@@ -2749,6 +2754,11 @@ export const aperioConnectClient = {
           description: rule.description,
           severity: rule.severity,
           eventTypes: [...rule.eventTypes],
+          packId: rule.packId,
+          packName: rule.packName,
+          mitreTechniques: [...rule.mitreTechniques],
+          intent: rule.intent,
+          tags: [...rule.tags],
           enabled: rule.enabled
         })),
         custom: response.custom.map((rule) => ({

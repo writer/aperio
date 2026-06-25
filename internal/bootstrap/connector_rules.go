@@ -62,27 +62,38 @@ func (a *App) compatListConnectorRules(ctx context.Context, integrationID string
 	for _, check := range compatFindingChecksForProvider(provider) {
 		_, off := disabledSet[check.Key]
 		if entry, ok := catalogByID[check.Key]; ok {
+			pack, _ := ingestionworker.DetectionPackByID(entry.PackID)
 			builtIns = append(builtIns, map[string]any{
-				"id":          entry.ID,
-				"kind":        "built_in",
-				"provider":    entry.Provider,
-				"title":       entry.Title,
-				"description": entry.Description,
-				"severity":    entry.Severity,
-				"eventTypes":  entry.EventTypes,
-				"enabled":     !off,
+				"id":              entry.ID,
+				"kind":            "built_in",
+				"provider":        entry.Provider,
+				"title":           entry.Title,
+				"description":     entry.Description,
+				"severity":        entry.Severity,
+				"eventTypes":      entry.EventTypes,
+				"packId":          entry.PackID,
+				"packName":        pack.Name,
+				"mitreTechniques": entry.MitreTechniques,
+				"intent":          entry.Intent,
+				"tags":            entry.Tags,
+				"enabled":         !off,
 			})
 			continue
 		}
 		builtIns = append(builtIns, map[string]any{
-			"id":          check.Key,
-			"kind":        "built_in",
-			"provider":    provider,
-			"title":       check.Title,
-			"description": check.Description,
-			"severity":    check.SeverityHint,
-			"eventTypes":  []string{},
-			"enabled":     !off,
+			"id":              check.Key,
+			"kind":            "built_in",
+			"provider":        provider,
+			"title":           check.Title,
+			"description":     check.Description,
+			"severity":        check.SeverityHint,
+			"eventTypes":      []string{},
+			"packId":          "",
+			"packName":        "",
+			"mitreTechniques": []string{},
+			"intent":          "",
+			"tags":            []string{},
+			"enabled":         !off,
 		})
 	}
 	customs, err := a.loadCustomRulesForIntegration(ctx, auth.OrganizationID, integrationID)

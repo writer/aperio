@@ -54,6 +54,16 @@ func TestSummaryHandlesEmptyScopes(t *testing.T) {
 	}
 }
 
+func TestSummaryIncludesRiskDriversForSensitiveScopes(t *testing.T) {
+	got := (parsedToken{Scopes: []string{
+		"https://mail.google.com/",
+		"https://www.googleapis.com/auth/drive.readonly",
+	}}).Summary()
+	if !strings.Contains(got, "Risk drivers: Full mailbox access; Google Drive file access.") {
+		t.Fatalf("summary should explain scope risk drivers: got %q", got)
+	}
+}
+
 func TestGoogleOAuthAssetRiskScoresSensitiveScopes(t *testing.T) {
 	cases := []struct {
 		name        string
@@ -62,6 +72,7 @@ func TestGoogleOAuthAssetRiskScoresSensitiveScopes(t *testing.T) {
 		riskFloor   int
 		sensitive   bool
 		privileged  bool
+		reason      string
 	}{
 		{
 			name:        "critical gmail",
@@ -69,6 +80,7 @@ func TestGoogleOAuthAssetRiskScoresSensitiveScopes(t *testing.T) {
 			criticality: "CRITICAL",
 			riskFloor:   92,
 			sensitive:   true,
+			reason:      "Full mailbox access",
 		},
 		{
 			name:        "high gmail readonly",
@@ -76,6 +88,15 @@ func TestGoogleOAuthAssetRiskScoresSensitiveScopes(t *testing.T) {
 			criticality: "HIGH",
 			riskFloor:   84,
 			sensitive:   true,
+			reason:      "Mailbox read/send access",
+		},
+		{
+			name:        "critical drive full access",
+			scopes:      []string{"https://www.googleapis.com/auth/drive"},
+			criticality: "CRITICAL",
+			riskFloor:   92,
+			sensitive:   true,
+			reason:      "Google Drive file access",
 		},
 		{
 			name:        "admin directory",
@@ -84,6 +105,15 @@ func TestGoogleOAuthAssetRiskScoresSensitiveScopes(t *testing.T) {
 			riskFloor:   82,
 			sensitive:   true,
 			privileged:  true,
+			reason:      "Directory or admin access",
+		},
+		{
+			name:        "cloud data",
+			scopes:      []string{"https://www.googleapis.com/auth/cloud-platform"},
+			criticality: "HIGH",
+			riskFloor:   82,
+			sensitive:   true,
+			reason:      "Google Cloud data access",
 		},
 		{
 			name:        "basic profile",
@@ -104,8 +134,20 @@ func TestGoogleOAuthAssetRiskScoresSensitiveScopes(t *testing.T) {
 			if got.criticality != c.criticality || got.riskScore < c.riskFloor || got.containsSensitiveData != c.sensitive || got.isPrivileged != c.privileged {
 				t.Fatalf("risk = %+v, want criticality=%s risk>=%d sensitive=%t privileged=%t", got, c.criticality, c.riskFloor, c.sensitive, c.privileged)
 			}
+			if c.reason != "" && !containsOAuthReason(got.riskReasons, c.reason) {
+				t.Fatalf("risk reasons = %v, want %q", got.riskReasons, c.reason)
+			}
 		})
 	}
+}
+
+func containsOAuthReason(reasons []string, want string) bool {
+	for _, reason := range reasons {
+		if reason == want {
+			return true
+		}
+	}
+	return false
 }
 
 func TestMergeOAuthAppTokenAggregatesRiskScopes(t *testing.T) {

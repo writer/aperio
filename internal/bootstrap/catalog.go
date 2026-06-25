@@ -259,6 +259,7 @@ func rawConnectorCatalog() []connectorDefinition {
 			FindingChecks: []findingCheck{
 				{Key: "atlassian.anonymous_access_enabled", Title: "Anonymous access enabled", Description: "Flag Jira or Confluence projects/spaces opened to anonymous users.", SeverityHint: "HIGH", DefaultEnabled: true},
 				{Key: "atlassian.public_space_created", Title: "Public Confluence space created", Description: "Flag creation of globally readable Confluence spaces.", SeverityHint: "MEDIUM", DefaultEnabled: true},
+				{Key: "atlassian.org_admin_granted", Title: "Atlassian administrator granted", Description: "Flag organization, site, or product administrator grants.", SeverityHint: "HIGH", DefaultEnabled: true},
 			},
 			DocsURL: "https://developer.atlassian.com/cloud/admin/organization/rest/api-group-audit-log/",
 			Fields: []connectorField{
@@ -275,8 +276,12 @@ func rawConnectorCatalog() []connectorDefinition {
 			ReadScopes:         []string{"api", "refresh_token"},
 			RemediationScopes:  []string{},
 			RemediationActions: []remediationAction{},
-			FindingChecks:      []findingCheck{},
-			DocsURL:            "https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/intro_rest.htm",
+			FindingChecks: []findingCheck{
+				{Key: "salesforce.admin_profile_assigned", Title: "Admin profile assigned", Description: "Flag administrator profile or broad permission set assignments.", SeverityHint: "CRITICAL", DefaultEnabled: true},
+				{Key: "salesforce.connected_app_policy_weakened", Title: "Connected app policy weakened", Description: "Flag connected-app OAuth policy changes that broaden access or weaken session controls.", SeverityHint: "HIGH", DefaultEnabled: true},
+				{Key: "salesforce.report_exported", Title: "Report or data export downloaded", Description: "Flag report exports, bulk data exports, or tenant data export downloads.", SeverityHint: "HIGH", DefaultEnabled: true},
+			},
+			DocsURL: "https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/intro_rest.htm",
 			Fields: []connectorField{
 				{Key: "externalAccountId", Label: "Salesforce instance domain", Placeholder: "acme.my.salesforce.com", Helper: "Use your My Domain host without https://.", Type: "url", Required: true, Secret: false},
 				{Key: "refreshToken", Label: "Connected App client ID", Placeholder: "3MVG9....", Helper: "Consumer Key from the Salesforce Connected App (OAuth) configuration.", Type: "text", Required: true, Secret: false},

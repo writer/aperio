@@ -18,6 +18,9 @@ func TestDetectionPackRegistryShape(t *testing.T) {
 		"SLACK":            true,
 		"OKTA":             true,
 		"GOOGLE_WORKSPACE": true,
+		"MICROSOFT_365":    true,
+		"ATLASSIAN":        true,
+		"SALESFORCE":       true,
 	}
 	semver := regexp.MustCompile(`^\d+\.\d+\.\d+$`)
 	seen := map[string]bool{}

@@ -123,7 +123,15 @@ func TestRuleCatalogSeveritiesAndEventTypesMatchEvaluators(t *testing.T) {
 // classifying a rule under a SaaS provider the connectors UI does not
 // surface, which would orphan the toggle.
 func TestRuleCatalogProvidersAreKnown(t *testing.T) {
-	known := map[string]bool{"GITHUB": true, "SLACK": true, "OKTA": true, "GOOGLE_WORKSPACE": true}
+	known := map[string]bool{
+		"GITHUB":           true,
+		"SLACK":            true,
+		"OKTA":             true,
+		"GOOGLE_WORKSPACE": true,
+		"MICROSOFT_365":    true,
+		"ATLASSIAN":        true,
+		"SALESFORCE":       true,
+	}
 	for _, entry := range RuleCatalog {
 		if !known[entry.Provider] {
 			t.Errorf("rule %q has unknown provider %q", entry.ID, entry.Provider)

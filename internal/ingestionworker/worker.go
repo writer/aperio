@@ -40,12 +40,38 @@ var supportedIngestionEventTypes = map[string][]string{
 	"GITHUB": {
 		"PUBLIC_REPOSITORY_CREATED",
 		"repository.publicized",
+		"BRANCH_PROTECTION_DISABLED",
+		"BRANCH_PROTECTION_RULE_DELETED",
+		"BRANCH_PROTECTION_RULE_UPDATED",
+		"branch_protection.disabled",
+		"branch_protection_rule.deleted",
+		"branch_protection_rule.updated",
+		"OAUTH_APP_INSTALLED",
+		"GITHUB_APP_INSTALLED",
+		"ORG_OAUTH_APP_ACCESS_APPROVED",
+		"oauth_app.installed",
+		"github_app.installed",
+		"org.oauth_app_access_approved",
 	},
 	"SLACK": {
 		"MFA_DISABLED",
 		"TWO_FACTOR_AUTH_DISABLED",
 		"mfa.disabled",
 		"two-factor auth disabled",
+		"EXTERNAL_SHARED_CHANNEL_CREATED",
+		"SHARED_CHANNEL_INVITE_ACCEPTED",
+		"external_shared_channel.created",
+		"shared_channel_invite.accepted",
+		"WORKSPACE_INVITE_LINK_ENABLED",
+		"INVITE_LINK_CREATED",
+		"workspace_invite_link.enabled",
+		"invite_link.created",
+		"APP_INSTALLED",
+		"APP_APPROVED",
+		"APP_SCOPES_APPROVED",
+		"app.installed",
+		"app.approved",
+		"app_scopes.approved",
 	},
 	"OKTA": {
 		"USER_ACCOUNT_PRIVILEGE_GRANT",
@@ -94,6 +120,62 @@ var supportedIngestionEventTypes = map[string][]string{
 		"legacy.mail.auth.used",
 		"FORWARDING_DELEGATE_SEND_AS_COMBO",
 		"forwarding.delegate.send.as.combo",
+	},
+	"MICROSOFT_365": {
+		"GUEST_USER_INVITED",
+		"GUEST_INVITATION_CREATED",
+		"USER_INVITED",
+		"guest_user.invited",
+		"guest_invitation.created",
+		"user.invited",
+		"CONDITIONAL_ACCESS_DISABLED",
+		"CONDITIONAL_ACCESS_POLICY_DISABLED",
+		"CONDITIONAL_ACCESS_POLICY_UPDATED",
+		"conditional_access.disabled",
+		"conditional_access_policy.disabled",
+		"conditional_access_policy.updated",
+		"GLOBAL_ADMIN_GRANTED",
+		"DIRECTORY_ROLE_ASSIGNED",
+		"ROLE_ASSIGNMENT_CREATED",
+		"global_admin.granted",
+		"directory_role.assigned",
+		"role_assignment.created",
+	},
+	"ATLASSIAN": {
+		"ANONYMOUS_ACCESS_ENABLED",
+		"PUBLIC_ACCESS_ENABLED",
+		"anonymous_access.enabled",
+		"public_access.enabled",
+		"PUBLIC_SPACE_CREATED",
+		"SPACE_PUBLIC_ACCESS_ENABLED",
+		"PROJECT_PUBLIC_ACCESS_ENABLED",
+		"public_space.created",
+		"space_public_access.enabled",
+		"project_public_access.enabled",
+		"ORG_ADMIN_GRANTED",
+		"SITE_ADMIN_GRANTED",
+		"PRODUCT_ADMIN_GRANTED",
+		"org_admin.granted",
+		"site_admin.granted",
+		"product_admin.granted",
+	},
+	"SALESFORCE": {
+		"ADMIN_PROFILE_ASSIGNED",
+		"PERMISSION_SET_ASSIGNED",
+		"PROFILE_ASSIGNED",
+		"admin_profile.assigned",
+		"permission_set.assigned",
+		"profile.assigned",
+		"CONNECTED_APP_POLICY_WEAKENED",
+		"CONNECTED_APP_UPDATED",
+		"connected_app_policy.weakened",
+		"connected_app.updated",
+		"REPORT_EXPORTED",
+		"BULK_DATA_EXPORT",
+		"DATA_EXPORT_DOWNLOADED",
+		"report.exported",
+		"bulk_data.export",
+		"data_export.downloaded",
 	},
 }
 
@@ -243,8 +325,33 @@ func Evaluate(payload JobPayload, disabledChecks []string) []Finding {
 			findings = append(findings, finding)
 		}
 	}
+	if _, ok := disabled["github.branch_protection_disabled"]; !ok {
+		if finding, ok := evaluateGitHubBranchProtectionDisabled(payload); ok {
+			findings = append(findings, finding)
+		}
+	}
+	if _, ok := disabled["github.oauth_app_installed"]; !ok {
+		if finding, ok := evaluateGitHubOAuthAppInstalled(payload); ok {
+			findings = append(findings, finding)
+		}
+	}
 	if _, ok := disabled["slack.mfa_disabled"]; !ok {
 		if finding, ok := evaluateSlackMFADisabled(payload); ok {
+			findings = append(findings, finding)
+		}
+	}
+	if _, ok := disabled["slack.external_shared_channel_created"]; !ok {
+		if finding, ok := evaluateSlackExternalSharedChannelCreated(payload); ok {
+			findings = append(findings, finding)
+		}
+	}
+	if _, ok := disabled["slack.workspace_invite_link_enabled"]; !ok {
+		if finding, ok := evaluateSlackWorkspaceInviteLinkEnabled(payload); ok {
+			findings = append(findings, finding)
+		}
+	}
+	if _, ok := disabled["slack.app_installed"]; !ok {
+		if finding, ok := evaluateSlackAppInstalled(payload); ok {
 			findings = append(findings, finding)
 		}
 	}
@@ -318,6 +425,51 @@ func Evaluate(payload JobPayload, disabledChecks []string) []Finding {
 			findings = append(findings, finding)
 		}
 	}
+	if _, ok := disabled["ms365.guest_user_invited"]; !ok {
+		if finding, ok := evaluateMicrosoft365GuestUserInvited(payload); ok {
+			findings = append(findings, finding)
+		}
+	}
+	if _, ok := disabled["ms365.conditional_access_disabled"]; !ok {
+		if finding, ok := evaluateMicrosoft365ConditionalAccessDisabled(payload); ok {
+			findings = append(findings, finding)
+		}
+	}
+	if _, ok := disabled["ms365.global_admin_granted"]; !ok {
+		if finding, ok := evaluateMicrosoft365GlobalAdminGranted(payload); ok {
+			findings = append(findings, finding)
+		}
+	}
+	if _, ok := disabled["atlassian.anonymous_access_enabled"]; !ok {
+		if finding, ok := evaluateAtlassianAnonymousAccessEnabled(payload); ok {
+			findings = append(findings, finding)
+		}
+	}
+	if _, ok := disabled["atlassian.public_space_created"]; !ok {
+		if finding, ok := evaluateAtlassianPublicSpaceCreated(payload); ok {
+			findings = append(findings, finding)
+		}
+	}
+	if _, ok := disabled["atlassian.org_admin_granted"]; !ok {
+		if finding, ok := evaluateAtlassianOrgAdminGranted(payload); ok {
+			findings = append(findings, finding)
+		}
+	}
+	if _, ok := disabled["salesforce.admin_profile_assigned"]; !ok {
+		if finding, ok := evaluateSalesforceAdminProfileAssigned(payload); ok {
+			findings = append(findings, finding)
+		}
+	}
+	if _, ok := disabled["salesforce.connected_app_policy_weakened"]; !ok {
+		if finding, ok := evaluateSalesforceConnectedAppPolicyWeakened(payload); ok {
+			findings = append(findings, finding)
+		}
+	}
+	if _, ok := disabled["salesforce.report_exported"]; !ok {
+		if finding, ok := evaluateSalesforceReportExported(payload); ok {
+			findings = append(findings, finding)
+		}
+	}
 	return findings
 }
 
@@ -360,6 +512,110 @@ func evaluateGitHubPublicRepository(payload JobPayload) (Finding, bool) {
 	}, true
 }
 
+func evaluateGitHubBranchProtectionDisabled(payload JobPayload) (Finding, bool) {
+	if payload.Provider != "GITHUB" {
+		return Finding{}, false
+	}
+	switch normalizeEventType(payload.EventType) {
+	case "BRANCH_PROTECTION_DISABLED", "BRANCH_PROTECTION_RULE_DELETED", "BRANCH_PROTECTION_RULE_UPDATED":
+	default:
+		return Finding{}, false
+	}
+	if normalizeEventType(payload.EventType) == "BRANCH_PROTECTION_RULE_UPDATED" && !recordSuggestsWeakenedPolicy(payload.Payload) {
+		return Finding{}, false
+	}
+	repository := firstNonEmpty(
+		nestedString(payload.Payload, "repository", "full_name"),
+		nestedString(payload.Payload, "repository", "name"),
+		nestedString(payload.Payload, "repo"),
+		"unknown repository",
+	)
+	branch := firstNonEmpty(
+		nestedString(payload.Payload, "branch"),
+		nestedString(payload.Payload, "ref"),
+		nestedString(payload.Payload, "rule", "pattern"),
+		nestedString(payload.Payload, "protection", "branch"),
+		"default branch",
+	)
+	subject := repository + ":" + branch
+	return Finding{
+		RuleID:      "github.branch_protection_disabled",
+		Title:       "GitHub branch protection disabled",
+		Description: "Required reviews, status checks, signed commits, or linear history were removed from a protected branch.",
+		Severity:    SeverityHigh,
+		RiskScore:   RiskScoreFor(SeverityHigh, 6),
+		Tags:        []string{TagPolicyWeakened},
+		RemediationSteps: []string{
+			"Confirm the branch-protection change was approved through change control.",
+			"Restore required reviews, status checks, signed commits, and linear history if not explicitly approved.",
+			"Review commits merged while protection was weakened.",
+		},
+		Target:       repository,
+		DedupeTarget: subject,
+		Evidence: compactEvidence(map[string]any{
+			"repository": repository,
+			"branch":     branch,
+			"actor":      payload.Actor,
+			"subject":    subject,
+		}),
+	}, true
+}
+
+func evaluateGitHubOAuthAppInstalled(payload JobPayload) (Finding, bool) {
+	if payload.Provider != "GITHUB" {
+		return Finding{}, false
+	}
+	switch normalizeEventType(payload.EventType) {
+	case "OAUTH_APP_INSTALLED", "GITHUB_APP_INSTALLED", "ORG_OAUTH_APP_ACCESS_APPROVED":
+	default:
+		return Finding{}, false
+	}
+	app := firstNonEmpty(
+		nestedString(payload.Payload, "app", "name"),
+		nestedString(payload.Payload, "oauth_app", "name"),
+		nestedString(payload.Payload, "application", "name"),
+		nestedString(payload.Payload, "application", "slug"),
+		nestedString(payload.Payload, "client_id"),
+		"unknown app",
+	)
+	scopes := uniqueStrings(append(
+		stringArray(payload.Payload["scopes"]),
+		stringArray(nestedRecord(payload.Payload, "application")["scopes"])...,
+	))
+	permissions := flattenedRecordStringValues(nestedRecord(payload.Payload, "permissions"))
+	scopeBlob := strings.ToLower(strings.Join(append(scopes, permissions...), " "))
+	risky := strings.Contains(scopeBlob, "admin") ||
+		strings.Contains(scopeBlob, "repo") ||
+		strings.Contains(scopeBlob, "write") ||
+		strings.Contains(scopeBlob, "organization") ||
+		strings.Contains(scopeBlob, "members")
+	if !risky && len(scopes) > 0 {
+		return Finding{}, false
+	}
+	return Finding{
+		RuleID:      "github.oauth_app_installed",
+		Title:       "Risky GitHub OAuth app installed",
+		Description: "A GitHub OAuth or GitHub App installation requested organization, admin, repo, or write-level access.",
+		Severity:    SeverityHigh,
+		RiskScore:   RiskScoreFor(SeverityHigh, 8),
+		Tags:        []string{TagOAuthRiskyGrant, TagDataAccess},
+		RemediationSteps: []string{
+			"Confirm the GitHub app is approved for the organization.",
+			"Restrict requested permissions or revoke the app if the access is not required.",
+			"Review repository and organization audit activity performed by the app.",
+		},
+		Target:       app,
+		DedupeTarget: app,
+		Evidence: compactEvidence(map[string]any{
+			"app":         app,
+			"scopes":      scopes,
+			"permissions": permissions,
+			"actor":       payload.Actor,
+			"subject":     app,
+		}),
+	}, true
+}
+
 func evaluateSlackMFADisabled(payload JobPayload) (Finding, bool) {
 	if payload.Provider != "SLACK" {
 		return Finding{}, false
@@ -391,6 +647,126 @@ func evaluateSlackMFADisabled(payload JobPayload) (Finding, bool) {
 			"user":    user,
 			"subject": user,
 		},
+	}, true
+}
+
+func evaluateSlackExternalSharedChannelCreated(payload JobPayload) (Finding, bool) {
+	if payload.Provider != "SLACK" {
+		return Finding{}, false
+	}
+	switch normalizeEventType(payload.EventType) {
+	case "EXTERNAL_SHARED_CHANNEL_CREATED", "SHARED_CHANNEL_INVITE_ACCEPTED":
+	default:
+		return Finding{}, false
+	}
+	channel := slackChannelLabel(payload)
+	externalOrg := firstNonEmpty(
+		nestedString(payload.Payload, "external_organization", "name"),
+		nestedString(payload.Payload, "external_team", "name"),
+		nestedString(payload.Payload, "target_team", "name"),
+		"external organization",
+	)
+	subject := channel + ":" + externalOrg
+	return Finding{
+		RuleID:      "slack.external_shared_channel_created",
+		Title:       "Slack external shared channel created",
+		Description: "A Slack channel was shared with an external organization, expanding conversation and file visibility outside the tenant.",
+		Severity:    SeverityHigh,
+		RiskScore:   RiskScoreFor(SeverityHigh, 4),
+		Tags:        []string{TagDataExternalShare},
+		RemediationSteps: []string{
+			"Confirm the shared channel and external organization are approved.",
+			"Restrict channel membership and file sharing if the collaboration is still required.",
+			"Disconnect the shared channel if it was created unexpectedly.",
+		},
+		Target:       channel,
+		DedupeTarget: subject,
+		Evidence: compactEvidence(map[string]any{
+			"channel":     channel,
+			"externalOrg": externalOrg,
+			"actor":       payload.Actor,
+			"subject":     subject,
+		}),
+	}, true
+}
+
+func evaluateSlackWorkspaceInviteLinkEnabled(payload JobPayload) (Finding, bool) {
+	if payload.Provider != "SLACK" {
+		return Finding{}, false
+	}
+	switch normalizeEventType(payload.EventType) {
+	case "WORKSPACE_INVITE_LINK_ENABLED", "INVITE_LINK_CREATED":
+	default:
+		return Finding{}, false
+	}
+	workspace := firstNonEmpty(
+		nestedString(payload.Payload, "team", "name"),
+		nestedString(payload.Payload, "workspace", "name"),
+		nestedString(payload.Payload, "enterprise", "name"),
+		"Slack workspace",
+	)
+	return Finding{
+		RuleID:      "slack.workspace_invite_link_enabled",
+		Title:       "Slack workspace invite link enabled",
+		Description: "A public workspace invite link was enabled, allowing uncontrolled joins if the link leaks.",
+		Severity:    SeverityMedium,
+		RiskScore:   RiskScoreFor(SeverityMedium, 5),
+		Tags:        []string{TagPolicyWeakened},
+		RemediationSteps: []string{
+			"Confirm the public invite link is approved and time-bounded.",
+			"Disable the invite link if broad self-service joins are not required.",
+			"Review recent joins while the link was active.",
+		},
+		Target:       workspace,
+		DedupeTarget: workspace,
+		Evidence: compactEvidence(map[string]any{
+			"workspace": workspace,
+			"actor":     payload.Actor,
+			"subject":   workspace,
+		}),
+	}, true
+}
+
+func evaluateSlackAppInstalled(payload JobPayload) (Finding, bool) {
+	if payload.Provider != "SLACK" {
+		return Finding{}, false
+	}
+	switch normalizeEventType(payload.EventType) {
+	case "APP_INSTALLED", "APP_APPROVED", "APP_SCOPES_APPROVED":
+	default:
+		return Finding{}, false
+	}
+	app := firstNonEmpty(
+		nestedString(payload.Payload, "app", "name"),
+		nestedString(payload.Payload, "app", "id"),
+		nestedString(payload.Payload, "entity", "name"),
+		nestedString(payload.Payload, "application", "name"),
+		"unknown Slack app",
+	)
+	scopes := uniqueStrings(append(
+		stringArray(payload.Payload["scopes"]),
+		stringArray(nestedRecord(payload.Payload, "app")["scopes"])...,
+	))
+	return Finding{
+		RuleID:      "slack.app_installed",
+		Title:       "Third-party Slack app installed",
+		Description: "A third-party Slack app was installed with user, channel, admin, or file scopes.",
+		Severity:    SeverityMedium,
+		RiskScore:   RiskScoreFor(SeverityMedium, 7),
+		Tags:        []string{TagOAuthRiskyGrant, TagDataAccess},
+		RemediationSteps: []string{
+			"Confirm the Slack app is approved for the workspace.",
+			"Review requested scopes and app configuration for channel, file, user, or admin access.",
+			"Uninstall the app if it is not business-approved.",
+		},
+		Target:       app,
+		DedupeTarget: app,
+		Evidence: compactEvidence(map[string]any{
+			"app":     app,
+			"scopes":  scopes,
+			"actor":   payload.Actor,
+			"subject": app,
+		}),
 	}, true
 }
 
@@ -1064,6 +1440,371 @@ func evaluateGoogleForwardingDelegateSendAsCombo(payload JobPayload) (Finding, b
 	}, true
 }
 
+func evaluateMicrosoft365GuestUserInvited(payload JobPayload) (Finding, bool) {
+	if payload.Provider != "MICROSOFT_365" {
+		return Finding{}, false
+	}
+	switch normalizeEventType(payload.EventType) {
+	case "GUEST_USER_INVITED", "GUEST_INVITATION_CREATED", "USER_INVITED":
+	default:
+		return Finding{}, false
+	}
+	user := firstNonEmpty(
+		nestedString(payload.Payload, "target", "userPrincipalName"),
+		nestedString(payload.Payload, "target", "email"),
+		nestedString(payload.Payload, "invitedUserEmailAddress"),
+		nestedString(payload.Payload, "properties", "invitedUserEmailAddress"),
+		"unknown guest",
+	)
+	return Finding{
+		RuleID:      "ms365.guest_user_invited",
+		Title:       "Microsoft 365 guest user invited",
+		Description: "An external guest identity was invited into the Microsoft 365 tenant.",
+		Severity:    SeverityMedium,
+		RiskScore:   RiskScoreFor(SeverityMedium, 4),
+		Tags:        []string{TagDataAccess},
+		RemediationSteps: []string{
+			"Confirm the guest invitation has a business owner and expiry.",
+			"Restrict guest access to the minimum required groups and apps.",
+			"Remove the guest if the invitation was not approved.",
+		},
+		Target:       user,
+		DedupeTarget: user,
+		Evidence: compactEvidence(map[string]any{
+			"user":    user,
+			"actor":   payload.Actor,
+			"subject": user,
+		}),
+	}, true
+}
+
+func evaluateMicrosoft365ConditionalAccessDisabled(payload JobPayload) (Finding, bool) {
+	if payload.Provider != "MICROSOFT_365" {
+		return Finding{}, false
+	}
+	switch normalizeEventType(payload.EventType) {
+	case "CONDITIONAL_ACCESS_DISABLED", "CONDITIONAL_ACCESS_POLICY_DISABLED", "CONDITIONAL_ACCESS_POLICY_UPDATED":
+	default:
+		return Finding{}, false
+	}
+	if normalizeEventType(payload.EventType) == "CONDITIONAL_ACCESS_POLICY_UPDATED" && !recordSuggestsDisabledState(payload.Payload) {
+		return Finding{}, false
+	}
+	policy := firstNonEmpty(
+		nestedString(payload.Payload, "policy", "displayName"),
+		nestedString(payload.Payload, "target", "displayName"),
+		nestedString(payload.Payload, "properties", "displayName"),
+		nestedString(payload.Payload, "displayName"),
+		"conditional access policy",
+	)
+	return Finding{
+		RuleID:      "ms365.conditional_access_disabled",
+		Title:       "Microsoft 365 conditional access policy disabled",
+		Description: "A conditional access policy was disabled or updated to a disabled state, weakening MFA, device posture, or risk-based controls.",
+		Severity:    SeverityCritical,
+		RiskScore:   RiskScoreFor(SeverityCritical, 5),
+		Tags:        []string{TagPolicyWeakened, TagAuthMFAWeakened},
+		RemediationSteps: []string{
+			"Confirm the conditional access change was approved.",
+			"Re-enable the policy or restore the prior policy version if the change was not authorized.",
+			"Review sign-ins while the policy was disabled.",
+		},
+		Target:       policy,
+		DedupeTarget: policy,
+		Evidence: compactEvidence(map[string]any{
+			"policy":  policy,
+			"actor":   payload.Actor,
+			"subject": policy,
+		}),
+	}, true
+}
+
+func evaluateMicrosoft365GlobalAdminGranted(payload JobPayload) (Finding, bool) {
+	if payload.Provider != "MICROSOFT_365" {
+		return Finding{}, false
+	}
+	switch normalizeEventType(payload.EventType) {
+	case "GLOBAL_ADMIN_GRANTED", "DIRECTORY_ROLE_ASSIGNED", "ROLE_ASSIGNMENT_CREATED":
+	default:
+		return Finding{}, false
+	}
+	role := firstNonEmpty(
+		nestedString(payload.Payload, "role", "displayName"),
+		nestedString(payload.Payload, "role", "name"),
+		nestedString(payload.Payload, "target", "roleName"),
+		nestedString(payload.Payload, "properties", "roleName"),
+		"Global Administrator",
+	)
+	if normalizeEventType(payload.EventType) != "GLOBAL_ADMIN_GRANTED" && !strings.Contains(strings.ToLower(role), "global administrator") {
+		return Finding{}, false
+	}
+	user := firstNonEmpty(
+		nestedString(payload.Payload, "target", "userPrincipalName"),
+		nestedString(payload.Payload, "target", "email"),
+		nestedString(payload.Payload, "user", "userPrincipalName"),
+		nestedString(payload.Payload, "user", "email"),
+		"unknown user",
+	)
+	subject := user + ":" + role
+	return Finding{
+		RuleID:      "ms365.global_admin_granted",
+		Title:       "Microsoft 365 Global Administrator granted",
+		Description: "An identity was assigned the Microsoft 365 Global Administrator role.",
+		Severity:    SeverityCritical,
+		RiskScore:   RiskScoreFor(SeverityCritical, 4),
+		Tags:        []string{TagIAMPrivilegeEscalation},
+		RemediationSteps: []string{
+			"Validate the Global Administrator assignment through change control.",
+			"Remove the role if the assignment is not required.",
+			"Review recent sign-ins and administrative activity by the affected identity.",
+		},
+		Target:       user,
+		DedupeTarget: subject,
+		Evidence: compactEvidence(map[string]any{
+			"user":    user,
+			"role":    role,
+			"actor":   payload.Actor,
+			"subject": subject,
+		}),
+	}, true
+}
+
+func evaluateAtlassianAnonymousAccessEnabled(payload JobPayload) (Finding, bool) {
+	if payload.Provider != "ATLASSIAN" {
+		return Finding{}, false
+	}
+	switch normalizeEventType(payload.EventType) {
+	case "ANONYMOUS_ACCESS_ENABLED", "PUBLIC_ACCESS_ENABLED":
+	default:
+		return Finding{}, false
+	}
+	resource := atlassianResource(payload)
+	return Finding{
+		RuleID:      "atlassian.anonymous_access_enabled",
+		Title:       "Atlassian anonymous access enabled",
+		Description: "Jira or Confluence content was opened to anonymous users.",
+		Severity:    SeverityHigh,
+		RiskScore:   RiskScoreFor(SeverityHigh, 5),
+		Tags:        []string{TagDataPublicExposure, TagPolicyWeakened},
+		RemediationSteps: []string{
+			"Confirm anonymous access is approved for the project or space.",
+			"Disable anonymous access if the resource contains internal data.",
+			"Review public pages, issues, and attachments exposed by the change.",
+		},
+		Target:       resource,
+		DedupeTarget: resource,
+		Evidence: compactEvidence(map[string]any{
+			"resource": resource,
+			"actor":    payload.Actor,
+			"subject":  resource,
+		}),
+	}, true
+}
+
+func evaluateAtlassianPublicSpaceCreated(payload JobPayload) (Finding, bool) {
+	if payload.Provider != "ATLASSIAN" {
+		return Finding{}, false
+	}
+	switch normalizeEventType(payload.EventType) {
+	case "PUBLIC_SPACE_CREATED", "SPACE_PUBLIC_ACCESS_ENABLED", "PROJECT_PUBLIC_ACCESS_ENABLED":
+	default:
+		return Finding{}, false
+	}
+	resource := atlassianResource(payload)
+	return Finding{
+		RuleID:      "atlassian.public_space_created",
+		Title:       "Atlassian public space or project created",
+		Description: "A Confluence space or Jira project was made globally readable.",
+		Severity:    SeverityMedium,
+		RiskScore:   RiskScoreFor(SeverityMedium, 7),
+		Tags:        []string{TagDataPublicExposure},
+		RemediationSteps: []string{
+			"Confirm the public collaboration area is intentionally exposed.",
+			"Restrict space or project permissions if public visibility is not required.",
+			"Review pages, issues, and attachments created while public access was active.",
+		},
+		Target:       resource,
+		DedupeTarget: resource,
+		Evidence: compactEvidence(map[string]any{
+			"resource": resource,
+			"actor":    payload.Actor,
+			"subject":  resource,
+		}),
+	}, true
+}
+
+func evaluateAtlassianOrgAdminGranted(payload JobPayload) (Finding, bool) {
+	if payload.Provider != "ATLASSIAN" {
+		return Finding{}, false
+	}
+	switch normalizeEventType(payload.EventType) {
+	case "ORG_ADMIN_GRANTED", "SITE_ADMIN_GRANTED", "PRODUCT_ADMIN_GRANTED":
+	default:
+		return Finding{}, false
+	}
+	user := firstNonEmpty(
+		nestedString(payload.Payload, "target", "email"),
+		nestedString(payload.Payload, "user", "email"),
+		nestedString(payload.Payload, "account", "email"),
+		"unknown user",
+	)
+	role := firstNonEmpty(
+		nestedString(payload.Payload, "role", "name"),
+		nestedString(payload.Payload, "target", "role"),
+		nestedString(payload.Payload, "permission"),
+		"Atlassian administrator",
+	)
+	subject := user + ":" + role
+	return Finding{
+		RuleID:      "atlassian.org_admin_granted",
+		Title:       "Atlassian administrator granted",
+		Description: "A user was granted broad organization, site, or product administrator access in Atlassian.",
+		Severity:    SeverityHigh,
+		RiskScore:   RiskScoreFor(SeverityHigh, 8),
+		Tags:        []string{TagIAMPrivilegeEscalation},
+		RemediationSteps: []string{
+			"Validate the administrator grant through change control.",
+			"Remove the administrator role if the assignment is not required.",
+			"Review recent Atlassian configuration and access changes by the user.",
+		},
+		Target:       user,
+		DedupeTarget: subject,
+		Evidence: compactEvidence(map[string]any{
+			"user":    user,
+			"role":    role,
+			"actor":   payload.Actor,
+			"subject": subject,
+		}),
+	}, true
+}
+
+func evaluateSalesforceAdminProfileAssigned(payload JobPayload) (Finding, bool) {
+	if payload.Provider != "SALESFORCE" {
+		return Finding{}, false
+	}
+	switch normalizeEventType(payload.EventType) {
+	case "ADMIN_PROFILE_ASSIGNED", "PERMISSION_SET_ASSIGNED", "PROFILE_ASSIGNED":
+	default:
+		return Finding{}, false
+	}
+	entitlement := firstNonEmpty(
+		nestedString(payload.Payload, "profile", "name"),
+		nestedString(payload.Payload, "permissionSet", "name"),
+		nestedString(payload.Payload, "permission_set", "name"),
+		nestedString(payload.Payload, "role", "name"),
+		"administrator entitlement",
+	)
+	normalized := strings.ToLower(entitlement)
+	if normalizeEventType(payload.EventType) != "ADMIN_PROFILE_ASSIGNED" &&
+		!strings.Contains(normalized, "admin") &&
+		!strings.Contains(normalized, "modify all") &&
+		!strings.Contains(normalized, "view all") {
+		return Finding{}, false
+	}
+	user := salesforceUser(payload)
+	subject := user + ":" + entitlement
+	return Finding{
+		RuleID:      "salesforce.admin_profile_assigned",
+		Title:       "Salesforce admin profile assigned",
+		Description: "A Salesforce user received an administrator profile or broad permission set.",
+		Severity:    SeverityCritical,
+		RiskScore:   RiskScoreFor(SeverityCritical, 4),
+		Tags:        []string{TagIAMPrivilegeEscalation, TagDataAccess},
+		RemediationSteps: []string{
+			"Validate the Salesforce entitlement assignment through change control.",
+			"Remove the profile or permission set if it is not required.",
+			"Review recent setup, export, and data access activity for the user.",
+		},
+		Target:       user,
+		DedupeTarget: subject,
+		Evidence: compactEvidence(map[string]any{
+			"user":        user,
+			"entitlement": entitlement,
+			"actor":       payload.Actor,
+			"subject":     subject,
+		}),
+	}, true
+}
+
+func evaluateSalesforceConnectedAppPolicyWeakened(payload JobPayload) (Finding, bool) {
+	if payload.Provider != "SALESFORCE" {
+		return Finding{}, false
+	}
+	switch normalizeEventType(payload.EventType) {
+	case "CONNECTED_APP_POLICY_WEAKENED", "CONNECTED_APP_UPDATED":
+	default:
+		return Finding{}, false
+	}
+	if normalizeEventType(payload.EventType) == "CONNECTED_APP_UPDATED" && !recordSuggestsWeakenedPolicy(payload.Payload) {
+		return Finding{}, false
+	}
+	app := firstNonEmpty(
+		nestedString(payload.Payload, "connectedApp", "name"),
+		nestedString(payload.Payload, "connected_app", "name"),
+		nestedString(payload.Payload, "app", "name"),
+		nestedString(payload.Payload, "client_id"),
+		"Salesforce connected app",
+	)
+	return Finding{
+		RuleID:      "salesforce.connected_app_policy_weakened",
+		Title:       "Salesforce connected app policy weakened",
+		Description: "A Salesforce connected app was changed to allow broader OAuth access or weaker session controls.",
+		Severity:    SeverityHigh,
+		RiskScore:   RiskScoreFor(SeverityHigh, 9),
+		Tags:        []string{TagOAuthRiskyGrant, TagPolicyWeakened},
+		RemediationSteps: []string{
+			"Confirm the connected app policy change was approved.",
+			"Restore admin-approved users, IP relaxation, refresh token, and session policies if weakened unexpectedly.",
+			"Review recent OAuth grants and API activity for the connected app.",
+		},
+		Target:       app,
+		DedupeTarget: app,
+		Evidence: compactEvidence(map[string]any{
+			"app":     app,
+			"actor":   payload.Actor,
+			"subject": app,
+		}),
+	}, true
+}
+
+func evaluateSalesforceReportExported(payload JobPayload) (Finding, bool) {
+	if payload.Provider != "SALESFORCE" {
+		return Finding{}, false
+	}
+	switch normalizeEventType(payload.EventType) {
+	case "REPORT_EXPORTED", "BULK_DATA_EXPORT", "DATA_EXPORT_DOWNLOADED":
+	default:
+		return Finding{}, false
+	}
+	report := firstNonEmpty(
+		nestedString(payload.Payload, "report", "name"),
+		nestedString(payload.Payload, "report", "id"),
+		nestedString(payload.Payload, "export", "name"),
+		nestedString(payload.Payload, "dataset", "name"),
+		"Salesforce data export",
+	)
+	return Finding{
+		RuleID:      "salesforce.report_exported",
+		Title:       "Salesforce report or data export downloaded",
+		Description: "Salesforce report, bulk export, or tenant data export activity was observed.",
+		Severity:    SeverityHigh,
+		RiskScore:   RiskScoreFor(SeverityHigh, 6),
+		Tags:        []string{TagDataAccess, TagDataExternalShare},
+		RemediationSteps: []string{
+			"Confirm the export was approved and tied to a business process.",
+			"Validate the destination and retention of exported Salesforce data.",
+			"Review additional exports by the actor and revoke access if activity is unexpected.",
+		},
+		Target:       report,
+		DedupeTarget: report + ":" + payload.Actor,
+		Evidence: compactEvidence(map[string]any{
+			"report":  report,
+			"actor":   payload.Actor,
+			"subject": report,
+		}),
+	}, true
+}
+
 type googleOAuthRisk struct {
 	severity      string
 	riskScore     int
@@ -1277,6 +2018,113 @@ func containsString(values []string, want string) bool {
 		}
 	}
 	return false
+}
+
+func flattenedRecordStringValues(record map[string]any) []string {
+	if record == nil {
+		return nil
+	}
+	values := []string{}
+	for _, key := range sortedRecordKeys(record) {
+		values = append(values, stringArray(record[key])...)
+		if text := stringValue(record[key]); text != "" {
+			values = append(values, text)
+		}
+	}
+	return uniqueStrings(values)
+}
+
+func slackChannelLabel(payload JobPayload) string {
+	return firstNonEmpty(
+		nestedString(payload.Payload, "channel", "name"),
+		nestedString(payload.Payload, "channel", "id"),
+		nestedString(payload.Payload, "conversation", "name"),
+		nestedString(payload.Payload, "conversation", "id"),
+		"unknown channel",
+	)
+}
+
+func atlassianResource(payload JobPayload) string {
+	return firstNonEmpty(
+		nestedString(payload.Payload, "space", "name"),
+		nestedString(payload.Payload, "space", "key"),
+		nestedString(payload.Payload, "project", "name"),
+		nestedString(payload.Payload, "project", "key"),
+		nestedString(payload.Payload, "resource", "name"),
+		nestedString(payload.Payload, "target", "name"),
+		"Atlassian resource",
+	)
+}
+
+func salesforceUser(payload JobPayload) string {
+	return firstNonEmpty(
+		nestedString(payload.Payload, "target", "email"),
+		nestedString(payload.Payload, "target", "username"),
+		nestedString(payload.Payload, "user", "email"),
+		nestedString(payload.Payload, "user", "username"),
+		payload.Actor,
+		"unknown user",
+	)
+}
+
+func recordSuggestsDisabledState(record map[string]any) bool {
+	blob := strings.ToLower(strings.Join(flattenAnyStrings(record), " "))
+	for _, disabled := range []string{"disabled", "off", "false", "not enabled", "inactive"} {
+		if strings.Contains(blob, disabled) {
+			return true
+		}
+	}
+	return false
+}
+
+func recordSuggestsWeakenedPolicy(record map[string]any) bool {
+	blob := strings.ToLower(strings.Join(flattenAnyStrings(record), " "))
+	for _, weakened := range []string{
+		"disabled",
+		"removed",
+		"deleted",
+		"false",
+		"not required",
+		"relaxed",
+		"bypass",
+		"allow all",
+		"all users may self-authorize",
+		"ip relaxation",
+		"refresh token",
+		"never expires",
+		"admin approved users disabled",
+	} {
+		if strings.Contains(blob, weakened) {
+			return true
+		}
+	}
+	return false
+}
+
+func flattenAnyStrings(value any) []string {
+	values := []string{}
+	switch typed := value.(type) {
+	case string:
+		if strings.TrimSpace(typed) != "" {
+			values = append(values, typed)
+		}
+	case []string:
+		values = append(values, typed...)
+	case []any:
+		for _, item := range typed {
+			values = append(values, flattenAnyStrings(item)...)
+		}
+	case map[string]any:
+		for _, key := range sortedRecordKeys(typed) {
+			values = append(values, key)
+			values = append(values, flattenAnyStrings(typed[key])...)
+		}
+	case bool:
+		values = append(values, strconv.FormatBool(typed))
+	case float64, float32, int, int64, int32, json.Number:
+		values = append(values, fmt.Sprint(typed))
+	}
+	return values
 }
 
 func firstString(values []string) string {

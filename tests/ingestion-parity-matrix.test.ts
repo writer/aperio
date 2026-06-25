@@ -83,6 +83,11 @@ function filesUnder(relativeDir: string, predicate: (relativePath: string) => bo
 }
 
 const expectedRuleIds = [
+  "atlassian.anonymous_access_enabled",
+  "atlassian.org_admin_granted",
+  "atlassian.public_space_created",
+  "github.branch_protection_disabled",
+  "github.oauth_app_installed",
   "github.public_repository_created",
   "google_workspace.admin_external_recovery_email",
   "google_workspace.admin_mfa_not_enforced",
@@ -94,11 +99,20 @@ const expectedRuleIds = [
   "google_workspace.mailbox_delegation_granted",
   "google_workspace.risky_oauth_grant",
   "google_workspace.super_admin_granted",
+  "ms365.conditional_access_disabled",
+  "ms365.global_admin_granted",
+  "ms365.guest_user_invited",
   "okta.admin_role_assigned",
   "okta.mfa_factor_reset",
   "okta.password_policy_weakened",
   "okta.suspicious_signin",
-  "slack.mfa_disabled"
+  "salesforce.admin_profile_assigned",
+  "salesforce.connected_app_policy_weakened",
+  "salesforce.report_exported",
+  "slack.app_installed",
+  "slack.external_shared_channel_created",
+  "slack.mfa_disabled",
+  "slack.workspace_invite_link_enabled"
 ];
 
 test("ingestion rule matrix is fully unblocked for Go default", () => {
@@ -126,7 +140,15 @@ test("ingestion rule matrix is fully unblocked for Go default", () => {
     assert.ok(rule.tests.includes("internal/ingestionworker/worker_test.go"));
     assert.ok(rule.tests.includes("internal/ingestionworker/worker_db_test.go"));
   }
-  assert.deepEqual(sorted(seenProviders), ["GITHUB", "GOOGLE_WORKSPACE", "OKTA", "SLACK"]);
+  assert.deepEqual(sorted(seenProviders), [
+    "ATLASSIAN",
+    "GITHUB",
+    "GOOGLE_WORKSPACE",
+    "MICROSOFT_365",
+    "OKTA",
+    "SALESFORCE",
+    "SLACK"
+  ]);
 });
 
 test("Go ingestion supported-work allowlist matches only matrix-backed parity slices", () => {
