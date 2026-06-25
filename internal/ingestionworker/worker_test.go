@@ -596,6 +596,45 @@ func TestDedupeKeyIsStableAcrossObservations(t *testing.T) {
 	}
 }
 
+func TestFindingPayloadAddsOAuthClaimContext(t *testing.T) {
+	payload := JobPayload{
+		OrganizationID: "org-oauth",
+		IntegrationID:  "int-google",
+		Provider:       "GOOGLE_WORKSPACE",
+		EventType:      "RISKY_OAUTH_GRANT",
+		Source:         "google_admin_reports",
+		Actor:          "analyst@example.com",
+		OccurredAt:     time.Date(2026, 6, 16, 12, 0, 0, 0, time.UTC),
+	}
+	finding := Finding{
+		RuleID:      "google_workspace.risky_oauth_grant",
+		Title:       "Critical Gmail-scoped OAuth grant",
+		Description: "A Google Workspace user granted a third-party OAuth client access to sensitive Google scopes.",
+		Severity:    SeverityCritical,
+		RiskScore:   97,
+		Target:      "Vendor Mail App",
+		Tags:        []string{TagOAuthRiskyGrant, TagDataAccess},
+		Evidence: map[string]any{
+			"appName":    "Vendor Mail App",
+			"clientId":   "client-123",
+			"clientType": "WEB",
+			"scopes":     []string{"https://mail.google.com/", "https://www.googleapis.com/auth/drive.file"},
+			"riskReason": "Granted full mailbox or mailbox-settings access",
+		},
+	}
+	delivery := findingPayload(payload, finding, "evt-oauth", persistedFinding{ID: "fnd-oauth", Status: "OPEN"})
+
+	requireRecordString(t, delivery.Record, "oauthAppId", "client-123")
+	requireRecordString(t, delivery.Record, "oauthAppName", "Vendor Mail App")
+	requireRecordString(t, delivery.Record, "oauthClientType", "WEB")
+	requireRecordString(t, delivery.Record, "oauthRiskReason", "Granted full mailbox or mailbox-settings access")
+	requireRecordString(t, delivery.Record, "oauthUserEmail", "analyst@example.com")
+	requireRecordNumber(t, delivery.Record, "oauthScopeCount", 2)
+	if scopes := stringArray(delivery.Record["oauthScopes"]); !reflect.DeepEqual(scopes, []string{"https://mail.google.com/", "https://www.googleapis.com/auth/drive.file"}) {
+		t.Fatalf("oauthScopes = %#v", delivery.Record["oauthScopes"])
+	}
+}
+
 func TestIngestionJobWideEventCoversOutcomesWithoutSecrets(t *testing.T) {
 	base := job{
 		ID:             "job_1",

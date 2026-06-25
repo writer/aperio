@@ -2838,31 +2838,97 @@ func findingPayload(payload JobPayload, finding Finding, eventID string, persist
 	if payload.Actor != "" {
 		actor = payload.Actor
 	}
+	record := map[string]any{
+		"schemaVersion":    "aperio.finding.v1",
+		"findingId":        persisted.ID,
+		"dedupeKey":        DedupeKey(payload, finding),
+		"sourceEventId":    eventID,
+		"status":           status,
+		"ruleId":           finding.RuleID,
+		"title":            finding.Title,
+		"description":      finding.Description,
+		"severity":         finding.Severity,
+		"riskScore":        finding.RiskScore,
+		"remediationSteps": finding.RemediationSteps,
+		"tags":             normalizeTags(finding.Tags),
+		"target":           finding.Target,
+		"provider":         payload.Provider,
+		"integrationId":    payload.IntegrationID,
+		"source":           payload.Source,
+		"eventType":        payload.EventType,
+		"actor":            actor,
+	}
+	addOAuthClaimRecordFields(record, payload, finding)
 	return siemdispatcher.Payload{
 		Kind:           "finding",
 		OrganizationID: payload.OrganizationID,
 		OccurredAt:     payload.OccurredAt.UTC().Format(time.RFC3339Nano),
-		Record: map[string]any{
-			"schemaVersion":    "aperio.finding.v1",
-			"findingId":        persisted.ID,
-			"dedupeKey":        DedupeKey(payload, finding),
-			"sourceEventId":    eventID,
-			"status":           status,
-			"ruleId":           finding.RuleID,
-			"title":            finding.Title,
-			"description":      finding.Description,
-			"severity":         finding.Severity,
-			"riskScore":        finding.RiskScore,
-			"remediationSteps": finding.RemediationSteps,
-			"tags":             normalizeTags(finding.Tags),
-			"target":           finding.Target,
-			"provider":         payload.Provider,
-			"integrationId":    payload.IntegrationID,
-			"source":           payload.Source,
-			"eventType":        payload.EventType,
-			"actor":            actor,
-		},
+		Record:         record,
 	}
+}
+
+func addOAuthClaimRecordFields(record map[string]any, payload JobPayload, finding Finding) {
+	if !containsString(normalizeTags(finding.Tags), TagOAuthRiskyGrant) && !strings.Contains(strings.ToLower(finding.RuleID), "oauth") {
+		return
+	}
+	evidence := finding.Evidence
+	appName := firstNonEmpty(
+		evidenceString(evidence, "appName", "app", "oauthAppName", "application"),
+		finding.Target,
+	)
+	appID := firstNonEmpty(
+		evidenceString(evidence, "clientId", "clientID", "oauthAppId", "externalAppId", "applicationId"),
+		evidenceString(evidence, "subject"),
+		appName,
+	)
+	scopes := uniqueStrings(append(
+		stringArray(evidence["scopes"]),
+		stringArray(evidence["scope"])...,
+	))
+	userEmail := firstNonEmpty(
+		evidenceString(evidence, "userEmail", "user", "actor"),
+		payload.Actor,
+	)
+	addRecordString(record, "oauthAppName", appName)
+	addRecordString(record, "oauthAppId", appID)
+	addRecordString(record, "oauthClientType", evidenceString(evidence, "clientType"))
+	addRecordString(record, "oauthRiskReason", evidenceString(evidence, "riskReason"))
+	addRecordString(record, "oauthUserEmail", userEmail)
+	if len(scopes) > 0 {
+		record["oauthScopes"] = scopes
+		record["oauthScopeCount"] = len(scopes)
+	}
+	if matchedScopes := uniqueStrings(stringArray(evidence["matchedScopes"])); len(matchedScopes) > 0 {
+		record["oauthMatchedScopes"] = matchedScopes
+	}
+}
+
+func addRecordString(record map[string]any, key string, value string) {
+	if strings.TrimSpace(value) != "" {
+		record[key] = strings.TrimSpace(value)
+	}
+}
+
+func evidenceString(evidence map[string]any, keys ...string) string {
+	for _, key := range keys {
+		switch value := evidence[key].(type) {
+		case string:
+			if strings.TrimSpace(value) != "" {
+				return strings.TrimSpace(value)
+			}
+		case json.Number:
+			if string(value) != "" {
+				return string(value)
+			}
+		case int:
+			return strconv.Itoa(value)
+		case int64:
+			return strconv.FormatInt(value, 10)
+		case float64:
+			return strconv.FormatFloat(value, 'f', -1, 64)
+		}
+	}
+	return ""
 }
 
 func cerebroFindingPayload(payload siemdispatcher.Payload) cerebrofanout.FindingPayload {
