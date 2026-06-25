@@ -43,7 +43,9 @@ type App struct {
 	slackAPIBaseURL       string
 	cerebroContextClient  saasCerebroContextClient
 	cerebroRuntimeID      string
+	cerebroSourceID       string
 	cerebroMCPServerURL   string
+	cerebroWebURL         string
 	cerebroOAuthIssuerURL string
 }
 

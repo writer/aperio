@@ -39,6 +39,7 @@ func (a *App) enrichFindingCerebroContext(ctx context.Context, organizationID st
 	contextPayload.Mode = "runtime-configured"
 	contextPayload.SourceRuntimeId = a.cerebroRuntimeID
 	contextPayload.Mcp = a.findingCerebroMCPContext(organizationID, finding.ID)
+	contextPayload.WebLinks = a.findingCerebroWebLinks(finding.ID, sourceEventID, nil)
 	contextPayload.ResponseHints = []string{
 		"Review Cerebro claims and graph paths before resolving or accepting this finding.",
 	}
@@ -88,7 +89,7 @@ func (a *App) enrichFindingCerebroContext(ctx context.Context, organizationID st
 			continue
 		}
 		entities.addNeighborhood(neighborhood)
-		graphPaths = append(graphPaths, findingCerebroGraphPathsFromMaps(cerebroGraphPathsFromNeighborhood(neighborhood))...)
+		graphPaths = append(graphPaths, findingCerebroGraphPathsFromMaps(a.addCerebroGraphPathWebURLs(cerebroGraphPathsFromNeighborhood(neighborhood)))...)
 	}
 
 	contextPayload.Mode = "claim-linked"
@@ -98,8 +99,9 @@ func (a *App) enrichFindingCerebroContext(ctx context.Context, organizationID st
 	contextPayload.ClaimCount = int32(len(claims))
 	contextPayload.ClaimSummaries = findingCerebroClaimSummaries(claims)
 	contextPayload.GraphSignals = findingCerebroGraphSignals(claims)
-	contextPayload.Entities = findingCerebroEntitiesFromMaps(entities.items())
+	contextPayload.Entities = findingCerebroEntitiesFromMaps(a.addCerebroEntityWebURLs(entities.items()))
 	contextPayload.GraphPaths = graphPaths
+	contextPayload.WebLinks = a.findingCerebroWebLinks(finding.ID, sourceEventID, findingRoots)
 	finding.CerebroContext = contextPayload
 }
 
@@ -214,9 +216,10 @@ func findingCerebroGraphPathsFromMaps(items []map[string]any) []*aperiov1.Cerebr
 	out := make([]*aperiov1.CerebroGraphPath, 0, len(items))
 	for _, item := range items {
 		path := &aperiov1.CerebroGraphPath{
-			Id:    stringFromAny(item["id"]),
-			Title: stringFromAny(item["title"]),
-			Risk:  stringFromAny(item["risk"]),
+			Id:     stringFromAny(item["id"]),
+			Title:  stringFromAny(item["title"]),
+			Risk:   stringFromAny(item["risk"]),
+			WebUrl: stringFromAny(item["webUrl"]),
 		}
 		for _, rawNode := range anyList(item["nodes"]) {
 			node := findingCerebroEntityFromMap(asMap(rawNode))
@@ -244,5 +247,6 @@ func findingCerebroEntityFromMap(item map[string]any) *aperiov1.CerebroEntityRef
 		Type:     firstString(stringFromAny(item["type"]), "entity"),
 		Label:    firstString(stringFromAny(item["label"]), shortCerebroURN(urn), urn),
 		Provider: stringFromAny(item["provider"]),
+		WebUrl:   stringFromAny(item["webUrl"]),
 	}
 }

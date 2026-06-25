@@ -11,6 +11,7 @@ import {
   type CerebroGraphSignal as ProtoCerebroGraphSignal,
   type CerebroMCPContext as ProtoCerebroMCPContext,
   type CerebroMCPResourceTemplate as ProtoCerebroMCPResourceTemplate,
+  type CerebroWebLink as ProtoCerebroWebLink,
   type ConnectorDefinition as ProtoConnectorDefinition,
   type DetectionPack as ProtoDetectionPack,
   type DetectionPackRule as ProtoDetectionPackRule,
@@ -143,6 +144,7 @@ export type ConnectCerebroEntityRef = {
   type: string;
   label: string;
   provider?: string | null;
+  webUrl?: string | null;
 };
 
 export type ConnectCerebroGraphSignal = {
@@ -158,6 +160,7 @@ export type ConnectCerebroGraphPath = {
   title: string;
   risk?: string | null;
   nodes: ConnectCerebroEntityRef[];
+  webUrl?: string | null;
 };
 
 export type ConnectCerebroClaimSummary = {
@@ -183,6 +186,13 @@ export type ConnectCerebroMCPContext = {
   resourceTemplates: ConnectCerebroMCPResourceTemplate[];
 };
 
+export type ConnectCerebroWebLink = {
+  label: string;
+  url: string;
+  route?: string | null;
+  kind?: string | null;
+};
+
 export type ConnectCerebroIncidentContext = {
   source: string;
   mode: string;
@@ -195,6 +205,7 @@ export type ConnectCerebroIncidentContext = {
   graphPaths: ConnectCerebroGraphPath[];
   claimSummaries: ConnectCerebroClaimSummary[];
   responseHints: string[];
+  webLinks: ConnectCerebroWebLink[];
   mcp: ConnectCerebroMCPContext | null;
 };
 
@@ -910,6 +921,7 @@ export type ConnectSecurityOverview = {
       resourceTemplates: ConnectCerebroMCPResourceTemplate[];
     } | null;
     responseHints: string[];
+    webLinks: ConnectCerebroWebLink[];
   } | null;
 };
 
@@ -1241,7 +1253,8 @@ function cerebroEntityRefFromProto(
     urn: entity.urn,
     type: entity.type || "entity",
     label: entity.label || entity.urn,
-    provider: entity.provider || null
+    provider: entity.provider || null,
+    webUrl: entity.webUrl || null
   };
 }
 
@@ -1264,7 +1277,20 @@ function cerebroGraphPathFromProto(
     id: path.id,
     title: path.title,
     risk: path.risk || null,
-    nodes: path.nodes.map(cerebroEntityRefFromProto)
+    nodes: path.nodes.map(cerebroEntityRefFromProto),
+    webUrl: path.webUrl || null
+  };
+}
+
+function cerebroWebLinkFromProto(
+  link: ProtoCerebroWebLink
+): ConnectCerebroWebLink | null {
+  if (!link.url) return null;
+  return {
+    label: link.label || link.kind || "Cerebro",
+    url: link.url,
+    route: link.route || null,
+    kind: link.kind || null
   };
 }
 
@@ -1324,6 +1350,9 @@ function findingCerebroContextFromProto(
     graphPaths: context.graphPaths.map(cerebroGraphPathFromProto),
     claimSummaries: context.claimSummaries.map(cerebroClaimSummaryFromProto),
     responseHints: [...context.responseHints],
+    webLinks: context.webLinks
+      .map(cerebroWebLinkFromProto)
+      .filter((link): link is ConnectCerebroWebLink => Boolean(link)),
     mcp: cerebroMCPContextFromProto(context.mcp)
   };
 }
@@ -1421,7 +1450,8 @@ function cerebroEntityRefFromRecord(
     urn,
     type,
     label,
-    provider: stringFromRecord(record, "provider")
+    provider: stringFromRecord(record, "provider"),
+    webUrl: stringFromRecord(record, "webUrl")
   };
 }
 
@@ -1465,7 +1495,26 @@ function cerebroGraphPathsFromUnknown(
         risk: stringFromRecord(record, "risk"),
         nodes: recordsFromUnknown(record.nodes)
           .map(cerebroEntityRefFromRecord)
-          .filter((node): node is ConnectCerebroEntityRef => Boolean(node))
+          .filter((node): node is ConnectCerebroEntityRef => Boolean(node)),
+        webUrl: stringFromRecord(record, "webUrl")
+      }
+    ];
+  });
+}
+
+function cerebroWebLinksFromUnknown(value: unknown): ConnectCerebroWebLink[] {
+  return recordsFromUnknown(value).flatMap((record) => {
+    const url = stringFromRecord(record, "url");
+    if (!url) return [];
+    return [
+      {
+        label:
+          stringFromRecord(record, "label") ??
+          stringFromRecord(record, "kind") ??
+          "Cerebro",
+        url,
+        route: stringFromRecord(record, "route"),
+        kind: stringFromRecord(record, "kind")
       }
     ];
   });
@@ -1536,6 +1585,7 @@ function cerebroContextFromJson(json: string): ConnectCerebroIncidentContext {
     graphPaths: cerebroGraphPathsFromUnknown(record.graphPaths),
     claimSummaries: cerebroClaimSummariesFromUnknown(record.claimSummaries),
     responseHints: stringsFromUnknown(record.responseHints),
+    webLinks: cerebroWebLinksFromUnknown(record.webLinks),
     mcp: cerebroMCPContextFromUnknown(record.mcp)
   };
 }
@@ -2211,7 +2261,10 @@ function securityCerebroContextFromProto(
     entityCount: context.entityCount,
     graphPathCount: context.graphPathCount,
     mcp: securityCerebroMCPContextFromProto(context.mcp),
-    responseHints: [...context.responseHints]
+    responseHints: [...context.responseHints],
+    webLinks: context.webLinks
+      .map(cerebroWebLinkFromProto)
+      .filter((link): link is ConnectCerebroWebLink => Boolean(link))
   };
 }
 

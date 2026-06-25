@@ -709,6 +709,7 @@ func securityCerebroContextFromMap(data map[string]any) *aperiov1.SecurityCerebr
 		GraphPathCount:   int32(intValue(data["graphPathCount"])),
 		Mcp:              securityCerebroMCPContextFromMap(asMap(data["mcp"])),
 		ResponseHints:    stringSliceFromAny(data["responseHints"]),
+		WebLinks:         cerebroWebLinksFromAny(data["webLinks"]),
 	}
 }
 
@@ -739,6 +740,25 @@ func cerebroMCPResourceTemplatesFromAny(value any) []*aperiov1.CerebroMCPResourc
 			Name:        stringFromAny(data["name"]),
 			Description: stringFromAny(data["description"]),
 			MimeType:    stringFromAny(data["mimeType"]),
+		})
+	}
+	return out
+}
+
+func cerebroWebLinksFromAny(value any) []*aperiov1.CerebroWebLink {
+	items := anyList(value)
+	out := make([]*aperiov1.CerebroWebLink, 0, len(items))
+	for _, item := range items {
+		data := asMap(item)
+		webURL := stringFromAny(data["url"])
+		if webURL == "" {
+			continue
+		}
+		out = append(out, &aperiov1.CerebroWebLink{
+			Label: stringFromAny(data["label"]),
+			Url:   webURL,
+			Route: stringFromAny(data["route"]),
+			Kind:  stringFromAny(data["kind"]),
 		})
 	}
 	return out

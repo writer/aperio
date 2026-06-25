@@ -381,6 +381,14 @@ message FindingCerebroContext {
   repeated CerebroGraphPath graph_paths = 10;
   CerebroMCPContext mcp = 11;
   repeated string response_hints = 12;
+  repeated CerebroWebLink web_links = 13;
+}
+
+message CerebroWebLink {
+  string label = 1;
+  string url = 2;
+  string route = 3;
+  string kind = 4;
 }
 
 message CerebroClaimSummary {
@@ -404,6 +412,7 @@ message CerebroEntityRef {
   string type = 2;
   string label = 3;
   string provider = 4;
+  string web_url = 5;
 }
 
 message CerebroGraphPath {
@@ -411,6 +420,7 @@ message CerebroGraphPath {
   string title = 2;
   string risk = 3;
   repeated CerebroEntityRef nodes = 4;
+  string web_url = 5;
 }
 
 message CerebroMCPContext {
@@ -1224,6 +1234,7 @@ message SecurityCerebroContext {
   int32 graph_path_count = 8;
   SecurityCerebroMCPContext mcp = 9;
   repeated string response_hints = 10;
+  repeated CerebroWebLink web_links = 11;
 }
 
 message SecurityCerebroMCPContext {

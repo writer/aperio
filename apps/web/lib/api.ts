@@ -1017,6 +1017,7 @@ export type SecurityCerebroContext = {
     }[];
   } | null;
   responseHints: string[];
+  webLinks: import("@aperio/connect/client").ConnectCerebroWebLink[];
 };
 
 export type SecurityOverview = {

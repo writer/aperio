@@ -60,6 +60,7 @@ func main() {
 	}
 
 	app := bootstrap.NewApp(cfg, db)
+	app.WithCerebroWebURL(cfg.CerebroWebURL)
 	if cerebroEnabled {
 		cerebroClient, err := cerebroclient.New(cerebroCfg)
 		if err != nil {
@@ -67,6 +68,7 @@ func main() {
 			log.Fatalf("Cerebro client setup failed: %v", err)
 		}
 		app.WithCerebroContextClient(runtime.ID, cerebroClient).
+			WithCerebroSourceID(runtime.SourceID).
 			WithCerebroMCPServerURL(cerebroCfg.MCPServerURL()).
 			WithCerebroOAuthIssuerURL(cerebroCfg.BaseURL)
 	}

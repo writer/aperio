@@ -20,6 +20,7 @@ type Config struct {
 	SessionIdleMinutes int
 	// WebOrigin is the comma-separated browser origin allow-list used for credentialed RPCs.
 	WebOrigin              string
+	CerebroWebURL          string
 	MaxOpenConns           int
 	MaxIdleConns           int
 	ConnMaxLifetimeMinutes int
@@ -40,6 +41,7 @@ func FromEnv() Config {
 		DatabaseURL:        databaseURL,
 		SessionIdleMinutes: envInt("APERIO_SESSION_IDLE_MINUTES", 120),
 		WebOrigin:          strings.TrimRight(env("APERIO_WEB_ORIGIN", "http://localhost:3000"), "/"),
+		CerebroWebURL:      env("CEREBRO_WEB_URL", ""),
 		MaxOpenConns:       envInt("APERIO_CONNECT_DB_MAX_OPEN_CONNS", 10),
 		MaxIdleConns:       envInt("APERIO_CONNECT_DB_MAX_IDLE_CONNS", 5),
 		ConnMaxLifetimeMinutes: envInt(

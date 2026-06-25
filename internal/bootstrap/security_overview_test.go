@@ -281,7 +281,9 @@ func TestSecurityOverviewCerebroContextHydratesClaimsAndGraph(t *testing.T) {
 	}
 	app := (&App{}).
 		WithCerebroContextClient("runtime-a", client).
-		WithCerebroMCPServerURL("https://cerebro.example.com/api/v1/mcp")
+		WithCerebroSourceID("aperio_saas_dr").
+		WithCerebroMCPServerURL("https://cerebro.example.com/api/v1/mcp").
+		WithCerebroWebURL("https://cerebro-web.example.com")
 
 	overview := app.enrichSecurityOverviewCerebroContext(context.Background(), "org-a", map[string]any{}, []overviewFinding{
 		{ID: "finding-1", SourceEventID: "evt-1"},
@@ -292,6 +294,13 @@ func TestSecurityOverviewCerebroContextHydratesClaimsAndGraph(t *testing.T) {
 	}
 	if contextPayload["claimCount"] != 1 || contextPayload["entityCount"] != 2 || contextPayload["graphPathCount"] != 1 {
 		t.Fatalf("unexpected Cerebro counts: %#v", contextPayload)
+	}
+	webLinks := contextRecords(contextPayload["webLinks"])
+	if len(webLinks) < 4 {
+		t.Fatalf("expected security web links, got %#v", webLinks)
+	}
+	if firstLink := contextRecord(webLinks[0]); firstLink["url"] != "https://cerebro-web.example.com/connectors/aperio_saas_dr?runtime_id=runtime-a&tab=connections" {
+		t.Fatalf("runtime web link = %#v", firstLink)
 	}
 	mcp := contextPayload["mcp"].(map[string]any)
 	if mcp["server"] != "https://cerebro.example.com/api/v1/mcp" || mcp["resourceUri"] != "cerebro://aperio/org-a/security/overview" {
@@ -314,6 +323,9 @@ func TestSecurityOverviewCerebroContextHydratesClaimsAndGraph(t *testing.T) {
 	proto := securityOverviewFromMap(overview)
 	if proto.CerebroContext == nil || proto.CerebroContext.ClaimCount != 1 || proto.CerebroContext.Mcp == nil {
 		t.Fatalf("proto Cerebro context = %#v", proto.CerebroContext)
+	}
+	if len(proto.CerebroContext.WebLinks) < 4 {
+		t.Fatalf("proto Cerebro web links = %#v", proto.CerebroContext.WebLinks)
 	}
 	if got := len(proto.CerebroContext.Mcp.ResourceTemplates); got != 3 {
 		t.Fatalf("proto MCP resource templates = %d, want 3", got)

@@ -1304,6 +1304,7 @@ func defaultCerebroContextPayload(organizationID string, incidentID string) map[
 		"entities":       []map[string]any{},
 		"graphPaths":     []map[string]any{},
 		"claimSummaries": []map[string]any{},
+		"webLinks":       []map[string]any{},
 		"responseHints": []string{
 			"Attach Cerebro claims before executing high-impact response actions.",
 		},
@@ -1346,7 +1347,7 @@ func normalizeCerebroContextJSON(raw string) string {
 	if mode, ok := parsed["mode"].(string); !ok || strings.TrimSpace(mode) == "" {
 		parsed["mode"] = defaults["mode"]
 	}
-	for _, key := range []string{"graphSignals", "entities", "graphPaths", "claimSummaries", "responseHints"} {
+	for _, key := range []string{"graphSignals", "entities", "graphPaths", "claimSummaries", "webLinks", "responseHints"} {
 		if parsed[key] == nil {
 			parsed[key] = defaults[key]
 		}
@@ -1370,6 +1371,7 @@ func genericCerebroContextDefaults() map[string]any {
 		"entities":        []map[string]any{},
 		"graphPaths":      []map[string]any{},
 		"claimSummaries":  []map[string]any{},
+		"webLinks":        []map[string]any{},
 		"responseHints": []string{
 			"Attach Cerebro claims before executing high-impact response actions.",
 		},

@@ -43,6 +43,7 @@ func (a *App) enrichSaasCerebroContext(ctx context.Context, organizationID strin
 	payload["sourceRuntimeId"] = a.cerebroRuntimeID
 	payload["findingContract"] = "cerebro.v1.Finding"
 	payload["mcp"] = a.saasCerebroMCPContext(organizationID, incidentID)
+	payload["webLinks"] = cerebroWebLinksToMaps(a.incidentCerebroWebLinks(incidentID, sourceEventIDsFromFindings(findings), nil))
 
 	claims, queriedClaims := a.saasCerebroIncidentClaims(ctx, findings)
 	if len(claims) == 0 {
@@ -70,7 +71,7 @@ func (a *App) enrichSaasCerebroContext(ctx context.Context, organizationID strin
 			continue
 		}
 		entities.addNeighborhood(neighborhood)
-		graphPaths = append(graphPaths, cerebroGraphPathsFromNeighborhood(neighborhood)...)
+		graphPaths = append(graphPaths, a.addCerebroGraphPathWebURLs(cerebroGraphPathsFromNeighborhood(neighborhood))...)
 	}
 
 	payload["mode"] = "claim-linked"
@@ -80,8 +81,9 @@ func (a *App) enrichSaasCerebroContext(ctx context.Context, organizationID strin
 	payload["claimCount"] = len(claims)
 	payload["claimSummaries"] = cerebroClaimSummaries(claims)
 	payload["graphSignals"] = cerebroGraphSignals(claims)
-	payload["entities"] = entities.items()
+	payload["entities"] = a.addCerebroEntityWebURLs(entities.items())
 	payload["graphPaths"] = graphPaths
+	payload["webLinks"] = cerebroWebLinksToMaps(a.incidentCerebroWebLinks(incidentID, sourceEventIDsFromFindings(findings), findingRoots))
 	payload["responseHints"] = []string{
 		"Review Cerebro claims and graph paths before executing high-impact response actions.",
 	}
@@ -95,6 +97,7 @@ func (a *App) refreshSaasCerebroMCPContext(organizationID string, incidentID str
 		payload["sourceRuntimeId"] = strings.TrimSpace(a.cerebroRuntimeID)
 	}
 	payload["mcp"] = a.saasCerebroMCPContext(organizationID, incidentID)
+	payload["webLinks"] = cerebroWebLinksToMaps(a.incidentCerebroWebLinks(incidentID, nil, nil))
 	return encodeCerebroContextMap(payload, base)
 }
 

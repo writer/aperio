@@ -6,6 +6,7 @@ import {
   ArrowDown,
   ArrowRight,
   ArrowUp,
+  ArrowUpRight,
   ChevronsUpDown,
   Search
 } from "lucide-react";
@@ -209,6 +210,7 @@ function SecurityCerebroContextCard({
   const modeLabel = context.mode.replaceAll("-", " ");
   const linked =
     context.mode === "claim-linked" || context.mode === "graph-linked";
+  const webLinks = context.webLinks ?? [];
   return (
     <Card>
       <CardHeader>
@@ -248,6 +250,30 @@ function SecurityCerebroContextCard({
           <CerebroMiniStat label="Entities" value={context.entityCount} />
           <CerebroMiniStat label="Paths" value={context.graphPathCount} />
         </div>
+        {webLinks.length ? (
+          <div className="lg:col-span-2">
+            <p className="mb-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              Open in Cerebro
+            </p>
+            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+              {webLinks.slice(0, 4).map((link) => (
+                <a
+                  key={`${link.kind ?? link.label}:${link.url}`}
+                  href={link.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center justify-between gap-2 rounded-md border border-border bg-muted/20 px-3 py-2 text-xs font-medium text-foreground transition hover:border-signal/40 hover:bg-signal/10"
+                >
+                  <span>{link.label}</span>
+                  <ArrowUpRight
+                    className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                    aria-hidden
+                  />
+                </a>
+              ))}
+            </div>
+          </div>
+        ) : null}
         {context.mcp?.tools.length ? (
           <div className="lg:col-span-2">
             <p className="mb-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">

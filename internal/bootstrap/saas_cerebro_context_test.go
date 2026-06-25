@@ -91,7 +91,9 @@ func TestEnrichSaasCerebroContextHydratesClaimsAndGraph(t *testing.T) {
 	}
 	app := (&App{}).
 		WithCerebroContextClient("runtime-a", client).
-		WithCerebroMCPServerURL("https://cerebro.example.com/api/v1/mcp")
+		WithCerebroSourceID("aperio_saas_dr").
+		WithCerebroMCPServerURL("https://cerebro.example.com/api/v1/mcp").
+		WithCerebroWebURL("https://cerebro-web.example.com")
 
 	encoded := app.enrichSaasCerebroContext(context.Background(), "org-a", "inc-a", saasCerebroContextJSON("org-a", "inc-a"), []findingRow{
 		{Evidence: map[string]any{"sourceEventId": "evt-a"}},
@@ -117,6 +119,19 @@ func TestEnrichSaasCerebroContextHydratesClaimsAndGraph(t *testing.T) {
 	}
 	if got := len(contextRecords(contextPayload["graphPaths"])); got != 1 {
 		t.Fatalf("graph paths = %d", got)
+	}
+	webLinks := contextRecords(contextPayload["webLinks"])
+	if len(webLinks) < 5 {
+		t.Fatalf("web links = %#v", webLinks)
+	}
+	if firstLink := contextRecord(webLinks[0]); firstLink["url"] != "https://cerebro-web.example.com/connectors/aperio_saas_dr?runtime_id=runtime-a&tab=connections" {
+		t.Fatalf("runtime web link = %#v", firstLink)
+	}
+	if firstEntity := contextRecord(contextRecords(contextPayload["entities"])[0]); firstEntity["webUrl"] != "https://cerebro-web.example.com/impact?root_urn=urn%3Acerebro%3Atenant-a%3Aruntime%3Aruntime-a%3Afinding%3Adedupe-a" {
+		t.Fatalf("entity web url = %#v", firstEntity)
+	}
+	if firstPath := contextRecord(contextRecords(contextPayload["graphPaths"])[0]); firstPath["webUrl"] != "https://cerebro-web.example.com/explore?root_urn=urn%3Acerebro%3Atenant-a%3Aruntime%3Aruntime-a%3Afinding%3Adedupe-a" {
+		t.Fatalf("path web url = %#v", firstPath)
 	}
 	mcp := contextRecord(contextPayload["mcp"])
 	if mcp["server"] != "https://cerebro.example.com/api/v1/mcp" || mcp["resourceUri"] != "cerebro://aperio/org-a/incidents/inc-a" {

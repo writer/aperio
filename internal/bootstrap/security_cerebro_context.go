@@ -31,6 +31,7 @@ func (a *App) enrichSecurityOverviewCerebroContext(ctx context.Context, organiza
 		"graphSignalCount": 0,
 		"entityCount":      0,
 		"graphPathCount":   0,
+		"webLinks":         []map[string]string{},
 		"responseHints": []string{
 			"Configure Cerebro runtime access to link security graph rows to source-runtime claims.",
 		},
@@ -44,6 +45,7 @@ func (a *App) enrichSecurityOverviewCerebroContext(ctx context.Context, organiza
 	contextPayload["mode"] = "runtime-configured"
 	contextPayload["sourceRuntimeId"] = a.cerebroRuntimeID
 	contextPayload["mcp"] = a.securityCerebroMCPContext(organizationID)
+	contextPayload["webLinks"] = cerebroWebLinksToMaps(a.securityCerebroWebLinks(nil))
 	contextPayload["responseHints"] = []string{
 		"Use Cerebro claims and graph neighborhoods to validate high-blast-radius paths before response.",
 	}
@@ -99,6 +101,7 @@ func (a *App) enrichSecurityOverviewCerebroContext(ctx context.Context, organiza
 	contextPayload["graphSignalCount"] = cerebroGraphSignalCount(claims)
 	contextPayload["entityCount"] = entities.count()
 	contextPayload["graphPathCount"] = graphPathCount
+	contextPayload["webLinks"] = cerebroWebLinksToMaps(a.securityCerebroWebLinks(findingRoots))
 	overview["cerebroContext"] = contextPayload
 	return overview
 }

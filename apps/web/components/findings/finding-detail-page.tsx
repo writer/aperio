@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
+  ArrowUpRight,
   CheckCircle2,
   GitBranch,
   Network,
@@ -288,6 +289,7 @@ function FindingCerebroContextCard({
   const claimCount = context.claimCount ?? context.claimSummaries.length;
   const graphSignalCount = context.graphSignals.length;
   const graphPathCount = context.graphPaths.length;
+  const webLinks = context.webLinks ?? [];
 
   return (
     <Card>
@@ -315,6 +317,31 @@ function FindingCerebroContextCard({
           />
           <CerebroStat icon={GitBranch} label="Paths" value={graphPathCount} />
         </div>
+
+        {webLinks.length ? (
+          <section className="space-y-2">
+            <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Open in Cerebro
+            </h4>
+            <div className="grid gap-2">
+              {webLinks.slice(0, 6).map((link) => (
+                <a
+                  key={`${link.kind ?? link.label}:${link.url}`}
+                  href={link.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center justify-between gap-2 rounded-md border border-border bg-muted/20 px-3 py-2 text-xs font-medium text-foreground transition hover:border-signal/40 hover:bg-signal/10"
+                >
+                  <span>{link.label}</span>
+                  <ArrowUpRight
+                    className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                    aria-hidden
+                  />
+                </a>
+              ))}
+            </div>
+          </section>
+        ) : null}
 
         <div className="space-y-2 text-sm">
           <Row label="Source event">
