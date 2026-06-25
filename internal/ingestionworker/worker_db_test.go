@@ -456,8 +456,8 @@ func TestDrainDeadLettersUnsupportedIngestionJobsWithoutSideEffects(t *testing.T
 		payload     json.RawMessage
 	}
 	cases := []unsupportedCase{
-		{name: "slack unsupported event", provider: "SLACK", eventType: "WORKSPACE_INVITE_LINK_ENABLED", status: "QUEUED", attempts: 0, maxAttempts: 3, payload: json.RawMessage(`{"user":{"email":"user@example.com"}}`)},
-		{name: "slack failed unsupported event", provider: "SLACK", eventType: "WORKSPACE_INVITE_LINK_ENABLED", status: "FAILED", attempts: 1, maxAttempts: 3, payload: json.RawMessage(`{"user":{"email":"user@example.com"}}`)},
+		{name: "slack unsupported event", provider: "SLACK", eventType: "UNSUPPORTED_SLACK_AUDIT_EVENT", status: "QUEUED", attempts: 0, maxAttempts: 3, payload: json.RawMessage(`{"user":{"email":"user@example.com"}}`)},
+		{name: "slack failed unsupported event", provider: "SLACK", eventType: "UNSUPPORTED_SLACK_FAILED_EVENT", status: "FAILED", attempts: 1, maxAttempts: 3, payload: json.RawMessage(`{"user":{"email":"user@example.com"}}`)},
 		{name: "okta unsupported event", provider: "OKTA", eventType: "USER_LIFECYCLE_DEACTIVATE", status: "QUEUED", attempts: 0, maxAttempts: 3, payload: json.RawMessage(`{"actor":{"displayName":"admin@example.com"},"target":[{"type":"User","displayName":"user@example.com"}]}`)},
 		{name: "google unsupported event", provider: "GOOGLE_WORKSPACE", eventType: "USER_LOGIN", status: "QUEUED", attempts: 0, maxAttempts: 3, payload: json.RawMessage(`{"parameters":{"forward_to":"external@example.com"}}`)},
 		{name: "unknown github event", provider: "GITHUB", eventType: "UNKNOWN_EVENT", status: "QUEUED", attempts: 0, maxAttempts: 3, payload: json.RawMessage(`{"repository":{"full_name":"writer/private","visibility":"private"}}`)},
@@ -466,6 +466,9 @@ func TestDrainDeadLettersUnsupportedIngestionJobsWithoutSideEffects(t *testing.T
 
 	jobIDs := map[string]string{}
 	for _, input := range cases {
+		if isSupportedIngestionWork(input.provider, input.eventType) {
+			t.Fatalf("%s fixture uses supported ingestion work %s/%s", input.name, input.provider, input.eventType)
+		}
 		jobIDs[input.name] = seedIngestionWorkerJob(t, db, struct {
 			orgID         string
 			integrationID string
