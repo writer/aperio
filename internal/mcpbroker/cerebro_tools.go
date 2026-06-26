@@ -1215,14 +1215,17 @@ func cerebroResponseCapabilitiesForFinding(provider string, evidence any) []map[
 
 func cerebroResponseCapabilitiesForFindings(findings []map[string]any) []map[string]any {
 	out := []map[string]any{}
-	seen := map[string]struct{}{}
+	seen := map[string]int{}
 	for _, finding := range findings {
 		for _, capability := range cerebroResponseCapabilitiesForFinding(stringValue(finding["provider"]), finding["evidence"]) {
 			key := responseCapabilityKey(capability)
-			if _, ok := seen[key]; ok {
+			if index, ok := seen[key]; ok {
+				if stringValue(capability["rankHint"]) != "" && stringValue(out[index]["rankHint"]) == "" {
+					out[index]["rankHint"] = capability["rankHint"]
+				}
 				continue
 			}
-			seen[key] = struct{}{}
+			seen[key] = len(out)
 			out = append(out, capability)
 		}
 	}
@@ -1308,19 +1311,19 @@ func copyStrings(values []string) []string {
 
 func cerebroOAuthExposure(provider string, evidence any) map[string]any {
 	record, _ := evidence.(map[string]any)
-	scopes := stringArrayFromEvidence(record, "scopes", "oauthScopes", "oauth_scopes", "grantScopes", "grant_scopes")
-	resourceFamilies := stringArrayFromEvidence(record, "resourceFamilies", "resource_families", "resources", "resourceTypes")
+	scopes := sanitizeEvidenceStrings(stringArrayFromEvidence(record, "scopes", "oauthScopes", "oauth_scopes", "grantScopes", "grant_scopes"))
+	resourceFamilies := sanitizeEvidenceStrings(stringArrayFromEvidence(record, "resourceFamilies", "resource_families", "resources", "resourceTypes"))
 	for _, scope := range scopes {
 		if family := oauthScopeResourceFamily(scope); family != "" {
 			resourceFamilies = append(resourceFamilies, family)
 		}
 	}
 	resourceFamilies = uniqueStrings(resourceFamilies)
-	appID := firstEvidenceString(record, "oauthAppId", "oauth_app_id", "appId", "app_id", "clientId", "client_id")
-	grantID := firstEvidenceString(record, "oauthGrantId", "oauth_grant_id", "grantId", "grant_id")
-	user := firstEvidenceString(record, "oauthUserEmail", "oauth_user_email", "userEmail", "user_email", "principal", "actorEmail")
-	appName := firstEvidenceString(record, "oauthAppName", "oauth_app_name", "appName", "app_name", "clientName", "client_name")
-	riskyScopes := stringArrayFromEvidence(record, "riskyScopes", "risky_scopes", "privilegedScopes", "privileged_scopes")
+	appID := sanitizeEvidenceText(firstEvidenceString(record, "oauthAppId", "oauth_app_id", "appId", "app_id", "clientId", "client_id"))
+	grantID := sanitizeEvidenceText(firstEvidenceString(record, "oauthGrantId", "oauth_grant_id", "grantId", "grant_id"))
+	user := sanitizeEvidenceText(firstEvidenceString(record, "oauthUserEmail", "oauth_user_email", "userEmail", "user_email", "principal", "actorEmail"))
+	appName := sanitizeEvidenceText(firstEvidenceString(record, "oauthAppName", "oauth_app_name", "appName", "app_name", "clientName", "client_name"))
+	riskyScopes := sanitizeEvidenceStrings(stringArrayFromEvidence(record, "riskyScopes", "risky_scopes", "privilegedScopes", "privileged_scopes"))
 	if appID == "" && grantID == "" && appName == "" && user == "" && len(scopes) == 0 && len(resourceFamilies) == 0 && len(riskyScopes) == 0 {
 		return map[string]any{}
 	}
@@ -1354,6 +1357,30 @@ func oauthBlastRadiusSummary(user string, scopes []string, resourceFamilies []st
 		return ""
 	}
 	return strings.Join(parts, " / ")
+}
+
+func sanitizeEvidenceStrings(values []string) []string {
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		if sanitized := sanitizeEvidenceText(value); sanitized != "" {
+			out = append(out, sanitized)
+		}
+	}
+	return uniqueStrings(out)
+}
+
+func sanitizeEvidenceText(value string) string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return ""
+	}
+	cleaned := strings.Map(func(r rune) rune {
+		if r < 0x20 || r == 0x7f {
+			return ' '
+		}
+		return r
+	}, trimmed)
+	return strings.Join(strings.Fields(cleaned), " ")
 }
 
 func oauthScopeResourceFamily(scope string) string {
