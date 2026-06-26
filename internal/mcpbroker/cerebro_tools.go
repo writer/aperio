@@ -1265,11 +1265,6 @@ func findCerebroResponseCapability(action string, provider string) (cerebroRespo
 			return capability, true
 		}
 	}
-	for _, capability := range cerebroResponseCapabilityCatalog {
-		if capability.Action == normalizedAction {
-			return capability, true
-		}
-	}
 	return cerebroResponseCapability{}, false
 }
 

@@ -271,6 +271,15 @@ func TestCerebroResponseCapabilitiesExposeOAuthContract(t *testing.T) {
 		contract["providerAction"] != "google_workspace.revoke_oauth_grant" {
 		t.Fatalf("response action contract drifted: %#v", contract)
 	}
+
+	mismatchedContract := cerebroResponseActionContract("REVOKE_OAUTH_GRANT", "SLACK")
+	if mismatchedContract["provider"] != "SLACK" ||
+		mismatchedContract["providerAction"] != "slack.revoke_oauth_grant" {
+		t.Fatalf("mismatched provider/action contract used catalog entry: %#v", mismatchedContract)
+	}
+	if keys := mismatchedContract["requiredContextKeys"].([]string); len(keys) != 1 || keys[0] != "incident_id" {
+		t.Fatalf("mismatched provider/action contract keys = %#v, want generic incident_id", keys)
+	}
 }
 
 func TestValidateToolArgumentsRejectsInvalidInputs(t *testing.T) {
