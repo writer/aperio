@@ -672,7 +672,7 @@ func (s *ToolService) listCerebroIncidentFindings(ctx context.Context, organizat
 			return nil, err
 		}
 		decodedEvidence := decodeJSON(evidence)
-		out = append(out, map[string]any{
+		record := map[string]any{
 			"id":              id,
 			"title":           title,
 			"description":     description,
@@ -680,7 +680,6 @@ func (s *ToolService) listCerebroIncidentFindings(ctx context.Context, organizat
 			"status":          status,
 			"riskScore":       riskScore,
 			"evidence":        decodedEvidence,
-			"oauthExposure":   cerebroOAuthExposure(provider, decodedEvidence),
 			"detectedAt":      formatMCPTime(detectedAt),
 			"provider":        provider,
 			"integrationName": integrationName,
@@ -688,7 +687,11 @@ func (s *ToolService) listCerebroIncidentFindings(ctx context.Context, organizat
 				provider,
 				decodedEvidence,
 			),
-		})
+		}
+		if exposure := cerebroOAuthExposure(provider, decodedEvidence); len(exposure) > 0 {
+			record["oauthExposure"] = exposure
+		}
+		out = append(out, record)
 	}
 	return out, rows.Err()
 }
