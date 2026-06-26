@@ -1342,12 +1342,15 @@ func cerebroOAuthExposure(provider string, evidence any) map[string]any {
 		"riskyScopes":        riskyScopes,
 		"resourceFamilies":   resourceFamilies,
 		"domainWideAccess":   domainWideAccess,
-		"blastRadiusSummary": oauthBlastRadiusSummary(user, scopes, resourceFamilies),
+		"blastRadiusSummary": oauthBlastRadiusSummary(user, scopes, resourceFamilies, domainWideAccess),
 	}
 }
 
-func oauthBlastRadiusSummary(user string, scopes []string, resourceFamilies []string) string {
+func oauthBlastRadiusSummary(user string, scopes []string, resourceFamilies []string, domainWideAccess bool) string {
 	parts := []string{}
+	if domainWideAccess {
+		parts = append(parts, "domain-wide access")
+	}
 	if user != "" {
 		parts = append(parts, "user "+user)
 	}

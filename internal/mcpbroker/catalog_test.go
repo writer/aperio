@@ -266,6 +266,9 @@ func TestCerebroResponseCapabilitiesExposeOAuthContract(t *testing.T) {
 	if domainWideExposure["domainWideAccess"] != true {
 		t.Fatalf("domain-wide-only OAuth exposure was dropped: %#v", domainWideExposure)
 	}
+	if domainWideExposure["blastRadiusSummary"] != "domain-wide access" {
+		t.Fatalf("domain-wide-only blast radius summary drifted: %#v", domainWideExposure)
+	}
 
 	capabilities := cerebroResponseCapabilitiesForFinding("GOOGLE_WORKSPACE", evidence)
 	if len(capabilities) == 0 {
