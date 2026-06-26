@@ -252,6 +252,11 @@ func TestCerebroResponseCapabilitiesExposeOAuthContract(t *testing.T) {
 	if len(families) != 2 || families[0] != "files" || families[1] != "mail" {
 		t.Fatalf("resource families = %#v, want files/mail", families)
 	}
+	oidcExposure := cerebroOAuthExposure("GOOGLE_WORKSPACE", map[string]any{"scopes": []any{"email", "openid", "profile"}})
+	oidcFamilies := oidcExposure["resourceFamilies"].([]string)
+	if len(oidcFamilies) != 1 || oidcFamilies[0] != "profile" {
+		t.Fatalf("OIDC resource families = %#v, want profile", oidcFamilies)
+	}
 
 	capabilities := cerebroResponseCapabilitiesForFinding("GOOGLE_WORKSPACE", evidence)
 	if len(capabilities) == 0 {

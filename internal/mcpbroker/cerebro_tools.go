@@ -1386,6 +1386,8 @@ func sanitizeEvidenceText(value string) string {
 func oauthScopeResourceFamily(scope string) string {
 	normalized := strings.ToLower(strings.TrimSpace(scope))
 	switch {
+	case strings.Contains(normalized, "profile") || strings.Contains(normalized, "userinfo") || normalized == "email" || strings.HasSuffix(normalized, "/email"):
+		return "profile"
 	case strings.Contains(normalized, "gmail") || strings.Contains(normalized, "mail"):
 		return "mail"
 	case strings.Contains(normalized, "drive") || strings.Contains(normalized, "docs") || strings.Contains(normalized, "sheets") || strings.Contains(normalized, "files"):
@@ -1398,8 +1400,6 @@ func oauthScopeResourceFamily(scope string) string {
 		return "collaboration"
 	case strings.Contains(normalized, "repo") || strings.Contains(normalized, "code"):
 		return "code"
-	case strings.Contains(normalized, "profile") || strings.Contains(normalized, "userinfo") || strings.Contains(normalized, "email"):
-		return "profile"
 	default:
 		return ""
 	}
