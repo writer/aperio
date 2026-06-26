@@ -262,6 +262,10 @@ func TestCerebroResponseCapabilitiesExposeOAuthContract(t *testing.T) {
 	if len(compoundEmailFamilies) != 1 || compoundEmailFamilies[0] != "profile" {
 		t.Fatalf("compound email resource families = %#v, want profile", compoundEmailFamilies)
 	}
+	domainWideExposure := cerebroOAuthExposure("GOOGLE_WORKSPACE", map[string]any{"domainWideAccess": true})
+	if domainWideExposure["domainWideAccess"] != true {
+		t.Fatalf("domain-wide-only OAuth exposure was dropped: %#v", domainWideExposure)
+	}
 
 	capabilities := cerebroResponseCapabilitiesForFinding("GOOGLE_WORKSPACE", evidence)
 	if len(capabilities) == 0 {
@@ -275,6 +279,10 @@ func TestCerebroResponseCapabilitiesExposeOAuthContract(t *testing.T) {
 		first["dryRun"] != true ||
 		first["rankHint"] != "primary_oauth_containment" {
 		t.Fatalf("OAuth response capability drifted: %#v", first)
+	}
+	domainWideCapabilities := cerebroResponseCapabilitiesForFinding("GOOGLE_WORKSPACE", map[string]any{"domainWideAccess": true})
+	if len(domainWideCapabilities) == 0 || domainWideCapabilities[0]["rankHint"] != "primary_oauth_containment" {
+		t.Fatalf("domain-wide-only OAuth capability lost containment rank: %#v", domainWideCapabilities)
 	}
 
 	contract := cerebroResponseActionContract("REVOKE_OAUTH_GRANT", "GOOGLE_WORKSPACE")

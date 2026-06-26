@@ -1327,7 +1327,8 @@ func cerebroOAuthExposure(provider string, evidence any) map[string]any {
 	user := sanitizeEvidenceText(firstEvidenceString(record, "oauthUserEmail", "oauth_user_email", "userEmail", "user_email", "principal", "actorEmail"))
 	appName := sanitizeEvidenceText(firstEvidenceString(record, "oauthAppName", "oauth_app_name", "appName", "app_name", "clientName", "client_name"))
 	riskyScopes := sanitizeEvidenceStrings(stringArrayFromEvidence(record, "riskyScopes", "risky_scopes", "privilegedScopes", "privileged_scopes"))
-	if appID == "" && grantID == "" && appName == "" && user == "" && len(scopes) == 0 && len(resourceFamilies) == 0 && len(riskyScopes) == 0 {
+	domainWideAccess := boolEvidenceValue(record, "domainWideAccess", "domain_wide_access", "isDomainWide")
+	if appID == "" && grantID == "" && appName == "" && user == "" && len(scopes) == 0 && len(resourceFamilies) == 0 && len(riskyScopes) == 0 && !domainWideAccess {
 		return map[string]any{}
 	}
 	return map[string]any{
@@ -1340,7 +1341,7 @@ func cerebroOAuthExposure(provider string, evidence any) map[string]any {
 		"scopes":             scopes,
 		"riskyScopes":        riskyScopes,
 		"resourceFamilies":   resourceFamilies,
-		"domainWideAccess":   boolEvidenceValue(record, "domainWideAccess", "domain_wide_access", "isDomainWide"),
+		"domainWideAccess":   domainWideAccess,
 		"blastRadiusSummary": oauthBlastRadiusSummary(user, scopes, resourceFamilies),
 	}
 }
