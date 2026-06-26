@@ -85,6 +85,9 @@ func TestApprovedToolsCatalog(t *testing.T) {
 	if cerebroResponseProps["approvalRequired"].(map[string]any)["default"] != true {
 		t.Fatalf("propose_cerebro_response approval default drifted")
 	}
+	if cerebroResponseProps["dryRun"].(map[string]any)["default"] != true {
+		t.Fatalf("propose_cerebro_response dryRun default drifted")
+	}
 }
 
 func TestApprovedResourceTemplatesCatalog(t *testing.T) {
@@ -219,10 +222,54 @@ func TestValidateToolArgumentsDefaultsAndTrimming(t *testing.T) {
 		t.Fatalf("propose_cerebro_response validation failed: %v", err)
 	}
 	if cerebroResponse["approvalRequired"] != true ||
+		cerebroResponse["dryRun"] != true ||
 		cerebroResponse["incidentId"] != "inc_1" ||
 		cerebroResponse["targetIdentifier"] != "Vendor App" ||
 		cerebroResponse["proposedByAgentKey"] != "planner" {
 		t.Fatalf("propose_cerebro_response defaults/trimming wrong: %#v", cerebroResponse)
+	}
+}
+
+func TestCerebroResponseCapabilitiesExposeOAuthContract(t *testing.T) {
+	evidence := map[string]any{
+		"oauthAppId":       "app_123",
+		"oauthGrantId":     "grant_123",
+		"oauthUserEmail":   "owner@example.test",
+		"oauthAppName":     "Vendor Analytics",
+		"scopes":           []any{"https://www.googleapis.com/auth/drive.readonly", "https://www.googleapis.com/auth/gmail.readonly"},
+		"domainWideAccess": true,
+	}
+
+	exposure := cerebroOAuthExposure("GOOGLE_WORKSPACE", evidence)
+	if exposure["appId"] != "app_123" || exposure["grantId"] != "grant_123" || exposure["domainWideAccess"] != true {
+		t.Fatalf("OAuth exposure drifted: %#v", exposure)
+	}
+	if got := exposure["scopeCount"]; got != 2 {
+		t.Fatalf("scope count = %v, want 2", got)
+	}
+	families := exposure["resourceFamilies"].([]string)
+	if len(families) != 2 || families[0] != "files" || families[1] != "mail" {
+		t.Fatalf("resource families = %#v, want files/mail", families)
+	}
+
+	capabilities := cerebroResponseCapabilitiesForFinding("GOOGLE_WORKSPACE", evidence)
+	if len(capabilities) == 0 {
+		t.Fatalf("expected Google Workspace response capabilities")
+	}
+	first := capabilities[0]
+	if first["action"] != "REVOKE_OAUTH_GRANT" ||
+		first["providerAction"] != "google_workspace.revoke_oauth_grant" ||
+		first["externalOwner"] != "aperio" ||
+		first["approvalRequired"] != true ||
+		first["dryRun"] != true ||
+		first["rankHint"] != "primary_oauth_containment" {
+		t.Fatalf("OAuth response capability drifted: %#v", first)
+	}
+
+	contract := cerebroResponseActionContract("REVOKE_OAUTH_GRANT", "GOOGLE_WORKSPACE")
+	if contract["tool"] != "aperio.propose_cerebro_response" ||
+		contract["providerAction"] != "google_workspace.revoke_oauth_grant" {
+		t.Fatalf("response action contract drifted: %#v", contract)
 	}
 }
 

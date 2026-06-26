@@ -280,6 +280,10 @@ var approvedTools = []Tool{
 					"type":    "boolean",
 					"default": true,
 				},
+				"dryRun": map[string]any{
+					"type":    "boolean",
+					"default": true,
+				},
 			},
 		),
 	},

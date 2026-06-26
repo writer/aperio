@@ -331,6 +331,10 @@ func TestDBBackedCerebroIncidentToolsExposeGraphContextAndGateResponses(t *testi
 	if findings := detail["findings"].([]any); len(findings) != 1 || findings[0].(map[string]any)["id"] != findingID {
 		t.Fatalf("detail findings drifted: %#v", findings)
 	}
+	capabilities := detail["responseCapabilities"].([]any)
+	if len(capabilities) == 0 || capabilities[0].(map[string]any)["externalOwner"] != "aperio" {
+		t.Fatalf("detail response capabilities drifted: %#v", capabilities)
+	}
 
 	beforeActions := queryMCPInt(t, db, `SELECT COUNT(*) FROM saas_response_actions WHERE organization_id = $1`, orgID)
 	beforeTimeline := queryMCPInt(t, db, `SELECT COUNT(*) FROM saas_incident_timeline_events WHERE organization_id = $1`, orgID)
@@ -349,6 +353,13 @@ func TestDBBackedCerebroIncidentToolsExposeGraphContextAndGateResponses(t *testi
 	actionID := requireStringField(t, proposal, "responseActionId")
 	if proposal["status"] != "PROPOSED" || proposal["resourceUri"] != cerebroIncidentResourceURI(orgID, incidentID) {
 		t.Fatalf("propose_cerebro_response result drifted: %#v", proposal)
+	}
+	if proposal["dryRun"] != true {
+		t.Fatalf("propose_cerebro_response dryRun = %#v, want true", proposal["dryRun"])
+	}
+	contract := proposal["actionContract"].(map[string]any)
+	if contract["providerAction"] != "google_workspace.revoke_oauth_grant" || contract["tool"] != "aperio.propose_cerebro_response" {
+		t.Fatalf("propose_cerebro_response action contract drifted: %#v", contract)
 	}
 	if afterActions := queryMCPInt(t, db, `SELECT COUNT(*) FROM saas_response_actions WHERE organization_id = $1`, orgID); afterActions != beforeActions+1 {
 		t.Fatalf("response action count = %d, want %d", afterActions, beforeActions+1)
@@ -406,6 +417,10 @@ func TestDBBackedCerebroFindingToolsExposeContextAndTenantBoundaries(t *testing.
 	if got := resource["resource"].(map[string]any)["uri"]; got != cerebroFindingResourceURI(orgID, findingID) {
 		t.Fatalf("finding resource uri = %v, want %s", got, cerebroFindingResourceURI(orgID, findingID))
 	}
+	exposure := resource["oauthExposure"].(map[string]any)
+	if exposure["appId"] != "app-finding-resource" || exposure["grantId"] != "grant-finding-resource" || exposure["scopeCount"].(float64) != 3 {
+		t.Fatalf("finding OAuth exposure drifted: %#v", exposure)
+	}
 	cerebro := resource["cerebro"].(map[string]any)
 	if cerebro["source"] != "local-projection" || cerebro["mode"] != "not-configured" || cerebro["findingContract"] != "cerebro.v1.Finding" || cerebro["sourceEventId"] == nil {
 		t.Fatalf("finding Cerebro summary drifted: %#v", cerebro)
@@ -432,6 +447,9 @@ func TestDBBackedCerebroFindingToolsExposeContextAndTenantBoundaries(t *testing.
 	}
 	if templates := mcp["resourceTemplates"].([]any); len(templates) != 3 {
 		t.Fatalf("detail finding MCP resource templates = %#v, want three templates", templates)
+	}
+	if capabilities := context["responseCapabilities"].([]any); len(capabilities) == 0 || capabilities[0].(map[string]any)["rankHint"] != "primary_oauth_containment" {
+		t.Fatalf("detail finding response capabilities drifted: %#v", capabilities)
 	}
 	incidents := detail["incidents"].([]any)
 	if len(incidents) != 1 || incidents[0].(map[string]any)["id"] != incidentID {
@@ -979,8 +997,14 @@ func seedMCPFinding(t *testing.T, db *sql.DB, orgID string, suffix string) (stri
 	integrationID := prefixedID("int")
 	findingID := prefixedID("fnd")
 	evidenceJSON, err := json.Marshal(map[string]any{
-		"subject":       "A123",
-		"sourceEventId": "evt-" + suffix,
+		"subject":        "A123",
+		"sourceEventId":  "evt-" + suffix,
+		"oauthAppId":     "app-" + suffix,
+		"oauthGrantId":   "grant-" + suffix,
+		"oauthUserEmail": "owner-" + suffix + "@example.test",
+		"oauthAppName":   "Vendor Analytics " + suffix,
+		"scopes":         []string{"channels:history", "files:read", "users:read"},
+		"riskyScopes":    []string{"files:read"},
 	})
 	if err != nil {
 		t.Fatalf("encode MCP finding evidence: %v", err)
@@ -1130,6 +1154,13 @@ func assertCerebroResponseAction(t *testing.T, db *sql.DB, orgID string, actionI
 	}
 	if payload["source"] != "cerebro_mcp" || payload["mcpResourceUri"] != cerebroIncidentResourceURI(orgID, incidentID) {
 		t.Fatalf("response action result provenance drifted: %#v", payload)
+	}
+	if payload["dryRun"] != true {
+		t.Fatalf("response action result dryRun = %#v, want true", payload["dryRun"])
+	}
+	contract := payload["actionContract"].(map[string]any)
+	if contract["providerAction"] != "google_workspace.revoke_oauth_grant" || contract["externalOwner"] != "aperio" {
+		t.Fatalf("response action contract drifted: %#v", contract)
 	}
 	var timelineCount int
 	if err := db.QueryRowContext(context.Background(), `

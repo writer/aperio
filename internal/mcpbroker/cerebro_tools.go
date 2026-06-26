@@ -16,6 +16,140 @@ const (
 	cerebroSecurityOverviewMimeType = "application/vnd.aperio.cerebro.security-overview+json"
 )
 
+type cerebroResponseCapability struct {
+	Action              string
+	Provider            string
+	ProviderAction      string
+	TargetTypes         []string
+	RequiredContextKeys []string
+	Mode                string
+	DryRun              bool
+	ApprovalRequired    bool
+	ExternalOwner       string
+	Effect              string
+	Rollback            string
+}
+
+var cerebroResponseCapabilityCatalog = []cerebroResponseCapability{
+	{
+		Action:              "REVOKE_OAUTH_GRANT",
+		Provider:            "GOOGLE_WORKSPACE",
+		ProviderAction:      "google_workspace.revoke_oauth_grant",
+		TargetTypes:         []string{"oauth_grant", "oauth_app"},
+		RequiredContextKeys: []string{"oauth_grant_id", "oauth_app_id", "oauth_user_email"},
+		Mode:                "aperio_human_gated",
+		DryRun:              true,
+		ApprovalRequired:    true,
+		ExternalOwner:       "aperio",
+		Effect:              "Revokes a risky Google Workspace OAuth grant after approval.",
+		Rollback:            "The user must re-authorize the app if access is later approved.",
+	},
+	{
+		Action:              "QUARANTINE_APP",
+		Provider:            "SLACK",
+		ProviderAction:      "slack.revoke_app_install",
+		TargetTypes:         []string{"oauth_app", "slack_app"},
+		RequiredContextKeys: []string{"oauth_app_id", "slack_app_id", "workspace_id"},
+		Mode:                "aperio_human_gated",
+		DryRun:              true,
+		ApprovalRequired:    true,
+		ExternalOwner:       "aperio",
+		Effect:              "Removes or blocks a risky Slack app installation after approval.",
+		Rollback:            "Workspace admins can reinstall the app if the risk is accepted.",
+	},
+	{
+		Action:              "QUARANTINE_APP",
+		Provider:            "GITHUB",
+		ProviderAction:      "github.revoke_oauth_app",
+		TargetTypes:         []string{"oauth_app", "github_oauth_app"},
+		RequiredContextKeys: []string{"oauth_app_id", "github_org", "github_user"},
+		Mode:                "aperio_human_gated",
+		DryRun:              true,
+		ApprovalRequired:    true,
+		ExternalOwner:       "aperio",
+		Effect:              "Revokes or blocks a risky GitHub OAuth app after approval.",
+		Rollback:            "The app must be re-approved or re-installed if access is restored.",
+	},
+	{
+		Action:              "REVOKE_SESSION",
+		Provider:            "MICROSOFT_365",
+		ProviderAction:      "microsoft_365.revoke_sessions",
+		TargetTypes:         []string{"user", "identity"},
+		RequiredContextKeys: []string{"user_id", "user_principal_name"},
+		Mode:                "aperio_human_gated",
+		DryRun:              true,
+		ApprovalRequired:    true,
+		ExternalOwner:       "aperio",
+		Effect:              "Invalidates Microsoft 365 sessions for a risky user after approval.",
+		Rollback:            "The user signs in again after MFA or admin review.",
+	},
+	{
+		Action:              "SUSPEND_USER",
+		Provider:            "OKTA",
+		ProviderAction:      "okta.suspend_user",
+		TargetTypes:         []string{"user", "identity"},
+		RequiredContextKeys: []string{"okta_user_id", "user_email"},
+		Mode:                "aperio_human_gated",
+		DryRun:              true,
+		ApprovalRequired:    true,
+		ExternalOwner:       "aperio",
+		Effect:              "Suspends a risky Okta user after approval.",
+		Rollback:            "Identity admins can unsuspend the user after investigation.",
+	},
+	{
+		Action:              "REMOVE_EXTERNAL_SHARE",
+		Provider:            "ATLASSIAN",
+		ProviderAction:      "atlassian.revoke_user_access",
+		TargetTypes:         []string{"user", "group", "project"},
+		RequiredContextKeys: []string{"atlassian_account_id", "resource_id"},
+		Mode:                "aperio_human_gated",
+		DryRun:              true,
+		ApprovalRequired:    true,
+		ExternalOwner:       "aperio",
+		Effect:              "Revokes risky external Atlassian access after approval.",
+		Rollback:            "Project or site admins can restore access after review.",
+	},
+	{
+		Action:              "REMOVE_ADMIN_ROLE",
+		Provider:            "SALESFORCE",
+		ProviderAction:      "salesforce.remove_admin_role",
+		TargetTypes:         []string{"user", "permission_set", "profile"},
+		RequiredContextKeys: []string{"salesforce_user_id", "permission_set_id"},
+		Mode:                "aperio_human_gated",
+		DryRun:              true,
+		ApprovalRequired:    true,
+		ExternalOwner:       "aperio",
+		Effect:              "Removes excessive Salesforce admin entitlement after approval.",
+		Rollback:            "Salesforce admins can restore the role or permission set.",
+	},
+	{
+		Action:              "OPEN_TICKET",
+		Provider:            "",
+		ProviderAction:      "ticket.open",
+		TargetTypes:         []string{"incident", "finding"},
+		RequiredContextKeys: []string{"incident_id", "finding_id"},
+		Mode:                "aperio_workflow",
+		DryRun:              false,
+		ApprovalRequired:    false,
+		ExternalOwner:       "aperio",
+		Effect:              "Opens a tracked workflow item with linked Cerebro context.",
+		Rollback:            "The ticket can be closed without provider-side changes.",
+	},
+	{
+		Action:              "NOTIFY_SECOPS",
+		Provider:            "",
+		ProviderAction:      "secops.notify",
+		TargetTypes:         []string{"incident", "finding", "user", "oauth_app"},
+		RequiredContextKeys: []string{"incident_id", "severity"},
+		Mode:                "aperio_workflow",
+		DryRun:              false,
+		ApprovalRequired:    false,
+		ExternalOwner:       "aperio",
+		Effect:              "Sends a SecOps notification with linked Cerebro and Aperio context.",
+		Rollback:            "No provider-side rollback is required.",
+	},
+}
+
 type cerebroIncidentRow struct {
 	ID                  string
 	Title               string
@@ -227,8 +361,9 @@ func (s *ToolService) getCerebroIncidentContext(ctx context.Context, input map[s
 	}
 	context := decodeJSON(incident.CerebroContextJSON)
 	return map[string]any{
-		"server":   ServerName,
-		"resource": cerebroIncidentResource(organizationID, incident),
+		"server":               ServerName,
+		"resource":             cerebroIncidentResource(organizationID, incident),
+		"responseCapabilities": cerebroResponseCapabilitiesForFindings(findings),
 		"incident": map[string]any{
 			"id":                  incident.ID,
 			"title":               incident.Title,
@@ -272,12 +407,14 @@ func (s *ToolService) getCerebroFindingContext(ctx context.Context, input map[st
 	if err != nil {
 		return nil, err
 	}
+	evidence := decodeJSON([]byte(finding.EvidenceJSON))
 	return map[string]any{
-		"server":          ServerName,
-		"resource":        cerebroFindingResource(organizationID, finding),
-		"finding":         finding.toDetail(organizationID),
-		"incidents":       incidents,
-		"responseActions": actions,
+		"server":               ServerName,
+		"resource":             cerebroFindingResource(organizationID, finding),
+		"finding":              finding.toDetail(organizationID),
+		"incidents":            incidents,
+		"responseActions":      actions,
+		"responseCapabilities": cerebroResponseCapabilitiesForFinding(finding.Provider, evidence),
 		"mcp": map[string]any{
 			"resourceUri":       cerebroFindingResourceURI(organizationID, finding.ID),
 			"mimeType":          cerebroFindingMimeType,
@@ -312,13 +449,18 @@ func (s *ToolService) proposeCerebroResponse(ctx context.Context, input map[stri
 	now := s.currentTime()
 	provider := stringValue(input["provider"])
 	approvalRequired := input["approvalRequired"].(bool)
-	resultJSON, err := json.Marshal(map[string]any{
+	dryRun := input["dryRun"].(bool)
+	actionContract := cerebroResponseActionContract(stringValue(input["action"]), provider)
+	proposalContext := map[string]any{
 		"source":              "cerebro_mcp",
 		"taskId":              nullableText(taskID),
 		"proposedByAgentId":   nullableText(proposedByAgentID),
 		"mcpResourceUri":      cerebroIncidentResourceURI(organizationID, incidentID),
 		"requiresHumanReview": approvalRequired,
-	})
+		"dryRun":              dryRun,
+		"actionContract":      actionContract,
+	}
+	resultJSON, err := json.Marshal(proposalContext)
 	if err != nil {
 		return nil, err
 	}
@@ -348,13 +490,7 @@ func (s *ToolService) proposeCerebroResponse(ctx context.Context, input map[stri
 	if actor == "" {
 		actor = "cerebro-mcp"
 	}
-	evidenceJSON, err := json.Marshal(map[string]any{
-		"source":              "cerebro_mcp",
-		"taskId":              nullableText(taskID),
-		"proposedByAgentId":   nullableText(proposedByAgentID),
-		"mcpResourceUri":      cerebroIncidentResourceURI(organizationID, incidentID),
-		"requiresHumanReview": approvalRequired,
-	})
+	evidenceJSON, err := json.Marshal(proposalContext)
 	if err != nil {
 		return nil, err
 	}
@@ -375,6 +511,8 @@ func (s *ToolService) proposeCerebroResponse(ctx context.Context, input map[stri
 		"incidentId":       incidentID,
 		"status":           "PROPOSED",
 		"approvalRequired": approvalRequired,
+		"dryRun":           dryRun,
+		"actionContract":   actionContract,
 		"resourceUri":      cerebroIncidentResourceURI(organizationID, incidentID),
 	}, nil
 }
@@ -533,6 +671,7 @@ func (s *ToolService) listCerebroIncidentFindings(ctx context.Context, organizat
 		if err := rows.Scan(&id, &title, &description, &severity, &status, &riskScore, &evidence, &detectedAt, &provider, &integrationName); err != nil {
 			return nil, err
 		}
+		decodedEvidence := decodeJSON(evidence)
 		out = append(out, map[string]any{
 			"id":              id,
 			"title":           title,
@@ -540,10 +679,15 @@ func (s *ToolService) listCerebroIncidentFindings(ctx context.Context, organizat
 			"severity":        severity,
 			"status":          status,
 			"riskScore":       riskScore,
-			"evidence":        decodeJSON(evidence),
+			"evidence":        decodedEvidence,
+			"oauthExposure":   cerebroOAuthExposure(provider, decodedEvidence),
 			"detectedAt":      formatMCPTime(detectedAt),
 			"provider":        provider,
 			"integrationName": integrationName,
+			"responseCapabilities": cerebroResponseCapabilitiesForFinding(
+				provider,
+				decodedEvidence,
+			),
 		})
 	}
 	return out, rows.Err()
@@ -690,6 +834,7 @@ func (s *ToolService) listCerebroFindingResponseActions(ctx context.Context, org
 			"executedAt":       nullableTime(executedAt),
 			"errorMessage":     nullableText(errorMessage),
 			"result":           decodeJSON(result),
+			"actionContract":   cerebroResponseActionContract(action, provider),
 			"createdAt":        formatMCPTime(createdAt),
 		})
 	}
@@ -733,6 +878,7 @@ func (s *ToolService) listCerebroResponseActions(ctx context.Context, organizati
 			"executedAt":       nullableTime(executedAt),
 			"errorMessage":     nullableText(errorMessage),
 			"result":           decodeJSON(result),
+			"actionContract":   cerebroResponseActionContract(action, provider),
 			"createdAt":        formatMCPTime(createdAt),
 		})
 	}
@@ -898,14 +1044,16 @@ func (s *ToolService) getCerebroSecurityOverviewContext(ctx context.Context, inp
 			"description": "Tenant-scoped Cerebro security posture overview for Aperio.",
 			"mimeType":    cerebroSecurityOverviewMimeType,
 		},
-		"summary":   summary,
-		"findings":  findingsResult.(map[string]any)["resources"],
-		"incidents": incidentsResult.(map[string]any)["resources"],
+		"summary":              summary,
+		"findings":             findingsResult.(map[string]any)["resources"],
+		"incidents":            incidentsResult.(map[string]any)["resources"],
+		"responseCapabilities": cerebroResponseCapabilities(),
 		"cerebroContext": map[string]any{
-			"source":          "local-projection",
-			"mode":            "mcp-resource",
-			"findingContract": "cerebro.v1.Finding",
-			"mcp":             mcp,
+			"source":               "local-projection",
+			"mode":                 "mcp-resource",
+			"findingContract":      "cerebro.v1.Finding",
+			"mcp":                  mcp,
+			"responseCapabilities": cerebroResponseCapabilities(),
 			"responseHints": []string{
 				"Use linked incident and finding resources to inspect Cerebro graph context before response.",
 			},
@@ -1032,9 +1180,279 @@ func cerebroMCPToolNames() []string {
 	}
 }
 
+func cerebroResponseCapabilities() []map[string]any {
+	out := make([]map[string]any, 0, len(cerebroResponseCapabilityCatalog))
+	for _, capability := range cerebroResponseCapabilityCatalog {
+		out = append(out, capability.toRecord())
+	}
+	return out
+}
+
+func cerebroResponseCapabilitiesForProvider(provider string) []map[string]any {
+	normalizedProvider := strings.ToUpper(strings.TrimSpace(provider))
+	out := []map[string]any{}
+	for _, capability := range cerebroResponseCapabilityCatalog {
+		if capability.Provider == "" || capability.Provider == normalizedProvider {
+			out = append(out, capability.toRecord())
+		}
+	}
+	return out
+}
+
+func cerebroResponseCapabilitiesForFinding(provider string, evidence any) []map[string]any {
+	capabilities := cerebroResponseCapabilitiesForProvider(provider)
+	if len(cerebroOAuthExposure(provider, evidence)) == 0 {
+		return capabilities
+	}
+	for _, capability := range capabilities {
+		action := stringValue(capability["action"])
+		if action == "REVOKE_OAUTH_GRANT" || action == "QUARANTINE_APP" {
+			capability["rankHint"] = "primary_oauth_containment"
+		}
+	}
+	return capabilities
+}
+
+func cerebroResponseCapabilitiesForFindings(findings []map[string]any) []map[string]any {
+	out := []map[string]any{}
+	seen := map[string]struct{}{}
+	for _, finding := range findings {
+		for _, capability := range cerebroResponseCapabilitiesForFinding(stringValue(finding["provider"]), finding["evidence"]) {
+			key := responseCapabilityKey(capability)
+			if _, ok := seen[key]; ok {
+				continue
+			}
+			seen[key] = struct{}{}
+			out = append(out, capability)
+		}
+	}
+	if len(out) == 0 {
+		return cerebroResponseCapabilities()
+	}
+	return out
+}
+
+func cerebroResponseActionContract(action string, provider string) map[string]any {
+	if capability, ok := findCerebroResponseCapability(action, provider); ok {
+		record := capability.toRecord()
+		record["tool"] = "aperio.propose_cerebro_response"
+		return record
+	}
+	return map[string]any{
+		"action":              action,
+		"provider":            nullableText(provider),
+		"providerAction":      nullableText(providerActionFallback(action, provider)),
+		"targetTypes":         []string{},
+		"requiredContextKeys": []string{"incident_id"},
+		"mode":                "aperio_human_gated",
+		"dryRun":              true,
+		"approvalRequired":    true,
+		"externalOwner":       "aperio",
+		"tool":                "aperio.propose_cerebro_response",
+	}
+}
+
+func findCerebroResponseCapability(action string, provider string) (cerebroResponseCapability, bool) {
+	normalizedAction := strings.ToUpper(strings.TrimSpace(action))
+	normalizedProvider := strings.ToUpper(strings.TrimSpace(provider))
+	for _, capability := range cerebroResponseCapabilityCatalog {
+		if capability.Action == normalizedAction && capability.Provider == normalizedProvider {
+			return capability, true
+		}
+	}
+	for _, capability := range cerebroResponseCapabilityCatalog {
+		if capability.Action == normalizedAction && capability.Provider == "" {
+			return capability, true
+		}
+	}
+	for _, capability := range cerebroResponseCapabilityCatalog {
+		if capability.Action == normalizedAction {
+			return capability, true
+		}
+	}
+	return cerebroResponseCapability{}, false
+}
+
+func (capability cerebroResponseCapability) toRecord() map[string]any {
+	return map[string]any{
+		"action":              capability.Action,
+		"provider":            nullableText(capability.Provider),
+		"providerAction":      capability.ProviderAction,
+		"targetTypes":         copyStrings(capability.TargetTypes),
+		"requiredContextKeys": copyStrings(capability.RequiredContextKeys),
+		"mode":                capability.Mode,
+		"dryRun":              capability.DryRun,
+		"approvalRequired":    capability.ApprovalRequired,
+		"externalOwner":       capability.ExternalOwner,
+		"effect":              capability.Effect,
+		"rollback":            capability.Rollback,
+	}
+}
+
+func responseCapabilityKey(capability map[string]any) string {
+	return strings.Join([]string{
+		stringValue(capability["action"]),
+		stringValue(capability["provider"]),
+		stringValue(capability["providerAction"]),
+	}, "|")
+}
+
+func providerActionFallback(action string, provider string) string {
+	normalizedProvider := strings.ToLower(strings.TrimSpace(provider))
+	if normalizedProvider == "" {
+		return ""
+	}
+	return normalizedProvider + "." + strings.ToLower(strings.TrimSpace(action))
+}
+
+func copyStrings(values []string) []string {
+	out := make([]string, len(values))
+	copy(out, values)
+	return out
+}
+
+func cerebroOAuthExposure(provider string, evidence any) map[string]any {
+	record, _ := evidence.(map[string]any)
+	scopes := stringArrayFromEvidence(record, "scopes", "oauthScopes", "oauth_scopes", "grantScopes", "grant_scopes")
+	resourceFamilies := stringArrayFromEvidence(record, "resourceFamilies", "resource_families", "resources", "resourceTypes")
+	for _, scope := range scopes {
+		if family := oauthScopeResourceFamily(scope); family != "" {
+			resourceFamilies = append(resourceFamilies, family)
+		}
+	}
+	resourceFamilies = uniqueStrings(resourceFamilies)
+	appID := firstEvidenceString(record, "oauthAppId", "oauth_app_id", "appId", "app_id", "clientId", "client_id")
+	grantID := firstEvidenceString(record, "oauthGrantId", "oauth_grant_id", "grantId", "grant_id")
+	user := firstEvidenceString(record, "oauthUserEmail", "oauth_user_email", "userEmail", "user_email", "principal", "actorEmail")
+	appName := firstEvidenceString(record, "oauthAppName", "oauth_app_name", "appName", "app_name", "clientName", "client_name")
+	riskyScopes := stringArrayFromEvidence(record, "riskyScopes", "risky_scopes", "privilegedScopes", "privileged_scopes")
+	if appID == "" && grantID == "" && appName == "" && user == "" && len(scopes) == 0 && len(resourceFamilies) == 0 && len(riskyScopes) == 0 {
+		return map[string]any{}
+	}
+	return map[string]any{
+		"provider":           nullableText(provider),
+		"appId":              nullableText(appID),
+		"appName":            nullableText(appName),
+		"grantId":            nullableText(grantID),
+		"user":               nullableText(user),
+		"scopeCount":         len(scopes),
+		"scopes":             scopes,
+		"riskyScopes":        riskyScopes,
+		"resourceFamilies":   resourceFamilies,
+		"domainWideAccess":   boolEvidenceValue(record, "domainWideAccess", "domain_wide_access", "isDomainWide"),
+		"blastRadiusSummary": oauthBlastRadiusSummary(user, scopes, resourceFamilies),
+	}
+}
+
+func oauthBlastRadiusSummary(user string, scopes []string, resourceFamilies []string) string {
+	parts := []string{}
+	if user != "" {
+		parts = append(parts, "user "+user)
+	}
+	if len(resourceFamilies) > 0 {
+		parts = append(parts, strings.Join(resourceFamilies, ", "))
+	}
+	if len(scopes) > 0 {
+		parts = append(parts, fmt.Sprintf("%d OAuth scopes", len(scopes)))
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return strings.Join(parts, " / ")
+}
+
+func oauthScopeResourceFamily(scope string) string {
+	normalized := strings.ToLower(strings.TrimSpace(scope))
+	switch {
+	case strings.Contains(normalized, "gmail") || strings.Contains(normalized, "mail"):
+		return "mail"
+	case strings.Contains(normalized, "drive") || strings.Contains(normalized, "docs") || strings.Contains(normalized, "sheets") || strings.Contains(normalized, "files"):
+		return "files"
+	case strings.Contains(normalized, "calendar"):
+		return "calendar"
+	case strings.Contains(normalized, "admin") || strings.Contains(normalized, "directory") || strings.Contains(normalized, "groups"):
+		return "directory"
+	case strings.Contains(normalized, "chat") || strings.Contains(normalized, "channels"):
+		return "collaboration"
+	case strings.Contains(normalized, "repo") || strings.Contains(normalized, "code"):
+		return "code"
+	case strings.Contains(normalized, "profile") || strings.Contains(normalized, "userinfo") || strings.Contains(normalized, "email"):
+		return "profile"
+	default:
+		return ""
+	}
+}
+
+func firstEvidenceString(record map[string]any, keys ...string) string {
+	for _, key := range keys {
+		if value := stringValue(record[key]); value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func boolEvidenceValue(record map[string]any, keys ...string) bool {
+	for _, key := range keys {
+		switch typed := record[key].(type) {
+		case bool:
+			return typed
+		case string:
+			normalized := strings.ToLower(strings.TrimSpace(typed))
+			if normalized == "true" || normalized == "yes" || normalized == "1" {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func stringArrayFromEvidence(record map[string]any, keys ...string) []string {
+	values := []string{}
+	for _, key := range keys {
+		switch typed := record[key].(type) {
+		case []string:
+			values = append(values, typed...)
+		case []any:
+			for _, item := range typed {
+				if value := stringValue(item); value != "" {
+					values = append(values, value)
+				}
+			}
+		case string:
+			for _, item := range strings.FieldsFunc(typed, func(r rune) bool {
+				return r == ',' || r == '\n' || r == '\t'
+			}) {
+				if value := strings.TrimSpace(item); value != "" {
+					values = append(values, value)
+				}
+			}
+		}
+	}
+	return uniqueStrings(values)
+}
+
+func uniqueStrings(values []string) []string {
+	out := []string{}
+	seen := map[string]struct{}{}
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			continue
+		}
+		key := strings.ToLower(trimmed)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, trimmed)
+	}
+	return out
+}
+
 func (row cerebroFindingRow) toSummary(organizationID string) map[string]any {
 	evidence := decodeJSON([]byte(row.EvidenceJSON))
-	return map[string]any{
+	summary := map[string]any{
 		"id":                  row.ID,
 		"assetId":             nullableText(row.AssetID),
 		"title":               row.Title,
@@ -1052,6 +1470,10 @@ func (row cerebroFindingRow) toSummary(organizationID string) map[string]any {
 		"cerebro":             cerebroFindingSummary(evidence),
 		"resource":            cerebroFindingResource(organizationID, row),
 	}
+	if exposure := cerebroOAuthExposure(row.Provider, evidence); len(exposure) > 0 {
+		summary["oauthExposure"] = exposure
+	}
+	return summary
 }
 
 func (row cerebroFindingRow) toDetail(organizationID string) map[string]any {
@@ -1061,6 +1483,7 @@ func (row cerebroFindingRow) toDetail(organizationID string) map[string]any {
 	detail["tags"] = decodeJSON([]byte(row.TagsJSON))
 	detail["evidence"] = evidence
 	detail["cerebroContext"] = cerebroFindingContext(organizationID, row, evidence)
+	detail["responseCapabilities"] = cerebroResponseCapabilitiesForFinding(row.Provider, evidence)
 	return detail
 }
 
@@ -1082,6 +1505,10 @@ func cerebroFindingContext(organizationID string, row cerebroFindingRow, evidenc
 		"tools":             cerebroMCPToolNames(),
 		"resourceTemplates": ApprovedResourceTemplates(),
 	}
+	if exposure := cerebroOAuthExposure(row.Provider, evidence); len(exposure) > 0 {
+		context["oauthExposure"] = exposure
+	}
+	context["responseCapabilities"] = cerebroResponseCapabilitiesForFinding(row.Provider, evidence)
 	context["responseHints"] = []string{
 		"Use linked incident context and Cerebro response proposals before resolving or accepting this finding.",
 	}
