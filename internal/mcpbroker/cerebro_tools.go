@@ -1386,7 +1386,7 @@ func sanitizeEvidenceText(value string) string {
 func oauthScopeResourceFamily(scope string) string {
 	normalized := strings.ToLower(strings.TrimSpace(scope))
 	switch {
-	case strings.Contains(normalized, "profile") || strings.Contains(normalized, "userinfo") || normalized == "email" || strings.HasSuffix(normalized, "/email"):
+	case strings.Contains(normalized, "profile") || strings.Contains(normalized, "userinfo") || strings.Contains(normalized, "email"):
 		return "profile"
 	case strings.Contains(normalized, "gmail") || strings.Contains(normalized, "mail"):
 		return "mail"
