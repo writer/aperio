@@ -342,7 +342,7 @@ func validateGetCerebroFindingContext(input map[string]any) (map[string]any, err
 }
 
 func validateProposeCerebroResponse(input map[string]any) (map[string]any, error) {
-	allowed := stringSet("organizationId", "authToken", "incidentId", "findingId", "taskId", "proposedByAgentKey", "action", "provider", "targetType", "targetIdentifier", "rationale", "approvalRequired")
+	allowed := stringSet("organizationId", "authToken", "incidentId", "findingId", "taskId", "proposedByAgentKey", "action", "provider", "targetType", "targetIdentifier", "rationale", "approvalRequired", "dryRun")
 	if err := rejectUnknown(input, allowed); err != nil {
 		return nil, err
 	}
@@ -386,6 +386,9 @@ func validateProposeCerebroResponse(input map[string]any) (map[string]any, error
 		return nil, err
 	}
 	if out["approvalRequired"], err = optionalBoolDefault(input, "approvalRequired", true); err != nil {
+		return nil, err
+	}
+	if out["dryRun"], err = optionalBoolDefault(input, "dryRun", true); err != nil {
 		return nil, err
 	}
 	return out, nil
