@@ -48,7 +48,7 @@ jobs:
       issues: read
     env:
       GITHUB_TOKEN: ${{ github.token }}
-      DISPATCH_TARGET: ${{ inputs.target || '' }}
+      DISPATCH_TARGET: ${{ inputs['target'] || '' }}
     outputs:
       key: ${{ steps.key.outputs.key }}
     steps:
@@ -200,9 +200,9 @@ jobs:
       issues: read
     env:
       DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-      DISPATCH_MODE: ${{ inputs.mode || '' }}
-      DISPATCH_PROMPT: ${{ inputs.prompt || '' }}
-      DISPATCH_TARGET: ${{ inputs.target || '' }}
+      DISPATCH_MODE: ${{ inputs['mode'] || '' }}
+      DISPATCH_PROMPT: ${{ inputs['prompt'] || '' }}
+      DISPATCH_TARGET: ${{ inputs['target'] || '' }}
     outputs:
       mode: ${{ steps.ctx.outputs.mode }}
       mode_name: ${{ steps.ctx.outputs.mode_name }}
@@ -517,10 +517,11 @@ jobs:
     if: always() && needs.droid-context.result == 'success' && needs.droid-context.outputs.should_run == 'true' && (needs.droid-approval.result == 'success' || needs.droid-approval.result == 'skipped')
     runs-on: ubuntu-latest
     permissions:
-      contents: read
-      pull-requests: read
-      issues: read
       actions: read
+      contents: read
+      id-token: write
+      issues: read
+      pull-requests: read
     services:
       postgres:
         image: postgres:16-alpine
@@ -588,6 +589,16 @@ jobs:
               ;;
           esac
           git checkout -B "${BRANCH_NAME}"
+
+      - name: Fetch secrets from Infisical
+        uses: WriterInternal/devops-github-actions/infisical-secrets@2b7c38445cb1b9c43f88d7ec990ccb1534078ae8 # v2.4.0
+        with:
+          org-identity-id: ${{ secrets.INFISICAL_ORG_IDENTITY_UUID }}
+          org-project-slug: ${{ secrets.INFISICAL_ORG_PROJECT_SLUG }}
+          repo-identity-id: ${{ secrets.INFISICAL_REPO_IDENTITY_UUID }}
+          repo-project-slug: ${{ secrets.INFISICAL_REPO_PROJECT_SLUG }}
+          env-slug: prod
+          required-keys: FACTORY_API_KEY
 
       - name: Set up Node.js
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.1.0
@@ -679,7 +690,7 @@ jobs:
         shell: bash
         env:
           DEFAULT_BRANCH: ${{ needs.droid-context.outputs.default_branch }}
-          FACTORY_API_KEY: ${{ secrets.FACTORY_API_KEY }}
+          FACTORY_API_KEY: ${{ env.FACTORY_API_KEY }}
         run: |
           set -euo pipefail
           test -n "${FACTORY_API_KEY:-}"
@@ -695,7 +706,7 @@ jobs:
         shell: bash
         env:
           DROID_PROMPT_PATH: ${{ steps.prepare.outputs.prompt_path }}
-          FACTORY_API_KEY: ${{ secrets.FACTORY_API_KEY }}
+          FACTORY_API_KEY: ${{ env.FACTORY_API_KEY }}
         run: |
           set -euo pipefail
           factory_key_value="${FACTORY_API_KEY:?FACTORY_API_KEY is required}"

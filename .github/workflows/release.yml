@@ -39,7 +39,7 @@ jobs:
       - id: meta
         shell: bash
         env:
-          INPUT_TAG: ${{ github.event.inputs.image_tag || '' }}
+          INPUT_TAG: ${{ github.event.inputs['image_tag'] || '' }}
         run: |
           set -euo pipefail
           if [ -n "${INPUT_TAG}" ]; then tag="${INPUT_TAG}"; else tag="${GITHUB_REF_NAME}"; fi
@@ -68,6 +68,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: [image]
     if: startsWith(needs.image.outputs.image_tag, 'v')
+    permissions:
+      contents: read
+      id-token: write
     strategy:
       fail-fast: false
       matrix:
@@ -75,11 +78,20 @@ jobs:
           - target_environment: sec-dev
           - target_environment: go-prod
     steps:
+      - name: Fetch secrets from Infisical
+        uses: WriterInternal/devops-github-actions/infisical-secrets@2b7c38445cb1b9c43f88d7ec990ccb1534078ae8 # v2.4.0
+        with:
+          org-identity-id: ${{ secrets.INFISICAL_ORG_IDENTITY_UUID }}
+          org-project-slug: ${{ secrets.INFISICAL_ORG_PROJECT_SLUG }}
+          repo-identity-id: ${{ secrets.INFISICAL_REPO_IDENTITY_UUID }}
+          repo-project-slug: ${{ secrets.INFISICAL_REPO_PROJECT_SLUG }}
+          env-slug: prod
+          required-keys: APERIO_INFRA_PROMOTION_TOKEN APERIO_INFRA_REPOSITORY
       - name: Dispatch release deployment request
         shell: bash
         env:
-          GH_TOKEN: ${{ secrets.APERIO_INFRA_PROMOTION_TOKEN }}
-          INFRA_REPOSITORY: ${{ secrets.APERIO_INFRA_REPOSITORY }}
+          GH_TOKEN: ${{ env.APERIO_INFRA_PROMOTION_TOKEN }}
+          INFRA_REPOSITORY: ${{ env.APERIO_INFRA_REPOSITORY }}
           IMAGE_TAG: ${{ needs.image.outputs.image_tag }}
           IMAGE_DIGEST: ${{ needs.image.outputs.image_digest }}
           TARGET_ENVIRONMENT: ${{ matrix.target_environment }}
