@@ -128,13 +128,13 @@ jobs:
 
       - name: Checkout repository
         if: steps.target.outputs.should_run == 'true'
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 1
 
       - name: Run Droid Exec
         if: steps.target.outputs.should_run == 'true'
-        uses: Factory-AI/droid-action@150e8c231191631016a9563bf5d8388e36382de9 # main
+        uses: Factory-AI/droid-action@602ad67056c258c199b75434a53baec4d3b50294 # main
         with:
           factory_api_key: ${{ secrets.FACTORY_API_KEY }}
           review_model: claude-sonnet-4-6
