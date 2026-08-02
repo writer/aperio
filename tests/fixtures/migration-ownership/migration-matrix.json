@@ -370,20 +370,18 @@
       ]
     },
     {
-      "id": "scripts-validation-and-droid-context",
+      "id": "scripts-validation-and-readiness",
       "state": "validation-tooling",
       "covers": [
-        "repo-file:scripts/droid-*.mjs",
         "repo-file:scripts/leak-check.mjs",
         "repo-file:scripts/check-backup-readiness.ts",
         "repo-file:scripts/smoke-siem-adapters.ts"
       ],
-      "owner": "Review, secret hygiene, and readiness scripts",
-      "rationale": "Review context, leak/readiness scripts, and local validation smokes are validation/evidence helpers, not backend runtime ownership switches.",
+      "owner": "Secret hygiene and readiness scripts",
+      "rationale": "Leak/readiness scripts and local validation smokes are validation/evidence helpers, not backend runtime ownership switches.",
       "evidence": [
         "source:scripts/leak-check.mjs",
         "workflow:.github/workflows/leak-check.yml",
-        "source:scripts/droid-review-preflight.mjs",
         "script:scripts/smoke-siem-adapters.ts"
       ]
     },
@@ -716,22 +714,6 @@
         "workflow:.github/workflows/contracts.yml",
         "workflow:.github/workflows/leak-check.yml",
         "workflow:.github/workflows/go-security.yml"
-      ]
-    },
-    {
-      "id": "workflow-droid-automation",
-      "state": "validation-tooling",
-      "covers": [
-        "repo-file:.github/workflows/droid-create.yml",
-        "repo-file:.github/workflows/droid.yml",
-        "repo-file:.github/workflows/droid-review.yml"
-      ],
-      "owner": "Droid automation workflows",
-      "rationale": "Droid automation is repository process automation and is not a backend migration ownership surface.",
-      "evidence": [
-        "workflow:.github/workflows/droid-create.yml",
-        "workflow:.github/workflows/droid.yml",
-        "workflow:.github/workflows/droid-review.yml"
       ]
     },
     {

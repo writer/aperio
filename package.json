@@ -27,7 +27,7 @@
     "mcp:broker": "DATABASE_URL=\"$(node scripts/dev-config.mjs go-database-url)\" node scripts/dev-env.mjs go run ./cmd/mcp-broker",
     "build:web": "NEXT_TELEMETRY_DISABLED=1 next build apps/web",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "guardrails:migration": "tsx --test tests/migration-ownership-guardrails.test.ts tests/auth-client-cleanup.test.ts tests/worker-command-guardrails.test.ts tests/ingestion-parity-matrix.test.ts tests/foundation-cutover-harness.test.ts tests/e2e-smoke-contract.test.ts tests/droid-review-preflight.test.ts",
+  "guardrails:migration": "tsx --test tests/migration-ownership-guardrails.test.ts tests/auth-client-cleanup.test.ts tests/worker-command-guardrails.test.ts tests/ingestion-parity-matrix.test.ts tests/foundation-cutover-harness.test.ts tests/e2e-smoke-contract.test.ts",
     "test:api": "tsx --test tests/*.test.ts",
     "test:go": "go test ./...",
     "proto:lint": "go run github.com/bufbuild/buf/cmd/buf@v1.59.0 lint",
