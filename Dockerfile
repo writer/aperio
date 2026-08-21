@@ -5,7 +5,7 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 
-FROM golang:1.25-bookworm AS go_builder
+FROM golang:1.26.6-bookworm AS go_builder
 WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download

@@ -370,10 +370,10 @@
       ]
     },
     {
-      "id": "scripts-validation-and-droid-context",
+      "id": "scripts-validation-and-review-preflight",
       "state": "validation-tooling",
       "covers": [
-        "repo-file:scripts/droid-*.mjs",
+        "repo-file:scripts/review-preflight.mjs",
         "repo-file:scripts/leak-check.mjs",
         "repo-file:scripts/check-backup-readiness.ts",
         "repo-file:scripts/smoke-siem-adapters.ts"
@@ -383,7 +383,7 @@
       "evidence": [
         "source:scripts/leak-check.mjs",
         "workflow:.github/workflows/leak-check.yml",
-        "source:scripts/droid-review-preflight.mjs",
+        "source:scripts/review-preflight.mjs",
         "script:scripts/smoke-siem-adapters.ts"
       ]
     },
@@ -707,7 +707,8 @@
         "repo-file:.github/workflows/ci.yml",
         "repo-file:.github/workflows/contracts.yml",
         "repo-file:.github/workflows/leak-check.yml",
-        "repo-file:.github/workflows/go-security.yml"
+        "repo-file:.github/workflows/go-security.yml",
+        "repo-file:.github/workflows/review-preflight.yml"
       ],
       "owner": "CI validation gates",
       "rationale": "CI workflows enforce TypeScript, Go, DB, proto, audit, worker smoke, and secret-hygiene gates without changing runtime ownership.",
@@ -715,23 +716,8 @@
         "workflow:.github/workflows/ci.yml",
         "workflow:.github/workflows/contracts.yml",
         "workflow:.github/workflows/leak-check.yml",
-        "workflow:.github/workflows/go-security.yml"
-      ]
-    },
-    {
-      "id": "workflow-droid-automation",
-      "state": "validation-tooling",
-      "covers": [
-        "repo-file:.github/workflows/droid-create.yml",
-        "repo-file:.github/workflows/droid.yml",
-        "repo-file:.github/workflows/droid-review.yml"
-      ],
-      "owner": "Droid automation workflows",
-      "rationale": "Droid automation is repository process automation and is not a backend migration ownership surface.",
-      "evidence": [
-        "workflow:.github/workflows/droid-create.yml",
-        "workflow:.github/workflows/droid.yml",
-        "workflow:.github/workflows/droid-review.yml"
+        "workflow:.github/workflows/go-security.yml",
+        "workflow:.github/workflows/review-preflight.yml"
       ]
     },
     {
@@ -741,7 +727,7 @@
         "repo-file:.github/workflows/release.yml"
       ],
       "owner": "Public app image release automation",
-      "rationale": "The public release workflow builds, signs, and publishes the Aperio app image, then dispatches deployment intent to the private infra repository; it does not reintroduce TypeScript backend, worker, or MCP runtime ownership.",
+      "rationale": "The public release workflow validates, builds, signs, and publishes the Aperio app image; deployment configuration remains outside this repository and the workflow does not reintroduce TypeScript backend, worker, or MCP runtime ownership.",
       "evidence": [
         "workflow:.github/workflows/release.yml",
         "validator:actionlint"
