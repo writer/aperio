@@ -3,7 +3,7 @@
 ## Prerequisites
 
 - Node.js 20+ and npm 10+
-- Go toolchain compatible with the version in `go.mod`
+- Go 1.26.6 (the version pinned in `go.mod` and CI)
 - Docker or another reachable Postgres 15+
 
 ## Environment

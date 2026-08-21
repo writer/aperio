@@ -707,11 +707,14 @@ test("validator and CI gates include contracts, audit, worker smoke, and secret 
   const ci = readRepoFile(".github/workflows/ci.yml");
   const contracts = readRepoFile(".github/workflows/contracts.yml");
   const leakCheck = readRepoFile(".github/workflows/leak-check.yml");
+  const reviewPreflight = readRepoFile(".github/workflows/review-preflight.yml");
+  const release = readRepoFile(".github/workflows/release.yml");
 
   assert.match(scripts["guardrails:migration"], /migration-ownership-guardrails\.test\.ts/);
   assert.match(scripts["guardrails:migration"], /auth-client-cleanup\.test\.ts/);
   assert.match(scripts["guardrails:migration"], /worker-command-guardrails\.test\.ts/);
   assert.match(scripts["guardrails:migration"], /e2e-smoke-contract\.test\.ts/);
+  assert.match(scripts["guardrails:migration"], /review-preflight\.test\.ts/);
   assert.match(scripts["smoke:workers:go"], /worker:ingestion -- -once -limit 1/);
   assert.match(scripts["smoke:workers:go"], /worker:siem -- -once -limit 1/);
   assert.match(scripts["smoke:workers:go"], /smoke:siem:adapters/);
@@ -755,6 +758,15 @@ test("validator and CI gates include contracts, audit, worker smoke, and secret 
   assert.match(contracts, /buf\/cmd\/buf@v1\.59\.0 breaking/);
   assert.match(contracts, /git diff --exit-code -- gen packages\/connect\/src\/gen/);
   assert.match(leakCheck, /npm run leak:check/);
+  assert.match(reviewPreflight, /node scripts\/review-preflight\.mjs/);
+  assert.match(reviewPreflight, /permissions:\s*\n\s+contents: read/);
+  assert.match(reviewPreflight, /name: Droid Review Preflight/);
+  assert.match(reviewPreflight, /name: Droid Review Required/);
+  assert.doesNotMatch(reviewPreflight, /Factory-AI|pull-requests:\s*write/i);
+  assert.match(release, /name: Upload release receipt/);
+  assert.match(release, /deployment: \"operator-owned\"/);
+  assert.doesNotMatch(release, /notify-infra-release|APERIO_INFRA_|target_environment|repository_dispatch/i);
+
   execFileSync("git", ["check-ignore", "-q", ".env"], { cwd: repoRoot });
   const envStatus = execFileSync("git", ["status", "--porcelain", "--", ".env"], {
     cwd: repoRoot,

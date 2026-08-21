@@ -1,0 +1,138 @@
+name: aperio
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-aperio}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.production}
+      POSTGRES_DB: ${POSTGRES_DB:-aperio}
+    volumes:
+      - aperio-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  nats:
+    image: nats:2.10-alpine
+    restart: unless-stopped
+    command: ["-js", "-sd", "/data", "-m", "8222"]
+    volumes:
+      - aperio-nats:/data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8222/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  migrate:
+    image: ${APERIO_IMAGE:-ghcr.io/writer/aperio}:${APERIO_IMAGE_TAG:-0.1.0}
+    restart: "no"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-aperio}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.production}@postgres:5432/${POSTGRES_DB:-aperio}?schema=public
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["npx prisma migrate deploy --schema packages/db/prisma/schema.prisma"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    image: ${APERIO_IMAGE:-ghcr.io/writer/aperio}:${APERIO_IMAGE_TAG:-0.1.0}
+    restart: unless-stopped
+    init: true
+    command: ["api"]
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-aperio}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.production}@postgres:5432/${POSTGRES_DB:-aperio}?schema=public
+      APERIO_CONNECT_ADDR: ":4100"
+      APERIO_WEB_ORIGIN: ${APERIO_WEB_ORIGIN:?set APERIO_WEB_ORIGIN in .env.production}
+      APERIO_ENCRYPTION_KEY: ${APERIO_ENCRYPTION_KEY:?set APERIO_ENCRYPTION_KEY in .env.production}
+      APERIO_AUTH_SECRET: ${APERIO_AUTH_SECRET:?set APERIO_AUTH_SECRET in .env.production}
+      APERIO_EVENT_BUS: ${APERIO_EVENT_BUS:-nats}
+      APERIO_NATS_URL: nats://nats:4222
+      APERIO_NATS_STREAM: ${APERIO_NATS_STREAM:-CEREBRO_EVENTS}
+      APERIO_SIEM_EXPORT_DIR: /var/lib/aperio/siem
+    ports:
+      - "${APERIO_CONNECT_PORT:-4100}:4100"
+    volumes:
+      - aperio-siem:/var/lib/aperio/siem
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      nats:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4100/healthz').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+
+  web:
+    image: ${APERIO_IMAGE:-ghcr.io/writer/aperio}:${APERIO_IMAGE_TAG:-0.1.0}
+    restart: unless-stopped
+    init: true
+    command: ["web"]
+    environment:
+      PORT: "3000"
+      APERIO_API_PROXY_TARGET: http://api:4100
+      NEXT_PUBLIC_CONNECT_API_BASE_URL: ${NEXT_PUBLIC_CONNECT_API_BASE_URL:-http://localhost:4100}
+      NEXT_TELEMETRY_DISABLED: "1"
+    ports:
+      - "${APERIO_WEB_PORT:-3000}:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+
+  ingestion-worker:
+    image: ${APERIO_IMAGE:-ghcr.io/writer/aperio}:${APERIO_IMAGE_TAG:-0.1.0}
+    restart: unless-stopped
+    init: true
+    command: ["ingestion-worker"]
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-aperio}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.production}@postgres:5432/${POSTGRES_DB:-aperio}?schema=public
+      APERIO_EVENT_BUS: ${APERIO_EVENT_BUS:-nats}
+      APERIO_NATS_URL: nats://nats:4222
+      APERIO_NATS_STREAM: ${APERIO_NATS_STREAM:-CEREBRO_EVENTS}
+      APERIO_ENCRYPTION_KEY: ${APERIO_ENCRYPTION_KEY:?set APERIO_ENCRYPTION_KEY in .env.production}
+      APERIO_AUTH_SECRET: ${APERIO_AUTH_SECRET:?set APERIO_AUTH_SECRET in .env.production}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      nats:
+        condition: service_healthy
+
+  siem-dispatcher:
+    image: ${APERIO_IMAGE:-ghcr.io/writer/aperio}:${APERIO_IMAGE_TAG:-0.1.0}
+    restart: unless-stopped
+    init: true
+    command: ["siem-dispatcher"]
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-aperio}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.production}@postgres:5432/${POSTGRES_DB:-aperio}?schema=public
+      APERIO_EVENT_BUS: ${APERIO_EVENT_BUS:-nats}
+      APERIO_NATS_URL: nats://nats:4222
+      APERIO_NATS_STREAM: ${APERIO_NATS_STREAM:-CEREBRO_EVENTS}
+      APERIO_ENCRYPTION_KEY: ${APERIO_ENCRYPTION_KEY:?set APERIO_ENCRYPTION_KEY in .env.production}
+      APERIO_AUTH_SECRET: ${APERIO_AUTH_SECRET:?set APERIO_AUTH_SECRET in .env.production}
+      APERIO_SIEM_EXPORT_DIR: /var/lib/aperio/siem
+    volumes:
+      - aperio-siem:/var/lib/aperio/siem
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      nats:
+        condition: service_healthy
+
+volumes:
+  aperio-postgres:
+  aperio-nats:
+  aperio-siem:
