@@ -764,6 +764,11 @@ test("validator and CI gates include contracts, audit, worker smoke, and secret 
   assert.match(reviewPreflight, /name: Droid Review Preflight/);
   assert.match(reviewPreflight, /name: Droid Review Required/);
   assert.doesNotMatch(reviewPreflight, /Factory-AI|pull-requests:\s*write/i);
+  assert.match(
+    release,
+    /npm ci[\s\S]*npm run db:generate[\s\S]*npm run db:validate[\s\S]*npm run typecheck/,
+    "release validation must generate the Prisma client before typechecking"
+  );
   assert.match(release, /name: Upload release receipt/);
   assert.match(release, /deployment: \"operator-owned\"/);
   assert.doesNotMatch(release, /notify-infra-release|APERIO_INFRA_|target_environment|repository_dispatch/i);

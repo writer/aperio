@@ -4,6 +4,12 @@ All notable changes to Aperio are recorded here. Release entries are tied to a s
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-08-21
+
+- Fixed release validation to generate the Prisma client before typechecking.
+- Republished the `0.1.0` feature set after the `v0.1.0` workflow stopped
+  before image publication.
+
 ## [0.1.0] - 2026-08-21
 
 - Added tenant-scoped, hashed API tokens with read, write, and admin scopes,

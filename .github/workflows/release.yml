@@ -34,6 +34,7 @@ jobs:
         with:
           go-version: "1.26.6"
       - run: npm ci
+      - run: npm run db:generate
       - run: npm run db:validate
       - run: npm run typecheck
       - run: npm run audit:prod

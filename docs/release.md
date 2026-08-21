@@ -10,6 +10,7 @@ The public repository owns source validation and image publication. Deployment c
 
 ```bash
 npm ci
+npm run db:generate
 npm run db:validate
 npm run typecheck
 npm run audit:prod
@@ -23,18 +24,19 @@ Update [`CHANGELOG.md`](../CHANGELOG.md), confirm the image tag in [`.env.produc
 ## Publish
 
 ```bash
-git tag -a v0.1.0 -m "Aperio v0.1.0"
-git push origin v0.1.0
+VERSION=v0.1.1
+git tag -a "${VERSION}" -m "Aperio ${VERSION}"
+git push origin "${VERSION}"
 ```
 
-The workflow publishes `ghcr.io/writer/aperio:v0.1.0` and uploads a `release-receipt` artifact containing the image tag, immutable digest, source commit, and signing result. Download that artifact and record the digest before deployment:
+The workflow publishes `ghcr.io/writer/aperio:${VERSION}` and uploads a `release-receipt` artifact containing the image tag, immutable digest, source commit, and signing result. Download that artifact and record the digest before deployment:
 
 ```bash
 cosign verify \
-  --certificate-identity "https://github.com/writer/aperio/.github/workflows/release.yml@refs/tags/v0.1.0" \
+  --certificate-identity "https://github.com/writer/aperio/.github/workflows/release.yml@refs/tags/${VERSION}" \
   --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
-  ghcr.io/writer/aperio:v0.1.0
-docker buildx imagetools inspect ghcr.io/writer/aperio:v0.1.0
+  "ghcr.io/writer/aperio:${VERSION}"
+docker buildx imagetools inspect "ghcr.io/writer/aperio:${VERSION}"
 ```
 
 The public workflow does not dispatch into a private environment. The operator-owned deployment process must use the receipt digest, apply it through the private deployment system or the production Compose bundle, and retain the resulting deployment and user-path checks with the release record. For Compose, set `APERIO_IMAGE_REF` to the `image@sha256:...` value from the release receipt and capture `docker compose ... ps` plus the `/readyz` response after the migration service completes.

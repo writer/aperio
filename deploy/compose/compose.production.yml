@@ -30,7 +30,7 @@ services:
       retries: 12
 
   migrate:
-    image: ${APERIO_IMAGE_REF:-ghcr.io/writer/aperio:v0.1.0}
+    image: ${APERIO_IMAGE_REF:-ghcr.io/writer/aperio:v0.1.1}
     restart: "no"
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-aperio}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.production}@postgres:5432/${POSTGRES_DB:-aperio}?schema=public
@@ -41,7 +41,7 @@ services:
         condition: service_healthy
 
   api:
-    image: ${APERIO_IMAGE_REF:-ghcr.io/writer/aperio:v0.1.0}
+    image: ${APERIO_IMAGE_REF:-ghcr.io/writer/aperio:v0.1.1}
     restart: unless-stopped
     init: true
     command: ["api"]
@@ -73,7 +73,7 @@ services:
       start_period: 15s
 
   web:
-    image: ${APERIO_IMAGE_REF:-ghcr.io/writer/aperio:v0.1.0}
+    image: ${APERIO_IMAGE_REF:-ghcr.io/writer/aperio:v0.1.1}
     restart: unless-stopped
     init: true
     command: ["web"]
@@ -95,7 +95,7 @@ services:
       start_period: 15s
 
   ingestion-worker:
-    image: ${APERIO_IMAGE_REF:-ghcr.io/writer/aperio:v0.1.0}
+    image: ${APERIO_IMAGE_REF:-ghcr.io/writer/aperio:v0.1.1}
     restart: unless-stopped
     init: true
     command: ["ingestion-worker"]
@@ -113,7 +113,7 @@ services:
         condition: service_healthy
 
   siem-dispatcher:
-    image: ${APERIO_IMAGE_REF:-ghcr.io/writer/aperio:v0.1.0}
+    image: ${APERIO_IMAGE_REF:-ghcr.io/writer/aperio:v0.1.1}
     restart: unless-stopped
     init: true
     command: ["siem-dispatcher"]
