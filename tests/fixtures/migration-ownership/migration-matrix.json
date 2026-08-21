@@ -378,8 +378,8 @@
         "repo-file:scripts/check-backup-readiness.ts",
         "repo-file:scripts/smoke-siem-adapters.ts"
       ],
-      "owner": "Secret hygiene and readiness scripts",
-      "rationale": "Leak/readiness scripts and local validation smokes are validation/evidence helpers, not backend runtime ownership switches.",
+      "owner": "Review, secret hygiene, and readiness scripts",
+      "rationale": "Review context, leak/readiness scripts, and local validation smokes are validation/evidence helpers, not backend runtime ownership switches.",
       "evidence": [
         "source:scripts/leak-check.mjs",
         "workflow:.github/workflows/leak-check.yml",
