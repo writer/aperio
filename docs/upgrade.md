@@ -1,6 +1,6 @@
 # Upgrade procedure
 
-Every release is an immutable source tag and a signed container image. Upgrade by digest when the deployment platform supports it; otherwise set `APERIO_IMAGE_TAG` to the release tag and record the resolved digest.
+Every release is an immutable source tag and a signed container image. Set `APERIO_IMAGE_REF` to the release digest whenever possible; otherwise use the release tag and record its resolved digest.
 
 ## Before the change
 
@@ -12,7 +12,7 @@ Every release is an immutable source tag and a signed container image. Upgrade b
 ## Apply the release
 
 ```bash
-export APERIO_IMAGE_TAG=0.1.0
+export APERIO_IMAGE_REF=ghcr.io/writer/aperio@sha256:REPLACE_WITH_RELEASE_RECEIPT_DIGEST
 docker compose --env-file .env.production -f deploy/compose/compose.production.yml pull
 docker compose --env-file .env.production -f deploy/compose/compose.production.yml up -d
 docker compose --env-file .env.production -f deploy/compose/compose.production.yml ps

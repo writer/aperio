@@ -30,10 +30,13 @@ git push origin v0.1.0
 The workflow publishes `ghcr.io/writer/aperio:v0.1.0` and uploads a `release-receipt` artifact containing the image tag, immutable digest, source commit, and signing result. Download that artifact and record the digest before deployment:
 
 ```bash
-cosign verify ghcr.io/writer/aperio:v0.1.0
+cosign verify \
+  --certificate-identity "https://github.com/writer/aperio/.github/workflows/release.yml@refs/tags/v0.1.0" \
+  --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+  ghcr.io/writer/aperio:v0.1.0
 docker buildx imagetools inspect ghcr.io/writer/aperio:v0.1.0
 ```
 
-The public workflow does not dispatch into a private environment. The operator-owned deployment process must use the receipt digest, apply it through the private deployment system or the production Compose bundle, and retain the resulting deployment and user-path checks with the release record. For Compose, set `APERIO_IMAGE_TAG` to the published tag and capture `docker compose ... ps` plus the `/readyz` response after the migration service completes.
+The public workflow does not dispatch into a private environment. The operator-owned deployment process must use the receipt digest, apply it through the private deployment system or the production Compose bundle, and retain the resulting deployment and user-path checks with the release record. For Compose, set `APERIO_IMAGE_REF` to the `image@sha256:...` value from the release receipt and capture `docker compose ... ps` plus the `/readyz` response after the migration service completes.
 
 Do not copy credentials into release notes, issue comments, workflow logs, or Compose files.
