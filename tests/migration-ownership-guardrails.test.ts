@@ -754,7 +754,7 @@ test("validator and CI gates include contracts, audit, worker smoke, and secret 
   assert.match(ci, /npm run smoke:e2e/);
   assert.match(ci, /make lint/);
   assert.match(ci, /needs: \[verify-shard, go-connect, e2e-smoke\]/);
-  assert.match(ci, /go test \.\/\.\.\./);
+  assert.match(ci, /go test -p 1 \.\/\.\.\./);
   assert.match(contracts, /buf\/cmd\/buf@v1\.59\.0 lint/);
   assert.match(contracts, /buf\/cmd\/buf@v1\.59\.0 breaking/);
   assert.match(contracts, /git diff --exit-code -- gen packages\/connect\/src\/gen/);
