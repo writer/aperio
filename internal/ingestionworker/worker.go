@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/writer/aperio/internal/cerebrofanout"
+	"github.com/writer/aperio/internal/observability"
 	"github.com/writer/aperio/internal/runtimeutil"
 	"github.com/writer/aperio/internal/siemdispatcher"
 	"github.com/writer/aperio/internal/telemetry"
@@ -2451,23 +2452,36 @@ func (w *Worker) fail(ctx context.Context, item job, message string) error {
 }
 
 func (w *Worker) findingsForJob(ctx context.Context, payload JobPayload, item job) ([]Finding, error) {
+	builtinRun := observability.StartRuleRun(ctx, w.db, item.OrganizationID, item.IntegrationID, item.Provider, item.ID, observability.RulePackBuiltIn, "v1", builtInRuleCount(item.Provider))
 	config, err := w.loadIntegrationConfig(ctx, item)
 	if err != nil {
+		builtinRun.Finish(ctx, "FAILED", 0, err)
 		return nil, err
 	}
 	if err := config.validateForJob(item); err != nil {
+		builtinRun.Finish(ctx, "FAILED", 0, err)
 		return nil, err
 	}
 	findings := Evaluate(payload, config.DisabledChecks)
+	builtinRun.Finish(ctx, "SUCCEEDED", len(findings), nil)
+	customRun := observability.StartRuleRun(ctx, w.db, item.OrganizationID, item.IntegrationID, item.Provider, item.ID, observability.RulePackCustom, "v1", 0)
 	customRules, err := w.loadCustomRules(ctx, item.IntegrationID)
 	if err != nil {
 		// A custom-rule load failure must NOT block built-in findings; a
 		// schema migration glitch or transient pgx connection blip would
 		// otherwise mask real-finding ingestion. Log via the caller's
 		// observability surface and fall through with the built-ins.
+		customRun.Finish(ctx, "FAILED", 0, err)
 		return findings, nil
 	}
-	findings = append(findings, EvaluateCustomRules(payload, customRules)...)
+	if len(customRules) > 0 {
+		customRun.SetRulesEvaluated(len(customRules))
+		customFindings := EvaluateCustomRules(payload, customRules)
+		customRun.Finish(ctx, "SUCCEEDED", len(customFindings), nil)
+		findings = append(findings, customFindings...)
+	} else {
+		customRun.Finish(ctx, "SUCCEEDED", 0, nil)
+	}
 	return findings, nil
 }
 
@@ -3388,6 +3402,10 @@ func boundedLimit(limit int) int {
 
 func emitIngestionJobWideEvent(item job, processErr error, duration time.Duration) {
 	telemetry.EmitWide(ingestionJobWideEvent(item, processErr, duration))
+	telemetry.IncCounter("aperio_ingestion_jobs_total", map[string]string{
+		"provider": item.Provider,
+		"outcome":  ingestionJobOutcome(item, processErr),
+	})
 }
 
 func ingestionJobWideEvent(item job, processErr error, duration time.Duration) telemetry.WideEvent {

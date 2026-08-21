@@ -230,6 +230,8 @@ func (a *App) Handler() http.Handler {
 func (a *App) routes() {
 	a.mux.HandleFunc("/healthz", a.handleHealthz)
 	a.mux.HandleFunc("/readyz", a.handleReadyz)
+	a.mux.HandleFunc("/metrics", a.handleMetrics)
+	a.mux.HandleFunc(operatorHealthPath, a.handleOperatorHealth)
 	a.mux.HandleFunc(oauthProtectedResourceMetadataPath, a.handleOAuthProtectedResourceMetadata)
 	a.mux.HandleFunc(oauthProtectedResourceMetadataMCPPath, a.handleOAuthProtectedResourceMetadata)
 	a.mux.HandleFunc(oauthProtectedResourceMetadataPath+"/", a.handleOAuthProtectedResourceMetadata)

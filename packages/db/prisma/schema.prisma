@@ -101,6 +101,18 @@ enum IngestionJobStatus {
   DEAD_LETTER
 }
 
+enum ConnectorSyncRunStatus {
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
+enum RuleRunStatus {
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
 enum SiemKind {
   SPLUNK_HEC
   PANTHER
@@ -278,6 +290,8 @@ model Organization {
   sessions          UserSession[]
   oauthAppGrants    OauthAppGrant[]
   ingestionJobs      IngestionJob[]
+  connectorSyncRuns  ConnectorSyncRun[]
+  ruleRuns           RuleRun[]
   executiveReports  ExecutiveReport[]
   oauthClients      IntegrationOAuthClient[]
   customFindingRules CustomFindingRule[]
@@ -410,6 +424,8 @@ model IntegrationConnection {
   googleWorkspaceDirectorySyncCursor GoogleWorkspaceDirectorySyncCursor?
   googleWorkspaceOauthSyncCursor GoogleWorkspaceOauthSyncCursor?
   customFindingRules         CustomFindingRule[]
+  connectorSyncRuns          ConnectorSyncRun[]
+  ruleRuns                   RuleRun[]
 
   @@unique([organizationId, provider, externalAccountId])
   @@index([organizationId])
@@ -588,6 +604,62 @@ model IngestionJob {
   @@index([integrationId, status])
   @@index([status, leaseExpiresAt])
   @@map("ingestion_jobs")
+}
+
+// One durable record per connector source sweep. A row is created before a
+// provider call and finalized on every terminal path, so operators can tell a
+// stale cursor from a worker that never started. source is intentionally a
+// closed, low-cardinality label (for example google_workspace_reports).
+model ConnectorSyncRun {
+  id             String                 @id @default(cuid())
+  organizationId String                 @map("organization_id")
+  integrationId  String                 @map("integration_id")
+  provider       SaaSProvider
+  source         String                 @db.VarChar(80)
+  status         ConnectorSyncRunStatus @default(RUNNING)
+  recordsSeen    Int                    @default(0) @map("records_seen")
+  recordsQueued  Int                    @default(0) @map("records_queued")
+  errorMessage   String?                @map("error_message") @db.VarChar(500)
+  startedAt      DateTime               @default(now()) @map("started_at")
+  completedAt    DateTime?              @map("completed_at")
+  durationMs     Int?                   @map("duration_ms")
+  createdAt      DateTime               @default(now()) @map("created_at")
+  organization   Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  integration    IntegrationConnection  @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, startedAt])
+  @@index([organizationId, integrationId, startedAt])
+  @@index([organizationId, integrationId, source, startedAt])
+  @@index([integrationId, status, startedAt])
+  @@map("connector_sync_runs")
+}
+
+// One durable record per rule pack evaluation. ruleKey/version identify the
+// deterministic pack rather than an unbounded event or tenant value; this is
+// safe to expose in operator health and metrics labels.
+model RuleRun {
+  id             String        @id @default(cuid())
+  organizationId String        @map("organization_id")
+  integrationId  String        @map("integration_id")
+  ingestionJobId String?       @map("ingestion_job_id")
+  provider       SaaSProvider
+  ruleKey        String        @map("rule_key") @db.VarChar(120)
+  ruleVersion    String        @default("v1") @map("rule_version") @db.VarChar(32)
+  status         RuleRunStatus @default(RUNNING)
+  rulesEvaluated Int           @default(0) @map("rules_evaluated")
+  findingsCount  Int           @default(0) @map("findings_count")
+  errorMessage   String?       @map("error_message") @db.VarChar(500)
+  startedAt      DateTime      @default(now()) @map("started_at")
+  completedAt    DateTime?     @map("completed_at")
+  durationMs     Int?          @map("duration_ms")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  integration    IntegrationConnection @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, startedAt])
+  @@index([organizationId, ruleKey, startedAt])
+  @@index([organizationId, ingestionJobId])
+  @@map("rule_runs")
 }
 
 model SecurityFinding {

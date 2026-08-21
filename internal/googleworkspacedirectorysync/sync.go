@@ -39,6 +39,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/writer/aperio/internal/observability"
 	"github.com/writer/aperio/internal/runtimeutil"
 )
 
@@ -186,7 +187,15 @@ func (s *Sync) connectedIntegration(ctx context.Context, integrationID string) (
 
 // syncIntegration handles one integration end-to-end: token exchange, full
 // page-walk of users.list, upsert per user, cursor update.
-func (s *Sync) syncIntegration(ctx context.Context, integ integrationRow) error {
+func (s *Sync) syncIntegration(ctx context.Context, integ integrationRow) (resultErr error) {
+	run := observability.StartConnectorSyncRun(ctx, s.db, integ.OrganizationID, integ.ID, "GOOGLE_WORKSPACE", observability.ConnectorSourceGoogleWorkspaceDirectory)
+	defer func() {
+		status := "SUCCEEDED"
+		if resultErr != nil {
+			status = "FAILED"
+		}
+		run.Finish(ctx, status, 0, 0, resultErr)
+	}()
 	oauth, ok := s.resolver.ResolveGoogleOAuthClient(ctx, integ.OrganizationID)
 	if !ok {
 		return errors.New("oauth client unresolved for organization")

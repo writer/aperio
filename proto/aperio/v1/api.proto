@@ -21,6 +21,7 @@ service AperioService {
   rpc EnableMfa(EnableMfaRequest) returns (EnableMfaResponse);
   rpc DisableMfa(DisableMfaRequest) returns (DisableMfaResponse);
   rpc CheckHealth(CheckHealthRequest) returns (CheckHealthResponse);
+  rpc GetOperationalHealth(GetOperationalHealthRequest) returns (GetOperationalHealthResponse);
   rpc GetDashboardMetrics(GetDashboardMetricsRequest) returns (GetDashboardMetricsResponse);
   rpc ListFindings(ListFindingsRequest) returns (ListFindingsResponse);
   rpc GetFinding(GetFindingRequest) returns (GetFindingResponse);
@@ -273,6 +274,64 @@ message HealthComponent {
   string name = 1;
   string status = 2;
   string detail = 3;
+}
+
+message GetOperationalHealthRequest {}
+
+message GetOperationalHealthResponse {
+  OperationalHealth data = 1;
+}
+
+message OperationalHealth {
+  string status = 1;
+  google.protobuf.Timestamp checked_at = 2;
+  repeated ConnectorHealth connectors = 3;
+  IngestionQueueHealth ingestion_queue = 4;
+  SiemQueueHealth siem = 5;
+  repeated RuleRunHealth recent_rule_runs = 6;
+}
+
+message ConnectorHealth {
+  string integration_id = 1;
+  string provider = 2;
+  string display_name = 3;
+  string integration_status = 4;
+  string source = 5;
+  string run_status = 6;
+  google.protobuf.Timestamp last_started_at = 7;
+  google.protobuf.Timestamp last_completed_at = 8;
+  string error = 9;
+  int64 age_seconds = 10;
+}
+
+message IngestionQueueHealth {
+  int64 queued = 1;
+  int64 running = 2;
+  int64 failed = 3;
+  int64 dead_letter = 4;
+  int64 succeeded = 5;
+  int64 oldest_queued_age_seconds = 6;
+}
+
+message SiemQueueHealth {
+  int64 pending = 1;
+  int64 processing = 2;
+  int64 failed = 3;
+  int64 dead_letter = 4;
+  int64 delivered = 5;
+  int64 destination_errors = 6;
+}
+
+message RuleRunHealth {
+  string provider = 1;
+  string rule_key = 2;
+  string rule_version = 3;
+  string status = 4;
+  int32 rules_evaluated = 5;
+  int32 findings_count = 6;
+  google.protobuf.Timestamp started_at = 7;
+  google.protobuf.Timestamp completed_at = 8;
+  string error = 9;
 }
 
 message GetDashboardMetricsRequest {}
