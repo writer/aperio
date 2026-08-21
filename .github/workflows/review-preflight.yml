@@ -48,7 +48,11 @@ jobs:
   droid-review-required:
     name: Droid Review Required
     needs: droid-review-preflight
-    if: always()
+    # A newer event for the same pull request can cancel this workflow through
+    # the concurrency group. Do not turn that cancellation into a stale failed
+    # required check; genuine preflight failures still reach this enforcement
+    # job and fail below.
+    if: ${{ always() && !cancelled() }}
     runs-on: ubuntu-latest
     steps:
       - name: Enforce locally-owned preflight

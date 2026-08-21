@@ -402,6 +402,20 @@
       ]
     },
     {
+      "id": "cmd-aperioctl-operator-client",
+      "state": "validation-tooling",
+      "covers": [
+        "repo-file:cmd/aperioctl/*.go"
+      ],
+      "owner": "Aperio operator CLI",
+      "rationale": "cmd/aperioctl is a client for health, ConnectRPC, and compatibility APIs; it does not own a backend runtime.",
+      "evidence": [
+        "source:cmd/aperioctl/main.go",
+        "test:internal/apiclient/client_test.go",
+        "validator:go test ./internal/apiclient ./cmd/aperioctl"
+      ]
+    },
+    {
       "id": "cmd-ingestion-worker-go-default",
       "state": "go-default",
       "covers": [
