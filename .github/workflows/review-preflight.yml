@@ -1,0 +1,67 @@
+name: Review Preflight
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: review-preflight-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # These two job names are retained as compatibility contexts while main branch
+  # protection still requires them. Both checks are now local, read-only
+  # validation; no vendor review or repository mutation is performed.
+  droid-review-preflight:
+    name: Droid Review Preflight
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Run local review preflight
+        env:
+          REVIEW_PREFLIGHT_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          REVIEW_PREFLIGHT_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          node scripts/review-preflight.mjs \
+            --base "${REVIEW_PREFLIGHT_BASE}" \
+            --head "${REVIEW_PREFLIGHT_HEAD}" \
+            --json-out tmp/review-preflight.json \
+            --markdown-out tmp/review-preflight.md
+
+      - name: Upload preflight receipt
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: review-preflight
+          path: |
+            tmp/review-preflight.json
+            tmp/review-preflight.md
+
+  droid-review-required:
+    name: Droid Review Required
+    needs: droid-review-preflight
+    # A newer event for the same pull request can cancel this workflow through
+    # the concurrency group. Do not turn that cancellation into a stale failed
+    # required check; genuine preflight failures still reach this enforcement
+    # job and fail below.
+    if: ${{ always() && !cancelled() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enforce locally-owned preflight
+        env:
+          PREFLIGHT_RESULT: ${{ needs.droid-review-preflight.result }}
+        run: |
+          set -euo pipefail
+          if [ "${PREFLIGHT_RESULT}" != "success" ]; then
+            echo "::error::Locally-owned review preflight did not pass: ${PREFLIGHT_RESULT}"
+            exit 1
+          fi
+          echo "Locally-owned review preflight satisfied the required compatibility check."
