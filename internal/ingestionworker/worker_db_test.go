@@ -2723,3 +2723,46 @@ func TestSupportedIngestionFailureDeadLettersAndHonorsLease(t *testing.T) {
 		t.Fatalf("lost lease job changed: status=%s attempts=%d lease=%v", status, attempts, leaseOwner)
 	}
 }
+
+func TestDrainPersistsTerminalRuleRunReceipt(t *testing.T) {
+	db := openDBBackedIngestionWorkerDB(t)
+	orgID := seedIngestionWorkerOrg(t, db)
+	integrationID := seedIngestionWorkerIntegration(t, db, orgID, "SLACK", "CONNECTED")
+	jobID := seedIngestionWorkerJob(t, db, struct {
+		orgID         string
+		integrationID string
+		provider      string
+		eventType     string
+		status        string
+		attempts      int
+		maxAttempts   int
+		leaseOwner    *string
+		payload       json.RawMessage
+	}{
+		orgID: orgID, integrationID: integrationID, provider: "SLACK", eventType: "MFA_DISABLED",
+		status: "QUEUED", attempts: 0, maxAttempts: 3,
+		payload: json.RawMessage(`{"user":{"email":"operator@example.com"}}`),
+	})
+
+	result, err := (&Worker{db: db, leaseOwner: "rule-run-test-worker"}).Drain(context.Background(), 1)
+	if err != nil {
+		t.Fatalf("drain: %v", err)
+	}
+	if result.Processed != 1 || result.Succeeded != 1 {
+		t.Fatalf("unexpected drain result: %#v", result)
+	}
+	var status, storedIntegration, storedJob string
+	var findings int
+	if err := db.QueryRowContext(context.Background(), `
+		SELECT status::text, integration_id, ingestion_job_id, findings_count
+		FROM rule_runs
+		WHERE organization_id = $1 AND rule_key = 'builtin'
+		ORDER BY started_at DESC
+		LIMIT 1
+	`, orgID).Scan(&status, &storedIntegration, &storedJob, &findings); err != nil {
+		t.Fatalf("query terminal rule run: %v", err)
+	}
+	if status != "SUCCEEDED" || storedIntegration != integrationID || storedJob != jobID || findings != 1 {
+		t.Fatalf("terminal rule run = status=%s integration=%s job=%s findings=%d", status, storedIntegration, storedJob, findings)
+	}
+}

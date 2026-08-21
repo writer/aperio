@@ -31,6 +31,12 @@ docker compose --env-file .env.production -f deploy/compose/compose.production.y
 
 Open the configured `APERIO_WEB_ORIGIN`. The API health endpoints are `/healthz` and `/readyz`. Do not expose Postgres or NATS to the public network.
 
+The aggregate Prometheus endpoint is `/metrics`. It returns `404` until
+`APERIO_METRICS_TOKEN` is configured and requires
+`Authorization: Bearer <APERIO_METRICS_TOKEN>` on every scrape. Keep that
+credential in the monitoring system; do not reuse an operator session or API
+token.
+
 ## Day-two operation
 
 ```bash

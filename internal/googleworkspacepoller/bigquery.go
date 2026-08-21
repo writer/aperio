@@ -20,6 +20,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/writer/aperio/internal/observability"
 	"github.com/writer/aperio/internal/syncstate"
 	"github.com/writer/aperio/internal/syncwake"
 )
@@ -231,7 +232,19 @@ func (p *BigQueryPoller) pollIntegration(ctx context.Context, cfg BigQueryConfig
 	return p.pollIntegrationRecordTypes(ctx, cfg, p.recordTypes, true)
 }
 
-func (p *BigQueryPoller) pollIntegrationRecordTypes(ctx context.Context, cfg BigQueryConfig, recordTypes []string, refreshConnector bool) error {
+func (p *BigQueryPoller) pollIntegrationRecordTypes(ctx context.Context, cfg BigQueryConfig, recordTypes []string, refreshConnector bool) (resultErr error) {
+	run := observability.StartConnectorSyncRun(ctx, p.db, cfg.OrganizationID, cfg.IntegrationID, "GOOGLE_WORKSPACE", observability.ConnectorSourceGoogleWorkspaceBigQuery)
+	var runErr error
+	defer func() {
+		if resultErr != nil {
+			runErr = resultErr
+		}
+		status := "SUCCEEDED"
+		if runErr != nil {
+			status = "FAILED"
+		}
+		run.Finish(ctx, status, 0, 0, runErr)
+	}()
 	if err := cfg.validate(); err != nil {
 		p.recordBigQueryErrors(ctx, cfg.IntegrationID, recordTypes, err)
 		return err
@@ -250,6 +263,9 @@ func (p *BigQueryPoller) pollIntegrationRecordTypes(ctx context.Context, cfg Big
 		if err := p.pollRecordType(ctx, cfg, accessToken, recordType); err != nil {
 			expected, _ := bigQueryCursorFromPollError(err)
 			p.recordBigQueryError(ctx, cfg.IntegrationID, recordType, expected, err)
+			if runErr == nil {
+				runErr = err
+			}
 			log.Printf("googleworkspacebigquery: integration=%s record_type=%s failed: %v", cfg.IntegrationID, recordType, err)
 		}
 	}
