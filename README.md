@@ -60,7 +60,7 @@ The Go API is the single source of truth for connector, finding, admin, auth, an
 ### Prerequisites
 
 - Node.js 20+ (the repo targets the active LTS line).
-- Go 1.25+ (for the ConnectRPC API in `cmd/aperio`).
+- Go 1.26.6 (for the ConnectRPC API and workers in `cmd/`).
 - Docker (for local Postgres and NATS via `docker-compose.yml`) or any reachable Postgres 15+.
 - npm 10+ (ships with Node 20).
 - GNU Make (preinstalled on macOS and most Linux distros) to use the `make` targets below.
@@ -109,6 +109,10 @@ The first time you sign in, run the seed script to provision a demo organization
 ```bash
 npx tsx scripts/seed.ts
 ```
+
+## Self-hosted production
+
+The signed image and full-stack Compose bundle are documented in [Production Compose deployment](docs/production-compose.md). Before an upgrade, follow [Backup and restore](docs/backup-restore.md) and [Upgrade procedure](docs/upgrade.md). Release maintainers use [Release procedure](docs/release.md); security reports belong in [SECURITY.md](SECURITY.md).
 
 ### Background workers
 

@@ -1,0 +1,40 @@
+name: Bug report
+description: Report a reproducible problem in Aperio.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not include credentials, customer data, or vulnerability details. Use SECURITY.md for private security reports.
+  - type: input
+    id: version
+    attributes:
+      label: Version or image digest
+      description: Include the release tag or exact image digest.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: List the smallest set of commands and steps that reproduces the problem.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected result
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual result
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Redacted logs
+      description: Remove tokens, passwords, cookies, DSNs, and customer identifiers.

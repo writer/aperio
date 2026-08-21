@@ -1473,17 +1473,23 @@ func (a *App) authenticatedOrganization(ctx context.Context, header http.Header)
 	if a.db == nil {
 		return "", connect.NewError(connect.CodeUnavailable, errors.New("database not configured"))
 	}
-	organizationID, err := a.organizationIDFromSession(ctx, header)
+	auth, err := a.compatAuthFromSession(ctx, header)
 	if err != nil {
 		if errors.Is(err, errInvalidSession) || errors.Is(err, sql.ErrNoRows) {
 			return "", connect.NewError(connect.CodeUnauthenticated, errors.New("unauthorized"))
 		}
-		return "", connect.NewError(connect.CodeUnavailable, errors.New("authentication store unavailable"))
+		return "", connect.NewError(connect.CodeUnauthenticated, errors.New("unauthorized"))
+	}
+	if auth.CredentialKind == "api_token" &&
+		!hasCompatScope(auth.Scopes, "READ") &&
+		!hasCompatScope(auth.Scopes, "WRITE") &&
+		!hasCompatScope(auth.Scopes, "ADMIN") {
+		return "", connect.NewError(connect.CodePermissionDenied, errors.New("API token requires READ scope"))
 	}
 	if collector, ok := telemetry.CollectorFrom(ctx); ok {
-		collector.SetOrganization(organizationID)
+		collector.SetOrganization(auth.OrganizationID)
 	}
-	return organizationID, nil
+	return auth.OrganizationID, nil
 }
 
 type rpcWideEvent struct {

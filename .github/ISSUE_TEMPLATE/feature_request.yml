@@ -1,0 +1,24 @@
+name: Feature request
+description: Propose a concrete operator or integration improvement.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What operator task is blocked or expensive today?
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired outcome
+      description: Describe the observable behavior that would solve the problem.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope and constraints
+      description: Include connector scopes, data retention, migration, or remediation constraints.
