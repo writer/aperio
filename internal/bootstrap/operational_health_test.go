@@ -27,8 +27,9 @@ func TestOperationalHealthJSONRequiresAuthentication(t *testing.T) {
 
 func TestMetricsEndpointReturnsPrometheusText(t *testing.T) {
 	telemetry.IncCounter("aperio_test_operator_health_total", map[string]string{"kind": "other"})
-	app := NewApp(config.Config{WebOrigin: "http://localhost:3000"}, nil)
+	app := NewApp(config.Config{WebOrigin: "http://localhost:3000", MetricsToken: "metrics-secret"}, nil)
 	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	req.Header.Set("Authorization", "Bearer metrics-secret")
 	rec := httptest.NewRecorder()
 	app.Handler().ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
@@ -40,6 +41,28 @@ func TestMetricsEndpointReturnsPrometheusText(t *testing.T) {
 	if !strings.Contains(rec.Body.String(), "aperio_test_operator_health_total") {
 		t.Fatalf("metrics body missing test counter: %q", rec.Body.String())
 	}
+}
+
+func TestMetricsEndpointRequiresDedicatedToken(t *testing.T) {
+	t.Run("disabled when unconfigured", func(t *testing.T) {
+		app := NewApp(config.Config{WebOrigin: "http://localhost:3000"}, nil)
+		rec := httptest.NewRecorder()
+		app.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+		if rec.Code != http.StatusNotFound {
+			t.Fatalf("metrics status = %d, want %d", rec.Code, http.StatusNotFound)
+		}
+	})
+
+	t.Run("rejects wrong token", func(t *testing.T) {
+		app := NewApp(config.Config{WebOrigin: "http://localhost:3000", MetricsToken: "metrics-secret"}, nil)
+		req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+		req.Header.Set("Authorization", "Bearer wrong-secret")
+		rec := httptest.NewRecorder()
+		app.Handler().ServeHTTP(rec, req)
+		if rec.Code != http.StatusUnauthorized {
+			t.Fatalf("metrics status = %d, want %d", rec.Code, http.StatusUnauthorized)
+		}
+	})
 }
 
 func TestOperationalHealthRPCRequiresAuthentication(t *testing.T) {

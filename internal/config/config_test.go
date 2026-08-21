@@ -24,3 +24,12 @@ func TestFromEnvDerivesPGXSafeDatabaseURL(t *testing.T) {
 		t.Fatalf("sslmode = %q, want disable", query.Get("sslmode"))
 	}
 }
+
+func TestFromEnvReadsMetricsToken(t *testing.T) {
+	t.Setenv("APERIO_METRICS_TOKEN", "  metrics-secret  ")
+
+	cfg := FromEnv()
+	if cfg.MetricsToken != "metrics-secret" {
+		t.Fatalf("MetricsToken = %q, want trimmed token", cfg.MetricsToken)
+	}
+}

@@ -2,9 +2,12 @@ package bootstrap
 
 import (
 	"context"
+	"crypto/sha256"
+	"crypto/subtle"
 	"database/sql"
 	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	"connectrpc.com/connect"
@@ -115,11 +118,24 @@ func (a *App) handleOperatorHealth(w http.ResponseWriter, r *http.Request) {
 // handleMetrics exposes process and aggregate queue metrics in the standard
 // Prometheus text format. It intentionally carries no tenant labels; tenant
 // detail belongs behind the authenticated operator endpoint above. The
-// aggregate counts are still operational data, so the scrape path must remain
-// on a trusted monitoring network or receive access control at the edge.
+// aggregate counts are still operational data, so the endpoint is disabled
+// until a dedicated scrape credential is configured.
 func (a *App) handleMetrics(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	if a.cfg.MetricsToken == "" {
+		http.NotFound(w, r)
+		return
+	}
+	const bearerPrefix = "Bearer "
+	authorization := r.Header.Get("Authorization")
+	providedDigest := sha256.Sum256([]byte(strings.TrimPrefix(authorization, bearerPrefix)))
+	expectedDigest := sha256.Sum256([]byte(a.cfg.MetricsToken))
+	if !strings.HasPrefix(authorization, bearerPrefix) || subtle.ConstantTimeCompare(providedDigest[:], expectedDigest[:]) != 1 {
+		w.Header().Set("WWW-Authenticate", `Bearer realm="aperio-metrics"`)
+		writeError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 	metricsCtx, cancel := context.WithTimeout(r.Context(), 500*time.Millisecond)
