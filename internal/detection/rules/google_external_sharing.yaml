@@ -1,0 +1,47 @@
+id: google_workspace.external_sharing_enabled
+version: 1.0.0
+name: Google Workspace external sharing enabled
+severity: HIGH
+risk_score: 75
+tags:
+  - data.external_share
+  - policy.weakened
+source:
+  provider: GOOGLE_WORKSPACE
+  event_types:
+    - EXTERNAL_SHARING_ENABLED
+    - EXTERNAL_SHARING_DISABLED
+    - DRIVE_FILE_VISIBILITY_CHANGED
+    - DRIVE_FILE_PRIVATE
+when:
+  expression: >-
+    event.payload.parameters.visibility == "public_on_the_web" ||
+    event.payload.parameters.visibility == "shared_with_external_user" ||
+    event.payload.parameters.visibility == "anyone_with_link" ||
+    event.payload.parameters.visibility == "external"
+dedupe:
+  target_template: "{{ first_nonempty(event.payload.resource.id, event.payload.parameters.doc_id) }}"
+finding:
+  target_template: "{{ first_nonempty(event.payload.parameters.doc_title, event.payload.resource.name) }}"
+  title: "Google Workspace external sharing enabled"
+  description: "A Google Workspace resource was configured for external sharing, which may expose regulated or confidential data."
+  remediation_steps:
+    - "Confirm the external recipient and business purpose are approved."
+    - "Restrict the resource to the tenant domain or approved collaborators."
+    - "Review the resource audit trail for additional access while it was externally shared."
+  evidence:
+    fileName: "{{ first_nonempty(event.payload.parameters.doc_title, event.payload.resource.name) }}"
+    fileId: "{{ first_nonempty(event.payload.resource.id, event.payload.parameters.doc_id) }}"
+    fileType: "{{ event.payload.parameters.doc_type }}"
+    owner: "{{ event.payload.parameters.owner }}"
+    visibility: "{{ event.payload.parameters.visibility }}"
+    driveType: "Shared drive"
+    subject: "{{ first_nonempty(event.payload.resource.id, event.payload.parameters.doc_id) }}"
+    externalActor: "{{ external_recipient(event.payload.parameters.shared_with, event.payload.parameters.permission_change_grantee, event.payload.parameters.owner) }}"
+    docTitle: "{{ first_nonempty(event.payload.parameters.doc_title, event.payload.resource.name) }}"
+    docType: "{{ event.payload.parameters.doc_type }}"
+auto_resolve_when:
+  expression: >-
+    event.payload.parameters.visibility == "private" ||
+    event.payload.parameters.visibility == "domain" ||
+    event.payload.parameters.visibility == "internal"

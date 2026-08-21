@@ -107,6 +107,7 @@ function inventoryItems() {
     ...filesUnder("workers", (file) => file.endsWith(".ts")),
     ...filesUnder("apps/mcp", (file) => file.endsWith(".ts")),
     ...filesUnder("internal/bootstrap", (file) => file.endsWith(".go")),
+    ...filesUnder("internal/detection", (file) => /\.(?:go|ya?ml|json|md)$/.test(file)),
     ...filesUnder("internal/ingestionworker", (file) => file.endsWith(".go")),
     ...filesUnder("internal/mcpbroker", (file) => file.endsWith(".go")),
     ...filesUnder("internal/siemdispatcher", (file) => file.endsWith(".go")),

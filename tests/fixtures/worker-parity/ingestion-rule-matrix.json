@@ -123,7 +123,13 @@
       ],
       "goClaimedEventTypes": [
         "PUBLIC_REPOSITORY_CREATED",
-        "repository.publicized"
+        "repository.publicized",
+        "REPOSITORY_PRIVATE",
+        "REPOSITORY_PRIVATEIZED",
+        "REPOSITORY_VISIBILITY_CHANGED",
+        "repository.private",
+        "repository.privateized",
+        "repository.visibility_changed"
       ],
       "fixtures": [
         "tests/fixtures/worker-parity/github-public-repository.json"
@@ -132,6 +138,35 @@
         "tests/github-rules.test.ts",
         "internal/ingestionworker/worker_test.go",
         "internal/ingestionworker/worker_db_test.go"
+      ],
+      "cutoverBlockers": [],
+      "goDefaultBlocked": false
+    },
+    {
+      "ruleId": "github.deploy_key_added",
+      "provider": "GITHUB",
+      "state": "go-default",
+      "typescriptEventAliases": [
+        "DEPLOY_KEY_ADDED",
+        "DEPLOY_KEY_CREATED"
+      ],
+      "typescriptPayloadPredicates": [
+        "repository and deploy-key identity are present; write_enabled escalates severity when true"
+      ],
+      "goClaimedEventTypes": [
+        "DEPLOY_KEY_ADDED",
+        "DEPLOY_KEY_CREATED",
+        "deploy_key.added",
+        "deploy_key.created"
+      ],
+      "fixtures": [
+        "tests/fixtures/worker-parity/saas-pack-rules.json"
+      ],
+      "tests": [
+        "tests/ingestion-parity-matrix.test.ts",
+        "internal/ingestionworker/worker_test.go",
+        "internal/ingestionworker/worker_db_test.go",
+        "internal/ingestionworker/declarative_rules_test.go"
       ],
       "cutoverBlockers": [],
       "goDefaultBlocked": false
@@ -213,7 +248,11 @@
         "MFA_DISABLED",
         "TWO_FACTOR_AUTH_DISABLED",
         "mfa.disabled",
-        "two-factor auth disabled"
+        "two-factor auth disabled",
+        "MFA_ENABLED",
+        "TWO_FACTOR_AUTH_ENABLED",
+        "mfa.enabled",
+        "two-factor auth enabled"
       ],
       "fixtures": [
         "tests/fixtures/worker-parity/slack-mfa-disabled.json"
@@ -449,7 +488,13 @@
       "typescriptPayloadPredicates": [],
       "goClaimedEventTypes": [
         "EXTERNAL_SHARING_ENABLED",
-        "external.sharing.enabled"
+        "external.sharing.enabled",
+        "EXTERNAL_SHARING_DISABLED",
+        "DRIVE_FILE_VISIBILITY_CHANGED",
+        "DRIVE_FILE_PRIVATE",
+        "external.sharing.disabled",
+        "drive.file.visibility.changed",
+        "drive.file.private"
       ],
       "fixtures": [
         "tests/fixtures/worker-parity/google-admin-oauth-rules.json"

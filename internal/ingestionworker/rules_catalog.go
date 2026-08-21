@@ -15,6 +15,7 @@ package ingestionworker
 // cross-provider categorization (see tags.go).
 type RuleCatalogEntry struct {
 	ID              string
+	Version         string
 	Provider        string
 	Title           string
 	Description     string
@@ -31,6 +32,7 @@ type RuleCatalogEntry struct {
 var RuleCatalog = []RuleCatalogEntry{
 	{
 		ID:              "github.public_repository_created",
+		Version:         "1.0.0",
 		Provider:        "GITHUB",
 		Title:           "Public GitHub repository created",
 		Description:     "A repository was created or changed to public visibility, which can expose source code, secrets, or customer data.",
@@ -66,7 +68,21 @@ var RuleCatalog = []RuleCatalogEntry{
 		Tags:            []string{TagOAuthRiskyGrant, TagDataAccess},
 	},
 	{
+		ID:              "github.deploy_key_added",
+		Version:         "1.0.0",
+		Provider:        "GITHUB",
+		Title:           "GitHub deploy key added",
+		Description:     "A deploy key was added to a repository; write-enabled keys can bypass normal user and review controls.",
+		Severity:        "MEDIUM",
+		EventTypes:      []string{"DEPLOY_KEY_ADDED", "DEPLOY_KEY_CREATED"},
+		PackID:          "aperio.github.core.v1",
+		MitreTechniques: []string{"T1098"},
+		Intent:          "Adversary establishes a non-user credential that can read or write repository content without normal identity controls.",
+		Tags:            []string{TagDataAccess, TagPolicyWeakened},
+	},
+	{
 		ID:              "slack.mfa_disabled",
+		Version:         "1.0.0",
 		Provider:        "SLACK",
 		Title:           "Slack multi-factor authentication disabled",
 		Description:     "A Slack user disabled MFA, increasing the likelihood of account takeover and lateral movement.",
@@ -79,6 +95,7 @@ var RuleCatalog = []RuleCatalogEntry{
 	},
 	{
 		ID:              "slack.external_shared_channel_created",
+		Version:         "1.0.0",
 		Provider:        "SLACK",
 		Title:           "Slack external shared channel created",
 		Description:     "A Slack channel was shared with an external organization, expanding conversation and file visibility outside the tenant.",
@@ -163,6 +180,7 @@ var RuleCatalog = []RuleCatalogEntry{
 	},
 	{
 		ID:              "google_workspace.external_sharing_enabled",
+		Version:         "1.0.0",
 		Provider:        "GOOGLE_WORKSPACE",
 		Title:           "Google Drive external sharing enabled",
 		Description:     "A Drive resource was shared outside the tenant domain or set to a public visibility scope.",

@@ -27,8 +27,8 @@ var DetectionPacks = []DetectionPack{
 		ID:          "aperio.github.core.v1",
 		Provider:    "GITHUB",
 		Name:        "GitHub repository hygiene",
-		Description: "Repository exposure, branch-protection drift, and risky GitHub OAuth app activity.",
-		Version:     "1.1.0",
+		Description: "Repository exposure, branch-protection drift, risky OAuth app activity, and deploy-key additions.",
+		Version:     "1.2.0",
 	},
 	{
 		ID:          "aperio.slack.core.v1",
