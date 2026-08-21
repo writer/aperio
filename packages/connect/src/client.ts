@@ -32,6 +32,7 @@ import {
   type IntegrationSyncStatus as ProtoIntegrationSyncStatus,
   type InvitationResult as ProtoInvitationResult,
   type MfaEnrollment as ProtoMfaEnrollment,
+  type OperationalHealth as ProtoOperationalHealth,
   type PasswordResetResult as ProtoPasswordResetResult,
   type RemediationResult as ProtoRemediationResult,
   type RiskException as ProtoRiskException,
@@ -67,6 +68,50 @@ export type ConnectDashboardMetrics = {
   openCriticalFindings: number;
   connectedApps: number;
   eventIngestionRate: number;
+};
+
+export type ConnectOperationalHealth = {
+  status: string;
+  checkedAt: string | null;
+  connectors: Array<{
+    integrationId: string;
+    provider: string;
+    displayName: string;
+    integrationStatus: string;
+    source: string | null;
+    runStatus: string | null;
+    lastStartedAt: string | null;
+    lastCompletedAt: string | null;
+    error: string | null;
+    ageSeconds: number;
+  }>;
+  ingestionQueue: {
+    queued: number;
+    running: number;
+    failed: number;
+    deadLetter: number;
+    succeeded: number;
+    oldestQueuedAgeSeconds: number;
+  };
+  siem: {
+    pending: number;
+    processing: number;
+    failed: number;
+    deadLetter: number;
+    delivered: number;
+    destinationErrors: number;
+  };
+  recentRuleRuns: Array<{
+    provider: string;
+    ruleKey: string;
+    ruleVersion: string;
+    status: string;
+    rulesEvaluated: number;
+    findingsCount: number;
+    startedAt: string | null;
+    completedAt: string | null;
+    error: string | null;
+  }>;
 };
 
 export type ConnectFinding = {
@@ -1148,6 +1193,63 @@ function fallbackAuthContext(
     cerebroOauthAuthorizationServerMetadataPath: "",
     cerebroMcpGrantTypes: [...CEREBRO_MCP_GRANT_TYPES],
     cerebroMcpBearerMethods: [...CEREBRO_MCP_BEARER_METHODS]
+  };
+}
+
+function timestampToISOString(
+  value: { seconds: bigint; nanos: number } | undefined
+): string | null {
+  if (!value) return null;
+  return new Date(Number(value.seconds) * 1000 + value.nanos / 1_000_000).toISOString();
+}
+
+function operationalHealthFromProto(
+  health: ProtoOperationalHealth
+): ConnectOperationalHealth {
+  return {
+    status: health.status,
+    checkedAt: timestampToISOString(health.checkedAt),
+    connectors: health.connectors.map((connector) => ({
+      integrationId: connector.integrationId,
+      provider: connector.provider,
+      displayName: connector.displayName,
+      integrationStatus: connector.integrationStatus,
+      source: connector.source || null,
+      runStatus: connector.runStatus || null,
+      lastStartedAt: timestampToISOString(connector.lastStartedAt),
+      lastCompletedAt: timestampToISOString(connector.lastCompletedAt),
+      error: connector.error || null,
+      ageSeconds: Number(connector.ageSeconds)
+    })),
+    ingestionQueue: {
+      queued: Number(health.ingestionQueue?.queued ?? 0n),
+      running: Number(health.ingestionQueue?.running ?? 0n),
+      failed: Number(health.ingestionQueue?.failed ?? 0n),
+      deadLetter: Number(health.ingestionQueue?.deadLetter ?? 0n),
+      succeeded: Number(health.ingestionQueue?.succeeded ?? 0n),
+      oldestQueuedAgeSeconds: Number(
+        health.ingestionQueue?.oldestQueuedAgeSeconds ?? 0n
+      )
+    },
+    siem: {
+      pending: Number(health.siem?.pending ?? 0n),
+      processing: Number(health.siem?.processing ?? 0n),
+      failed: Number(health.siem?.failed ?? 0n),
+      deadLetter: Number(health.siem?.deadLetter ?? 0n),
+      delivered: Number(health.siem?.delivered ?? 0n),
+      destinationErrors: Number(health.siem?.destinationErrors ?? 0n)
+    },
+    recentRuleRuns: health.recentRuleRuns.map((run) => ({
+      provider: run.provider,
+      ruleKey: run.ruleKey,
+      ruleVersion: run.ruleVersion,
+      status: run.status,
+      rulesEvaluated: run.rulesEvaluated,
+      findingsCount: run.findingsCount,
+      startedAt: timestampToISOString(run.startedAt),
+      completedAt: timestampToISOString(run.completedAt),
+      error: run.error || null
+    }))
   };
 }
 
@@ -2535,6 +2637,13 @@ export const aperioConnectClient = {
   },
   checkHealth() {
     return client.checkHealth({});
+  },
+  async getOperationalHealth(): Promise<{ data: ConnectOperationalHealth }> {
+    const response = await client.getOperationalHealth({});
+    if (!response.data) {
+      throw new Error("Operational health unavailable");
+    }
+    return { data: operationalHealthFromProto(response.data) };
   },
   async getDashboardMetrics(): Promise<{ data: ConnectDashboardMetrics }> {
     const response = await client.getDashboardMetrics({});
