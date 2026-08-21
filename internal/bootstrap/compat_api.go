@@ -71,6 +71,7 @@ const (
 	maxPasswordLength         = 1024
 	maxDisableReasonLength    = 500
 	maxDisableExpiresAtLength = 64
+	maxAPITokenNameLength     = 160
 )
 
 var (
@@ -164,10 +165,13 @@ type compatEncryptedEnvelope = runtimeutil.EncryptedEnvelope
 
 type compatAuth struct {
 	SessionID      string
+	APITokenID     string
 	OrganizationID string
 	UserID         string
 	Email          string
 	Role           string
+	CredentialKind string
+	Scopes         []string
 }
 
 type compatSessionUser struct {
@@ -264,6 +268,8 @@ var compatRouteTemplates = map[string]struct{}{
 	"/api/v1/admin/members/:id/reset-link":              {},
 	"/api/v1/admin/members/:id/role":                    {},
 	"/api/v1/admin/audit-logs":                          {},
+	"/api/v1/admin/api-tokens":                          {},
+	"/api/v1/admin/api-tokens/:id":                      {},
 	"/api/v1/security/overview":                         {},
 	"/api/v1/security/assets":                           {},
 	"/api/v1/security/assets/:id":                       {},
@@ -411,6 +417,9 @@ func (a *App) handleCompatAPI(
 		if err != nil {
 			return "", nil, connect.NewError(connect.CodeUnauthenticated, errors.New("unauthorized"))
 		}
+		if err := authorizeCompatCredential(auth, method, path); err != nil {
+			return "", nil, err
+		}
 	}
 	rateLimitBody := body
 	if !public {
@@ -527,6 +536,12 @@ func (a *App) dispatchCompatAPI(
 		return a.compatUpdateMemberRole(ctx, segments[4], body, auth)
 	case method == http.MethodGet && path == "/api/v1/admin/audit-logs":
 		return a.compatAuditLogs(ctx, auth)
+	case method == http.MethodGet && path == "/api/v1/admin/api-tokens":
+		return a.compatListAPITokens(ctx, auth)
+	case method == http.MethodPost && path == "/api/v1/admin/api-tokens":
+		return a.compatCreateAPIToken(ctx, body, auth)
+	case method == http.MethodDelete && len(segments) == 5 && segments[2] == "admin" && segments[3] == "api-tokens":
+		return a.compatRevokeAPIToken(ctx, segments[4], auth)
 	case method == http.MethodGet && path == "/api/v1/security/overview":
 		return a.compatSecurityOverview(ctx, auth)
 	case method == http.MethodPost && path == "/api/v1/security/assets":
@@ -754,6 +769,9 @@ func (a *App) compatAuthFromSession(ctx context.Context, header http.Header) (co
 	if token == "" {
 		return compatAuth{}, errors.New("missing session")
 	}
+	if strings.HasPrefix(token, "apk_live_") {
+		return a.compatAuthFromAPIToken(ctx, token)
+	}
 	parts := strings.SplitN(token, ".", 2)
 	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
 		return compatAuth{}, errors.New("invalid session")
@@ -789,7 +807,83 @@ func (a *App) compatAuthFromSession(ctx context.Context, header http.Header) (co
 		// UI polling request.
 		_, _ = a.db.ExecContext(ctx, `UPDATE user_sessions SET last_seen_at = NOW() WHERE id = $1`, auth.SessionID)
 	}
+	auth.CredentialKind = "session"
 	return auth, nil
+}
+
+func (a *App) compatAuthFromAPIToken(ctx context.Context, token string) (compatAuth, error) {
+	parts := strings.SplitN(strings.TrimPrefix(token, "apk_live_"), ".", 2)
+	if len(parts) != 2 || !strings.HasPrefix(parts[0], "apt_") || parts[1] == "" {
+		return compatAuth{}, errors.New("invalid API token")
+	}
+	var auth compatAuth
+	var scopesJSON string
+	err := a.db.QueryRowContext(ctx, `
+		SELECT at.id, at.organization_id, u.id, u.email, r.name::text,
+		       array_to_json(at.scopes)::text
+		FROM api_tokens at
+		JOIN users u ON u.id = at.created_by_user_id
+		  AND u.organization_id = at.organization_id
+		JOIN roles r ON r.id = u.role_id
+		WHERE at.id = $1
+		  AND at.token_hash = $2
+		  AND at.revoked_at IS NULL
+		  AND (at.expires_at IS NULL OR at.expires_at > NOW())
+		  AND u.is_active = TRUE
+	`, parts[0], hashOpaqueToken(parts[1])).Scan(
+		&auth.APITokenID,
+		&auth.OrganizationID,
+		&auth.UserID,
+		&auth.Email,
+		&auth.Role,
+		&scopesJSON,
+	)
+	if err != nil {
+		return compatAuth{}, err
+	}
+	if err := json.Unmarshal([]byte(scopesJSON), &auth.Scopes); err != nil {
+		return compatAuth{}, errors.New("invalid API token scope state")
+	}
+	auth.CredentialKind = "api_token"
+	_, _ = a.db.ExecContext(ctx, `
+		UPDATE api_tokens
+		SET last_used_at = NOW()
+		WHERE id = $1 AND (last_used_at IS NULL OR last_used_at < NOW() - INTERVAL '1 minute')
+	`, auth.APITokenID)
+	return auth, nil
+}
+
+func authorizeCompatCredential(auth compatAuth, method, path string) error {
+	if auth.CredentialKind != "api_token" {
+		return nil
+	}
+	if strings.HasPrefix(path, "/api/v1/auth/") || strings.HasPrefix(path, "/api/v1/admin/api-tokens") {
+		return connect.NewError(connect.CodePermissionDenied, errors.New("API tokens cannot manage interactive authentication or API tokens"))
+	}
+	if hasCompatScope(auth.Scopes, "ADMIN") {
+		return nil
+	}
+	if strings.HasPrefix(path, "/api/v1/admin/") {
+		return connect.NewError(connect.CodePermissionDenied, errors.New("API token requires ADMIN scope"))
+	}
+	if method == http.MethodGet || method == http.MethodHead {
+		if hasCompatScope(auth.Scopes, "READ") || hasCompatScope(auth.Scopes, "WRITE") {
+			return nil
+		}
+	}
+	if hasCompatScope(auth.Scopes, "WRITE") {
+		return nil
+	}
+	return connect.NewError(connect.CodePermissionDenied, errors.New("API token scope does not allow this request"))
+}
+
+func hasCompatScope(scopes []string, wanted string) bool {
+	for _, scope := range scopes {
+		if strings.EqualFold(strings.TrimSpace(scope), wanted) {
+			return true
+		}
+	}
+	return false
 }
 
 func (a *App) compatSignup(ctx context.Context, body map[string]any, headers http.Header) (any, error) {
@@ -2533,6 +2627,141 @@ func (a *App) compatAuditLogs(ctx context.Context, auth compatAuth) (any, error)
 	return map[string]any{"data": data}, nil
 }
 
+func (a *App) compatListAPITokens(ctx context.Context, auth compatAuth) (any, error) {
+	if auth.CredentialKind == "api_token" {
+		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("API tokens cannot manage API tokens"))
+	}
+	if err := requireCompatRole(auth, "OWNER", "ADMIN"); err != nil {
+		return nil, err
+	}
+	rows, err := a.db.QueryContext(ctx, `
+		SELECT at.id, at.name, at.token_prefix, array_to_json(at.scopes)::text,
+		       at.last_used_at, at.expires_at, at.revoked_at, at.created_at,
+		       COALESCE(u.email, 'unknown')
+		FROM api_tokens at
+		LEFT JOIN users u ON u.id = at.created_by_user_id
+		WHERE at.organization_id = $1
+		ORDER BY at.created_at DESC
+	`, auth.OrganizationID)
+	if err != nil {
+		return nil, internalServerError("api_tokens.list", err)
+	}
+	defer rows.Close()
+	data := []map[string]any{}
+	for rows.Next() {
+		var id, name, prefix, scopesJSON, createdBy string
+		var lastUsed, expires, revoked sql.NullTime
+		var created time.Time
+		if err := rows.Scan(&id, &name, &prefix, &scopesJSON, &lastUsed, &expires, &revoked, &created, &createdBy); err != nil {
+			return nil, internalServerError("api_tokens.list.scan", err)
+		}
+		var scopes []string
+		if err := json.Unmarshal([]byte(scopesJSON), &scopes); err != nil {
+			return nil, internalServerError("api_tokens.list.scopes", err)
+		}
+		data = append(data, map[string]any{
+			"id": id, "name": name, "tokenPrefix": prefix, "scopes": scopes,
+			"lastUsedAt": nullTimeCompat(lastUsed), "expiresAt": nullTimeCompat(expires),
+			"revokedAt": nullTimeCompat(revoked), "createdAt": created.UTC().Format(time.RFC3339Nano),
+			"createdBy": createdBy,
+		})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, internalServerError("api_tokens.list.rows", err)
+	}
+	return map[string]any{"data": data}, nil
+}
+
+func (a *App) compatCreateAPIToken(ctx context.Context, body map[string]any, auth compatAuth) (any, error) {
+	if auth.CredentialKind == "api_token" {
+		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("API tokens cannot create API tokens"))
+	}
+	if err := requireCompatRole(auth, "OWNER", "ADMIN"); err != nil {
+		return nil, err
+	}
+	name := requiredString(body, "name")
+	if name == "" || utf8.RuneCountInString(name) > maxAPITokenNameLength {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("API token name must be 1-160 characters"))
+	}
+	scopes, err := normalizeCompatAPITokenScopes(stringSlice(body["scopes"]))
+	if err != nil {
+		return nil, err
+	}
+	expiresAt := time.Now().UTC().Add(90 * 24 * time.Hour)
+	if raw := requiredString(body, "expiresAt"); raw != "" {
+		parsed, parseErr := time.Parse(time.RFC3339, raw)
+		if parseErr != nil || !parsed.After(time.Now()) || parsed.After(time.Now().Add(366*24*time.Hour)) {
+			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("API token expiry must be within the next 366 days"))
+		}
+		expiresAt = parsed.UTC()
+	}
+	id := compatID("apt")
+	secret := randomURL(32)
+	rawToken := "apk_live_" + id + "." + secret
+	prefix := rawToken
+	if len(prefix) > 24 {
+		prefix = prefix[:24]
+	}
+	_, err = a.db.ExecContext(ctx, `
+		INSERT INTO api_tokens (
+		  id, organization_id, created_by_user_id, name, token_hash, token_prefix,
+		  scopes, expires_at, created_at
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NOW())
+	`, id, auth.OrganizationID, auth.UserID, name, hashOpaqueToken(secret), prefix, scopes, expiresAt)
+	if err != nil {
+		return nil, internalServerError("api_tokens.create", err)
+	}
+	a.writeCompatAudit(ctx, auth, "api_token.create", "api_token", id, map[string]any{
+		"name": name, "scopes": scopes, "expiresAt": expiresAt.Format(time.RFC3339Nano),
+	})
+	return map[string]any{"data": map[string]any{
+		"id": id, "name": name, "token": rawToken, "tokenPrefix": prefix,
+		"scopes": scopes, "expiresAt": expiresAt.Format(time.RFC3339Nano),
+	}}, nil
+}
+
+func (a *App) compatRevokeAPIToken(ctx context.Context, id string, auth compatAuth) (any, error) {
+	if auth.CredentialKind == "api_token" {
+		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("API tokens cannot revoke API tokens"))
+	}
+	if err := requireCompatRole(auth, "OWNER", "ADMIN"); err != nil {
+		return nil, err
+	}
+	result, err := a.db.ExecContext(ctx, `
+		UPDATE api_tokens SET revoked_at = COALESCE(revoked_at, NOW())
+		WHERE id = $1 AND organization_id = $2
+	`, id, auth.OrganizationID)
+	if err != nil {
+		return nil, internalServerError("api_tokens.revoke", err)
+	}
+	if affected, _ := result.RowsAffected(); affected == 0 {
+		return nil, connect.NewError(connect.CodeNotFound, errors.New("API token not found"))
+	}
+	a.writeCompatAudit(ctx, auth, "api_token.revoke", "api_token", id, map[string]any{})
+	return map[string]any{"data": map[string]bool{"ok": true}}, nil
+}
+
+func normalizeCompatAPITokenScopes(input []string) ([]string, error) {
+	if len(input) == 0 {
+		return []string{"READ"}, nil
+	}
+	seen := map[string]bool{}
+	out := make([]string, 0, len(input))
+	for _, value := range input {
+		scope := strings.ToUpper(strings.TrimSpace(value))
+		switch scope {
+		case "READ", "WRITE", "ADMIN":
+		default:
+			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("API token scopes must be READ, WRITE, or ADMIN"))
+		}
+		if !seen[scope] {
+			seen[scope] = true
+			out = append(out, scope)
+		}
+	}
+	return out, nil
+}
+
 func (a *App) compatSecurityOverview(ctx context.Context, auth compatAuth) (any, error) {
 	assets, err := a.listSecurityAssets(ctx, auth.OrganizationID, &aperiov1.ListSecurityAssetsRequest{})
 	if err != nil {
@@ -3164,6 +3393,9 @@ func (a *App) ensureCompatRole(ctx context.Context, orgID, role string) (string,
 }
 
 func requireCompatRole(auth compatAuth, allowed ...string) error {
+	if auth.CredentialKind == "api_token" && !hasCompatScope(auth.Scopes, "WRITE") && !hasCompatScope(auth.Scopes, "ADMIN") {
+		return connect.NewError(connect.CodePermissionDenied, errors.New("API token requires WRITE scope"))
+	}
 	for _, role := range allowed {
 		if auth.Role == role {
 			return nil
