@@ -289,7 +289,7 @@ test-go: ## Run Go unit tests
 .PHONY: test-go-db
 test-go-db: require-env ## Run Go tests including DB-backed routes (needs Postgres)
 	@$(MAKE) --no-print-directory db-up migrate
-	@$(LOAD_ENV) APERIO_TEST_DATABASE_URL="$$(node $(DEV_CONFIG) go-database-url)" go test ./...
+	@$(LOAD_ENV) APERIO_TEST_DATABASE_URL="$$(node $(DEV_CONFIG) go-database-url)" go test -p 1 ./...
 
 .PHONY: test-api
 test-api: require-env ## Run the TypeScript/node test suite

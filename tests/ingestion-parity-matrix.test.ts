@@ -87,6 +87,7 @@ const expectedRuleIds = [
   "atlassian.org_admin_granted",
   "atlassian.public_space_created",
   "github.branch_protection_disabled",
+  "github.deploy_key_added",
   "github.oauth_app_installed",
   "github.public_repository_created",
   "google_workspace.admin_external_recovery_email",

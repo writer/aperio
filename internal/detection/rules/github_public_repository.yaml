@@ -1,0 +1,36 @@
+id: github.public_repository_created
+version: 1.0.0
+name: Public GitHub repository created
+severity: CRITICAL
+risk_score: 95
+tags:
+  - data.public_exposure
+source:
+  provider: GITHUB
+  event_types:
+    - PUBLIC_REPOSITORY_CREATED
+    - REPOSITORY_PUBLICIZED
+    - REPOSITORY_PRIVATE
+    - REPOSITORY_PRIVATEIZED
+    - REPOSITORY_VISIBILITY_CHANGED
+when:
+  expression: >-
+    event.payload.repository.visibility == "public" ||
+    event.payload.repository.private == false
+dedupe:
+  target_template: "{{ event.payload.repository.full_name }}"
+finding:
+  title: "Public GitHub repository created"
+  description: "A repository was created or changed to public visibility, which can expose source code, secrets, or customer data."
+  remediation_steps:
+    - "Confirm the repository is approved for public release."
+    - "Set repository visibility to private if public access is not explicitly authorized."
+    - "Run secret scanning and branch protection checks before allowing continued public access."
+  evidence:
+    repository: "{{ event.payload.repository.full_name }}"
+    subject: "{{ event.payload.repository.full_name }}"
+    visibility: "{{ event.payload.repository.visibility }}"
+auto_resolve_when:
+  expression: >-
+    event.payload.repository.private == true ||
+    event.payload.repository.visibility == "private"

@@ -618,6 +618,21 @@
       ]
     },
     {
+      "id": "internal-detection-go-declarative",
+      "state": "go-default",
+      "covers": [
+        "repo-file:internal/detection/*"
+      ],
+      "owner": "Go declarative detection engine and reviewed rule packs",
+      "rationale": "internal/detection owns the bounded CEL evaluator, strict YAML loader, versioned built-in rule pack, and in-memory backtest contract used by the Go ingestion worker; it has no independent runtime or provider credentials.",
+      "evidence": [
+        "test:internal/detection/loader_test.go",
+        "test:internal/detection/engine_test.go",
+        "source:internal/detection/rules",
+        "validator:go-tests"
+      ]
+    },
+    {
       "id": "internal-siemdispatcher-go-default",
       "state": "go-default",
       "covers": [

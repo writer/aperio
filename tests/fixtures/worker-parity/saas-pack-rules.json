@@ -24,6 +24,20 @@
       }
     },
     {
+      "provider": "GITHUB",
+      "eventType": "DEPLOY_KEY_ADDED",
+      "ruleId": "github.deploy_key_added",
+      "payload": {
+        "repository": {
+          "full_name": "acme/api"
+        },
+        "key": {
+          "title": "build-bot",
+          "write_enabled": true
+        }
+      }
+    },
+    {
       "provider": "SLACK",
       "eventType": "EXTERNAL_SHARED_CHANNEL_CREATED",
       "ruleId": "slack.external_shared_channel_created",

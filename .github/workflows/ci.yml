@@ -137,7 +137,11 @@ jobs:
           git diff --exit-code -- gen packages/connect/src/gen
           test -z "$(git status --porcelain -- gen packages/connect/src/gen)"
 
-      - run: go test ./...
+      # The bootstrap and ingestion-worker packages share this job's migrated
+      # Postgres database. Run their package binaries serially so a worker test
+      # cannot claim another package's queued fixture.
+      - name: Run database-backed Go tests
+        run: go test -p 1 ./...
 
       - name: Run bounded Go worker smokes
         run: npm run smoke:workers:go

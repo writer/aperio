@@ -1,0 +1,35 @@
+id: slack.mfa_disabled
+version: 1.0.0
+name: Slack multi-factor authentication disabled
+severity: CRITICAL
+risk_score: 90
+tags:
+  - auth.mfa_weakened
+source:
+  provider: SLACK
+  event_types:
+    - MFA_DISABLED
+    - TWO_FACTOR_AUTH_DISABLED
+    - MFA_ENABLED
+    - TWO_FACTOR_AUTH_ENABLED
+when:
+  expression: >-
+    event.event_type_normalized != "MFA_ENABLED" &&
+    event.event_type_normalized != "TWO_FACTOR_AUTH_ENABLED" &&
+    (event.payload.user.email != "" || event.payload.user.id != "")
+dedupe:
+  target_template: "{{ first_nonempty(event.payload.user.email, event.payload.user.id, event.actor) }}"
+finding:
+  title: "Slack multi-factor authentication disabled"
+  description: "A Slack user disabled MFA, increasing the likelihood of account takeover and lateral movement."
+  remediation_steps:
+    - "Re-enable MFA for the affected Slack user immediately."
+    - "Force a session reset for the affected account."
+    - "Review recent login history and connected Slack apps for suspicious activity."
+  evidence:
+    user: "{{ first_nonempty(event.payload.user.email, event.payload.user.id, event.actor) }}"
+    subject: "{{ first_nonempty(event.payload.user.email, event.payload.user.id, event.actor) }}"
+auto_resolve_when:
+  expression: >-
+    event.event_type_normalized == "MFA_ENABLED" ||
+    event.event_type_normalized == "TWO_FACTOR_AUTH_ENABLED"

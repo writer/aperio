@@ -1,0 +1,31 @@
+id: slack.external_shared_channel_created
+version: 1.0.0
+name: Slack external shared channel created
+severity: HIGH
+risk_score: 75
+tags:
+  - data.external_share
+source:
+  provider: SLACK
+  event_types:
+    - EXTERNAL_SHARED_CHANNEL_CREATED
+    - SHARED_CHANNEL_INVITE_ACCEPTED
+when:
+  expression: >-
+    (event.payload.channel.name != "" || event.payload.channel.id != "") &&
+    (event.payload.external_organization.name != "" || event.payload.external_team.name != "" || event.payload.target_team.name != "")
+dedupe:
+  target_template: "{{ first_nonempty(event.payload.channel.name, event.payload.channel.id, event.payload.conversation.name, event.payload.conversation.id) }}:{{ first_nonempty(event.payload.external_organization.name, event.payload.external_team.name, event.payload.target_team.name) }}"
+finding:
+  target_template: "{{ first_nonempty(event.payload.channel.name, event.payload.channel.id, event.payload.conversation.name, event.payload.conversation.id) }}"
+  title: "Slack external shared channel created"
+  description: "A Slack channel was shared with an external organization, expanding conversation and file visibility outside the tenant."
+  remediation_steps:
+    - "Confirm the shared channel and external organization are approved."
+    - "Restrict channel membership and file sharing if the collaboration is still required."
+    - "Disconnect the shared channel if it was created unexpectedly."
+  evidence:
+    channel: "{{ first_nonempty(event.payload.channel.name, event.payload.channel.id, event.payload.conversation.name, event.payload.conversation.id) }}"
+    externalOrg: "{{ first_nonempty(event.payload.external_organization.name, event.payload.external_team.name, event.payload.target_team.name) }}"
+    actor: "{{ event.actor }}"
+    subject: "{{ first_nonempty(event.payload.channel.name, event.payload.channel.id, event.payload.conversation.name, event.payload.conversation.id) }}:{{ first_nonempty(event.payload.external_organization.name, event.payload.external_team.name, event.payload.target_team.name) }}"

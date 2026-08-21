@@ -41,6 +41,12 @@ var supportedIngestionEventTypes = map[string][]string{
 	"GITHUB": {
 		"PUBLIC_REPOSITORY_CREATED",
 		"repository.publicized",
+		"REPOSITORY_PRIVATE",
+		"REPOSITORY_PRIVATEIZED",
+		"REPOSITORY_VISIBILITY_CHANGED",
+		"repository.private",
+		"repository.privateized",
+		"repository.visibility_changed",
 		"BRANCH_PROTECTION_DISABLED",
 		"BRANCH_PROTECTION_RULE_DELETED",
 		"BRANCH_PROTECTION_RULE_UPDATED",
@@ -53,12 +59,20 @@ var supportedIngestionEventTypes = map[string][]string{
 		"oauth_app.installed",
 		"github_app.installed",
 		"org.oauth_app_access_approved",
+		"DEPLOY_KEY_ADDED",
+		"DEPLOY_KEY_CREATED",
+		"deploy_key.added",
+		"deploy_key.created",
 	},
 	"SLACK": {
 		"MFA_DISABLED",
 		"TWO_FACTOR_AUTH_DISABLED",
 		"mfa.disabled",
 		"two-factor auth disabled",
+		"MFA_ENABLED",
+		"TWO_FACTOR_AUTH_ENABLED",
+		"mfa.enabled",
+		"two-factor auth enabled",
 		"EXTERNAL_SHARED_CHANNEL_CREATED",
 		"SHARED_CHANNEL_INVITE_ACCEPTED",
 		"external_shared_channel.created",
@@ -103,6 +117,12 @@ var supportedIngestionEventTypes = map[string][]string{
 	"GOOGLE_WORKSPACE": {
 		"EXTERNAL_SHARING_ENABLED",
 		"external.sharing.enabled",
+		"EXTERNAL_SHARING_DISABLED",
+		"DRIVE_FILE_VISIBILITY_CHANGED",
+		"DRIVE_FILE_PRIVATE",
+		"external.sharing.disabled",
+		"drive.file.visibility.changed",
+		"drive.file.private",
 		"SUPER_ADMIN_GRANTED",
 		"super.admin.granted",
 		"ADMIN_ROLE_GRANTED",
@@ -193,6 +213,7 @@ type JobPayload struct {
 
 type Finding struct {
 	RuleID           string
+	RuleVersion      string
 	Title            string
 	Description      string
 	Severity         string
@@ -291,6 +312,7 @@ type integrationConfig struct {
 	Provider                             string
 	ExternalAccountID                    string
 	DisabledChecks                       []string
+	SeverityOverrides                    map[string]string
 	EncryptedAccessToken                 string
 	EncryptedRefreshToken                sql.NullString
 	EncryptedWebhookSecret               sql.NullString
@@ -316,12 +338,21 @@ func (w *Worker) WithCerebroFanout(fanout CerebroFindingFanout) *Worker {
 }
 
 func Evaluate(payload JobPayload, disabledChecks []string) []Finding {
+	return EvaluateWithSeverityOverrides(payload, disabledChecks, nil)
+}
+
+// EvaluateWithSeverityOverrides preserves the existing disabled_checks
+// contract while allowing a tenant policy layer to lower or raise a rule's
+// severity. The declarative migration slice is authoritative when its pack
+// compiles; hardcoded rules remain the compatibility fallback.
+func EvaluateWithSeverityOverrides(payload JobPayload, disabledChecks []string, severityOverrides map[string]string) []Finding {
 	disabled := map[string]struct{}{}
 	for _, check := range disabledChecks {
 		disabled[check] = struct{}{}
 	}
-	findings := []Finding{}
-	if _, ok := disabled["github.public_repository_created"]; !ok {
+	declarativeFindings, declarativeLoaded := evaluateDeclarativeRules(payload, disabledChecks, severityOverrides)
+	findings := append([]Finding{}, declarativeFindings...)
+	if _, ok := disabled["github.public_repository_created"]; !ok && (!declarativeLoaded || !declarativeRuleIDs["github.public_repository_created"]) {
 		if finding, ok := evaluateGitHubPublicRepository(payload); ok {
 			findings = append(findings, finding)
 		}
@@ -336,7 +367,12 @@ func Evaluate(payload JobPayload, disabledChecks []string) []Finding {
 			findings = append(findings, finding)
 		}
 	}
-	if _, ok := disabled["slack.mfa_disabled"]; !ok {
+	if _, ok := disabled["github.deploy_key_added"]; !ok {
+		if finding, ok := evaluateGitHubDeployKeyAdded(payload); ok {
+			findings = append(findings, finding)
+		}
+	}
+	if _, ok := disabled["slack.mfa_disabled"]; !ok && (!declarativeLoaded || !declarativeRuleIDs["slack.mfa_disabled"]) {
 		if finding, ok := evaluateSlackMFADisabled(payload); ok {
 			findings = append(findings, finding)
 		}
@@ -376,7 +412,7 @@ func Evaluate(payload JobPayload, disabledChecks []string) []Finding {
 			findings = append(findings, finding)
 		}
 	}
-	if _, ok := disabled["google_workspace.external_sharing_enabled"]; !ok {
+	if _, ok := disabled["google_workspace.external_sharing_enabled"]; !ok && (!declarativeLoaded || !declarativeRuleIDs["google_workspace.external_sharing_enabled"]) {
 		if finding, ok := evaluateGoogleExternalSharingEnabled(payload); ok {
 			findings = append(findings, finding)
 		}
@@ -471,7 +507,22 @@ func Evaluate(payload JobPayload, disabledChecks []string) []Finding {
 			findings = append(findings, finding)
 		}
 	}
+	for index := range findings {
+		if override := strings.ToUpper(strings.TrimSpace(severityOverrides[findings[index].RuleID])); override != "" && validFindingSeverity(override) {
+			findings[index].Severity = override
+			findings[index].RiskScore = RiskScoreFor(override)
+		}
+	}
 	return findings
+}
+
+func validFindingSeverity(value string) bool {
+	switch value {
+	case SeverityCritical, SeverityHigh, SeverityMedium, SeverityLow, SeverityInfo:
+		return true
+	default:
+		return false
+	}
 }
 
 func evaluateGitHubPublicRepository(payload JobPayload) (Finding, bool) {
@@ -617,6 +668,69 @@ func evaluateGitHubOAuthAppInstalled(payload JobPayload) (Finding, bool) {
 	}, true
 }
 
+func evaluateGitHubDeployKeyAdded(payload JobPayload) (Finding, bool) {
+	if payload.Provider != "GITHUB" {
+		return Finding{}, false
+	}
+	switch normalizeEventType(payload.EventType) {
+	case "DEPLOY_KEY_ADDED", "DEPLOY_KEY_CREATED":
+	default:
+		return Finding{}, false
+	}
+	repository := firstNonEmpty(
+		nestedString(payload.Payload, "repository", "full_name"),
+		nestedString(payload.Payload, "repository", "name"),
+		nestedString(payload.Payload, "repo"),
+	)
+	key := firstNonEmpty(
+		nestedString(payload.Payload, "key", "title"),
+		nestedString(payload.Payload, "key", "name"),
+		nestedString(payload.Payload, "deploy_key", "title"),
+		nestedString(payload.Payload, "deploy_key", "id"),
+		nestedString(payload.Payload, "key_id"),
+	)
+	// A deploy-key event without a repository and key identity cannot produce
+	// a stable target or a trustworthy remediation. Leave it unsupported until
+	// the provider adapter supplies the fields listed in the support matrix.
+	if repository == "" || key == "" {
+		return Finding{}, false
+	}
+	writeEnabled, hasWriteEnabled := nestedBool(payload.Payload, "key", "write_enabled")
+	if !hasWriteEnabled {
+		writeEnabled, hasWriteEnabled = nestedBool(payload.Payload, "deploy_key", "write_enabled")
+	}
+	severity := SeverityMedium
+	riskScore := RiskScoreFor(SeverityMedium, 4)
+	if hasWriteEnabled && writeEnabled {
+		severity = SeverityHigh
+		riskScore = RiskScoreFor(SeverityHigh, 7)
+	}
+	subject := repository + ":" + key
+	return Finding{
+		RuleID:      "github.deploy_key_added",
+		RuleVersion: "1.0.0",
+		Title:       "GitHub deploy key added",
+		Description: "A deploy key was added to a GitHub repository; write-enabled keys can bypass normal user and review controls.",
+		Severity:    severity,
+		RiskScore:   riskScore,
+		Tags:        []string{TagDataAccess, TagPolicyWeakened},
+		RemediationSteps: []string{
+			"Confirm the deploy key belongs to an approved automation system.",
+			"Disable write access unless the automation requires repository writes.",
+			"Remove the key and rotate its credential if it was not approved.",
+		},
+		Target:       repository,
+		DedupeTarget: subject,
+		Evidence: compactEvidence(map[string]any{
+			"repository":   repository,
+			"key":          key,
+			"writeEnabled": writeEnabled,
+			"actor":        payload.Actor,
+			"subject":      subject,
+		}),
+	}, true
+}
+
 func evaluateSlackMFADisabled(payload JobPayload) (Finding, bool) {
 	if payload.Provider != "SLACK" {
 		return Finding{}, false
@@ -748,12 +862,19 @@ func evaluateSlackAppInstalled(payload JobPayload) (Finding, bool) {
 		stringArray(payload.Payload["scopes"]),
 		stringArray(nestedRecord(payload.Payload, "app")["scopes"])...,
 	))
+	severity := SeverityMedium
+	riskScore := RiskScoreFor(SeverityMedium, 7)
+	scopeBlob := strings.ToLower(strings.Join(scopes, " "))
+	if strings.Contains(scopeBlob, "admin") || strings.Contains(scopeBlob, "files:read") || strings.Contains(scopeBlob, "channels:history") {
+		severity = SeverityHigh
+		riskScore = RiskScoreFor(SeverityHigh, 6)
+	}
 	return Finding{
 		RuleID:      "slack.app_installed",
 		Title:       "Third-party Slack app installed",
 		Description: "A third-party Slack app was installed with user, channel, admin, or file scopes.",
-		Severity:    SeverityMedium,
-		RiskScore:   RiskScoreFor(SeverityMedium, 7),
+		Severity:    severity,
+		RiskScore:   riskScore,
 		Tags:        []string{TagOAuthRiskyGrant, TagDataAccess},
 		RemediationSteps: []string{
 			"Confirm the Slack app is approved for the workspace.",
@@ -2349,7 +2470,7 @@ func (w *Worker) process(ctx context.Context, item job) error {
 	if err != nil {
 		return w.fail(ctx, item, fmt.Errorf("parse payload: %w", err).Error())
 	}
-	findings, err := w.findingsForJob(ctx, payload, item)
+	findings, resolutions, err := w.evaluateJob(ctx, payload, item)
 	if err != nil {
 		return w.fail(ctx, item, fmt.Errorf("load findings: %w", err).Error())
 	}
@@ -2378,6 +2499,23 @@ func (w *Worker) process(ctx context.Context, item job) error {
 		RETURNING id
 	`, eventID, item.OrganizationID, item.IntegrationID, item.ID, item.Provider, item.EventType, item.Source, nullableString(item.Actor), string(item.Payload), item.OccurredAt).Scan(&eventID); err != nil {
 		return fail(fmt.Errorf("upsert ingested event: %w", err))
+	}
+	for _, resolution := range resolutions {
+		resolvedID, changed, err := resolveDeclarativeFinding(ctx, tx, payload, resolution, eventID)
+		if err != nil {
+			return fail(fmt.Errorf("auto-resolve finding: %w", err))
+		}
+		if changed {
+			lifecycleEvents = append(lifecycleEvents, FindingLifecycleEvent{
+				FindingID:      resolvedID,
+				OrganizationID: payload.OrganizationID,
+				IntegrationID:  payload.IntegrationID,
+				PreviousStatus: "OPEN",
+				NextStatus:     "RESOLVED",
+				OccurredAt:     payload.OccurredAt,
+				ResolutionNote: "Declarative rule observed a clean provider state",
+			})
+		}
 	}
 	for _, finding := range findings {
 		persisted, err := upsertFinding(ctx, tx, payload, finding, eventID)
@@ -2452,18 +2590,27 @@ func (w *Worker) fail(ctx context.Context, item job, message string) error {
 }
 
 func (w *Worker) findingsForJob(ctx context.Context, payload JobPayload, item job) ([]Finding, error) {
+	findings, _, err := w.evaluateJob(ctx, payload, item)
+	return findings, err
+}
+
+func (w *Worker) evaluateJob(ctx context.Context, payload JobPayload, item job) ([]Finding, []declarativeResolution, error) {
 	builtinRun := observability.StartRuleRun(ctx, w.db, item.OrganizationID, item.IntegrationID, item.Provider, item.ID, observability.RulePackBuiltIn, "v1", builtInRuleCount(item.Provider))
 	config, err := w.loadIntegrationConfig(ctx, item)
 	if err != nil {
 		builtinRun.Finish(ctx, "FAILED", 0, err)
-		return nil, err
+		return nil, nil, err
 	}
 	if err := config.validateForJob(item); err != nil {
 		builtinRun.Finish(ctx, "FAILED", 0, err)
-		return nil, err
+		return nil, nil, err
 	}
-	findings := Evaluate(payload, config.DisabledChecks)
+	findings := EvaluateWithSeverityOverrides(payload, config.DisabledChecks, config.SeverityOverrides)
 	builtinRun.Finish(ctx, "SUCCEEDED", len(findings), nil)
+	resolutions, loaded := declarativeResolutionTargets(payload, config.DisabledChecks)
+	if !loaded {
+		resolutions = nil
+	}
 	customRun := observability.StartRuleRun(ctx, w.db, item.OrganizationID, item.IntegrationID, item.Provider, item.ID, observability.RulePackCustom, "v1", 0)
 	customRules, err := w.loadCustomRules(ctx, item.IntegrationID)
 	if err != nil {
@@ -2472,7 +2619,7 @@ func (w *Worker) findingsForJob(ctx context.Context, payload JobPayload, item jo
 		// otherwise mask real-finding ingestion. Log via the caller's
 		// observability surface and fall through with the built-ins.
 		customRun.Finish(ctx, "FAILED", 0, err)
-		return findings, nil
+		return findings, resolutions, nil
 	}
 	if len(customRules) > 0 {
 		customRun.SetRulesEvaluated(len(customRules))
@@ -2482,7 +2629,7 @@ func (w *Worker) findingsForJob(ctx context.Context, payload JobPayload, item jo
 	} else {
 		customRun.Finish(ctx, "SUCCEEDED", 0, nil)
 	}
-	return findings, nil
+	return findings, resolutions, nil
 }
 
 func (w *Worker) loadCustomRules(ctx context.Context, integrationID string) ([]CustomRule, error) {
@@ -2548,7 +2695,10 @@ func (w *Worker) loadIntegrationConfig(ctx context.Context, item job) (integrati
 	if err := json.Unmarshal([]byte(rawDisabledChecks), &config.DisabledChecks); err != nil {
 		return integrationConfig{}, errIntegrationConfigurationIncomplete
 	}
-	config.DisabledChecks = applyDisabledCheckExpiry(config.DisabledChecks, decodeDisabledCheckMetadata(rawDisabledMetadata), time.Now().UTC())
+	metadata := decodeDisabledCheckMetadata(rawDisabledMetadata)
+	now := time.Now().UTC()
+	config.DisabledChecks = applyDisabledCheckExpiry(config.DisabledChecks, metadata, now)
+	config.SeverityOverrides = severityOverridesFromMetadata(metadata, now)
 	return config, nil
 }
 
@@ -2686,6 +2836,52 @@ func upsertFinding(ctx context.Context, tx *sql.Tx, payload JobPayload, finding 
 	return persisted, err
 }
 
+// resolveDeclarativeFinding performs the state transition requested by a
+// pure auto-resolve draft. The lookup is tenant and integration scoped, and
+// only OPEN findings transition; muted, already-resolved, or another
+// integration's finding is never changed by a clean provider event.
+func resolveDeclarativeFinding(ctx context.Context, tx *sql.Tx, payload JobPayload, resolution declarativeResolution, eventID string) (string, bool, error) {
+	placeholder := Finding{
+		RuleID:       resolution.RuleID,
+		RuleVersion:  resolution.RuleVersion,
+		Target:       resolution.DedupeTarget,
+		DedupeTarget: resolution.DedupeTarget,
+	}
+	dedupe := DedupeKey(payload, placeholder)
+	evidence, err := json.Marshal(map[string]any{
+		"ruleId":        resolution.RuleID,
+		"ruleVersion":   resolution.RuleVersion,
+		"subject":       resolution.DedupeTarget,
+		"sourceEventId": eventID,
+		"eventType":     payload.EventType,
+		"resolution":    "auto_resolve_when",
+	})
+	if err != nil {
+		return "", false, err
+	}
+	var findingID string
+	err = tx.QueryRowContext(ctx, `
+		UPDATE security_findings
+		SET status = 'RESOLVED'::"FindingStatus",
+			resolved_at = $1,
+			resolved_by_id = NULL,
+			evidence = COALESCE(evidence, '{}'::jsonb) || $2::jsonb
+		WHERE organization_id = $3
+		  AND integration_id = $4
+		  AND dedupe_key = $5
+		  AND COALESCE(evidence->>'ruleId', '') = $6
+		  AND status = 'OPEN'::"FindingStatus"
+		RETURNING id
+	`, payload.OccurredAt, string(evidence), payload.OrganizationID, payload.IntegrationID, dedupe, resolution.RuleID).Scan(&findingID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, err
+	}
+	return findingID, true, nil
+}
+
 func buildFindingEvidence(payload JobPayload, finding Finding, eventID string) map[string]any {
 	subject := finding.Target
 	if strings.TrimSpace(finding.DedupeTarget) != "" {
@@ -2699,6 +2895,9 @@ func buildFindingEvidence(payload JobPayload, finding Finding, eventID string) m
 		"source":        payload.Source,
 		"eventType":     payload.EventType,
 		"sourceEventId": eventID,
+	}
+	if strings.TrimSpace(finding.RuleVersion) != "" {
+		evidence["ruleVersion"] = finding.RuleVersion
 	}
 	addNonEmptyEvidence(evidence, "actor", payload.Actor)
 	addNonEmptyEvidence(evidence, "application", nestedString(payload.Payload, "application"))
@@ -2871,6 +3070,9 @@ func findingPayload(payload JobPayload, finding Finding, eventID string, persist
 		"source":           payload.Source,
 		"eventType":        payload.EventType,
 		"actor":            actor,
+	}
+	if strings.TrimSpace(finding.RuleVersion) != "" {
+		record["ruleVersion"] = finding.RuleVersion
 	}
 	addOAuthClaimRecordFields(record, payload, finding)
 	return siemdispatcher.Payload{
