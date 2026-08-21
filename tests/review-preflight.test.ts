@@ -6,16 +6,20 @@ const moduleUrl = new URL("../scripts/review-preflight.mjs", import.meta.url);
 
 test("review preflight is locally owned and classifies release-sensitive changes", async () => {
   const module = (await import(moduleUrl.href)) as {
-    runPreflight: (input: { base: string; head: string }) => {
-      requiredChecks: string[];
-      categories: string[];
-      violations: string[];
-    };
+    categoriesFor: (files: string[]) => string[];
+    requiredChecks: (files: string[], categories: string[]) => string[];
   };
-  const result = module.runPreflight({ base: "HEAD~1", head: "HEAD" });
-  assert.ok(Array.isArray(result.requiredChecks));
-  assert.ok(Array.isArray(result.categories));
-  assert.deepEqual(result.violations, []);
+  const files = ["go.mod", "package-lock.json", ".github/workflows/release.yml"];
+  const categories = module.categoriesFor(files);
+  const checks = module.requiredChecks(files, categories);
+  assert.deepEqual(categories, ["delivery", "go", "node"]);
+  assert.deepEqual(checks, [
+    "go test ./...",
+    "make lint",
+    "npm run audit:prod",
+    "npm run leak:check",
+    "npm run typecheck"
+  ]);
 });
 
 test("review workflow preserves required branch-protection contexts locally", () => {

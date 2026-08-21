@@ -23,7 +23,7 @@ function changedFiles(base, head) {
   return output.split(/\r?\n/).map((file) => file.trim()).filter(Boolean);
 }
 
-function categoriesFor(files) {
+export function categoriesFor(files) {
   const categories = new Set();
   for (const file of files) {
     if (/^(cmd|internal|proto|gen|go\.(mod|sum))\//.test(file) || /^go\.(mod|sum)$/.test(file)) {
@@ -45,7 +45,7 @@ function categoriesFor(files) {
   return [...categories].sort();
 }
 
-function requiredChecks(files, categories) {
+export function requiredChecks(files, categories) {
   const checks = new Set(["npm run leak:check"]);
   if (categories.includes("go")) checks.add("go test ./...");
   if (categories.includes("node")) checks.add("npm run typecheck");
