@@ -71,6 +71,9 @@ const (
 	// AperioServiceCheckHealthProcedure is the fully-qualified name of the AperioService's CheckHealth
 	// RPC.
 	AperioServiceCheckHealthProcedure = "/aperio.v1.AperioService/CheckHealth"
+	// AperioServiceGetOperationalHealthProcedure is the fully-qualified name of the AperioService's
+	// GetOperationalHealth RPC.
+	AperioServiceGetOperationalHealthProcedure = "/aperio.v1.AperioService/GetOperationalHealth"
 	// AperioServiceGetDashboardMetricsProcedure is the fully-qualified name of the AperioService's
 	// GetDashboardMetrics RPC.
 	AperioServiceGetDashboardMetricsProcedure = "/aperio.v1.AperioService/GetDashboardMetrics"
@@ -281,6 +284,7 @@ type AperioServiceClient interface {
 	EnableMfa(context.Context, *connect.Request[v1.EnableMfaRequest]) (*connect.Response[v1.EnableMfaResponse], error)
 	DisableMfa(context.Context, *connect.Request[v1.DisableMfaRequest]) (*connect.Response[v1.DisableMfaResponse], error)
 	CheckHealth(context.Context, *connect.Request[v1.CheckHealthRequest]) (*connect.Response[v1.CheckHealthResponse], error)
+	GetOperationalHealth(context.Context, *connect.Request[v1.GetOperationalHealthRequest]) (*connect.Response[v1.GetOperationalHealthResponse], error)
 	GetDashboardMetrics(context.Context, *connect.Request[v1.GetDashboardMetricsRequest]) (*connect.Response[v1.GetDashboardMetricsResponse], error)
 	ListFindings(context.Context, *connect.Request[v1.ListFindingsRequest]) (*connect.Response[v1.ListFindingsResponse], error)
 	GetFinding(context.Context, *connect.Request[v1.GetFindingRequest]) (*connect.Response[v1.GetFindingResponse], error)
@@ -440,6 +444,12 @@ func NewAperioServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			httpClient,
 			baseURL+AperioServiceCheckHealthProcedure,
 			connect.WithSchema(aperioServiceMethods.ByName("CheckHealth")),
+			connect.WithClientOptions(opts...),
+		),
+		getOperationalHealth: connect.NewClient[v1.GetOperationalHealthRequest, v1.GetOperationalHealthResponse](
+			httpClient,
+			baseURL+AperioServiceGetOperationalHealthProcedure,
+			connect.WithSchema(aperioServiceMethods.ByName("GetOperationalHealth")),
 			connect.WithClientOptions(opts...),
 		),
 		getDashboardMetrics: connect.NewClient[v1.GetDashboardMetricsRequest, v1.GetDashboardMetricsResponse](
@@ -845,6 +855,7 @@ type aperioServiceClient struct {
 	enableMfa                             *connect.Client[v1.EnableMfaRequest, v1.EnableMfaResponse]
 	disableMfa                            *connect.Client[v1.DisableMfaRequest, v1.DisableMfaResponse]
 	checkHealth                           *connect.Client[v1.CheckHealthRequest, v1.CheckHealthResponse]
+	getOperationalHealth                  *connect.Client[v1.GetOperationalHealthRequest, v1.GetOperationalHealthResponse]
 	getDashboardMetrics                   *connect.Client[v1.GetDashboardMetricsRequest, v1.GetDashboardMetricsResponse]
 	listFindings                          *connect.Client[v1.ListFindingsRequest, v1.ListFindingsResponse]
 	getFinding                            *connect.Client[v1.GetFindingRequest, v1.GetFindingResponse]
@@ -979,6 +990,11 @@ func (c *aperioServiceClient) DisableMfa(ctx context.Context, req *connect.Reque
 // CheckHealth calls aperio.v1.AperioService.CheckHealth.
 func (c *aperioServiceClient) CheckHealth(ctx context.Context, req *connect.Request[v1.CheckHealthRequest]) (*connect.Response[v1.CheckHealthResponse], error) {
 	return c.checkHealth.CallUnary(ctx, req)
+}
+
+// GetOperationalHealth calls aperio.v1.AperioService.GetOperationalHealth.
+func (c *aperioServiceClient) GetOperationalHealth(ctx context.Context, req *connect.Request[v1.GetOperationalHealthRequest]) (*connect.Response[v1.GetOperationalHealthResponse], error) {
+	return c.getOperationalHealth.CallUnary(ctx, req)
 }
 
 // GetDashboardMetrics calls aperio.v1.AperioService.GetDashboardMetrics.
@@ -1319,6 +1335,7 @@ type AperioServiceHandler interface {
 	EnableMfa(context.Context, *connect.Request[v1.EnableMfaRequest]) (*connect.Response[v1.EnableMfaResponse], error)
 	DisableMfa(context.Context, *connect.Request[v1.DisableMfaRequest]) (*connect.Response[v1.DisableMfaResponse], error)
 	CheckHealth(context.Context, *connect.Request[v1.CheckHealthRequest]) (*connect.Response[v1.CheckHealthResponse], error)
+	GetOperationalHealth(context.Context, *connect.Request[v1.GetOperationalHealthRequest]) (*connect.Response[v1.GetOperationalHealthResponse], error)
 	GetDashboardMetrics(context.Context, *connect.Request[v1.GetDashboardMetricsRequest]) (*connect.Response[v1.GetDashboardMetricsResponse], error)
 	ListFindings(context.Context, *connect.Request[v1.ListFindingsRequest]) (*connect.Response[v1.ListFindingsResponse], error)
 	GetFinding(context.Context, *connect.Request[v1.GetFindingRequest]) (*connect.Response[v1.GetFindingResponse], error)
@@ -1474,6 +1491,12 @@ func NewAperioServiceHandler(svc AperioServiceHandler, opts ...connect.HandlerOp
 		AperioServiceCheckHealthProcedure,
 		svc.CheckHealth,
 		connect.WithSchema(aperioServiceMethods.ByName("CheckHealth")),
+		connect.WithHandlerOptions(opts...),
+	)
+	aperioServiceGetOperationalHealthHandler := connect.NewUnaryHandler(
+		AperioServiceGetOperationalHealthProcedure,
+		svc.GetOperationalHealth,
+		connect.WithSchema(aperioServiceMethods.ByName("GetOperationalHealth")),
 		connect.WithHandlerOptions(opts...),
 	)
 	aperioServiceGetDashboardMetricsHandler := connect.NewUnaryHandler(
@@ -1890,6 +1913,8 @@ func NewAperioServiceHandler(svc AperioServiceHandler, opts ...connect.HandlerOp
 			aperioServiceDisableMfaHandler.ServeHTTP(w, r)
 		case AperioServiceCheckHealthProcedure:
 			aperioServiceCheckHealthHandler.ServeHTTP(w, r)
+		case AperioServiceGetOperationalHealthProcedure:
+			aperioServiceGetOperationalHealthHandler.ServeHTTP(w, r)
 		case AperioServiceGetDashboardMetricsProcedure:
 			aperioServiceGetDashboardMetricsHandler.ServeHTTP(w, r)
 		case AperioServiceListFindingsProcedure:
@@ -2081,6 +2106,10 @@ func (UnimplementedAperioServiceHandler) DisableMfa(context.Context, *connect.Re
 
 func (UnimplementedAperioServiceHandler) CheckHealth(context.Context, *connect.Request[v1.CheckHealthRequest]) (*connect.Response[v1.CheckHealthResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("aperio.v1.AperioService.CheckHealth is not implemented"))
+}
+
+func (UnimplementedAperioServiceHandler) GetOperationalHealth(context.Context, *connect.Request[v1.GetOperationalHealthRequest]) (*connect.Response[v1.GetOperationalHealthResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("aperio.v1.AperioService.GetOperationalHealth is not implemented"))
 }
 
 func (UnimplementedAperioServiceHandler) GetDashboardMetrics(context.Context, *connect.Request[v1.GetDashboardMetricsRequest]) (*connect.Response[v1.GetDashboardMetricsResponse], error) {

@@ -391,6 +391,16 @@ var RuleCatalog = []RuleCatalogEntry{
 	},
 }
 
+func builtInRuleCount(provider string) int {
+	count := 0
+	for _, entry := range RuleCatalog {
+		if entry.Provider == provider {
+			count++
+		}
+	}
+	return count
+}
+
 // RuleCatalogForProvider returns the rules registered for a given
 // provider, preserving display order. An unknown provider returns nil.
 func RuleCatalogForProvider(provider string) []RuleCatalogEntry {

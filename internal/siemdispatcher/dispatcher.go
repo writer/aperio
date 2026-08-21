@@ -1125,10 +1125,18 @@ func boundedLimit(limit int) int {
 
 func emitSIEMDeliveryWideEvent(item delivery, payload Payload, dest destination, processErr error, permanent bool, duration time.Duration) {
 	telemetry.EmitWide(siemDeliveryWideEvent(item, payload, dest, processErr, permanent, duration))
+	telemetry.IncCounter("aperio_siem_deliveries_total", map[string]string{
+		"stream":  item.Stream,
+		"outcome": siemDeliveryMetricOutcome(item, processErr, permanent),
+	})
 }
 
 func emitSIEMDeliveryWideEventForAttempt(item delivery, payload Payload, dest destination, processErr error, permanent bool, duration time.Duration, attempt int) {
 	telemetry.EmitWide(siemDeliveryWideEventForAttempt(item, payload, dest, processErr, permanent, duration, attempt))
+	telemetry.IncCounter("aperio_siem_deliveries_total", map[string]string{
+		"stream":  item.Stream,
+		"outcome": siemDeliveryMetricOutcome(item, processErr, permanent),
+	})
 }
 
 func siemDeliveryWideEvent(item delivery, payload Payload, dest destination, processErr error, permanent bool, duration time.Duration) telemetry.WideEvent {
@@ -1185,6 +1193,17 @@ func siemDeliveryOutcome(item delivery, processErr error, permanent bool) string
 		return "dead_letter"
 	}
 	return "retryable_failed"
+}
+
+func siemDeliveryMetricOutcome(item delivery, processErr error, permanent bool) string {
+	switch siemDeliveryOutcome(item, processErr, permanent) {
+	case "delivered":
+		return "delivered"
+	case "dead_letter":
+		return "dead_letter"
+	default:
+		return "failed"
+	}
 }
 
 func siemDeliveryPermanence(item delivery, processErr error, permanent bool) string {

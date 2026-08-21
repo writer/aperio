@@ -40,6 +40,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/writer/aperio/internal/observability"
 	"github.com/writer/aperio/internal/runtimeutil"
 	"github.com/writer/aperio/internal/syncstate"
 	"github.com/writer/aperio/internal/syncwake"
@@ -260,7 +261,19 @@ func (p *Poller) pollIntegration(ctx context.Context, integ integrationRow) erro
 	return p.pollIntegrationApplications(ctx, integ, p.applications, true)
 }
 
-func (p *Poller) pollIntegrationApplications(ctx context.Context, integ integrationRow, applications []string, refreshConnector bool) error {
+func (p *Poller) pollIntegrationApplications(ctx context.Context, integ integrationRow, applications []string, refreshConnector bool) (resultErr error) {
+	run := observability.StartConnectorSyncRun(ctx, p.db, integ.OrganizationID, integ.ID, "GOOGLE_WORKSPACE", observability.ConnectorSourceGoogleWorkspaceReports)
+	var runErr error
+	defer func() {
+		if resultErr != nil {
+			runErr = resultErr
+		}
+		status := "SUCCEEDED"
+		if runErr != nil {
+			status = "FAILED"
+		}
+		run.Finish(ctx, status, 0, 0, runErr)
+	}()
 	oauth, ok := p.resolver.ResolveGoogleOAuthClient(ctx, integ.OrganizationID)
 	if !ok {
 		err := errors.New("oauth client unresolved for organization")
@@ -291,6 +304,9 @@ func (p *Poller) pollIntegrationApplications(ctx context.Context, integ integrat
 			// application stopped advancing without grepping logs.
 			expected, _ := cursorFromPollError(err)
 			p.recordError(ctx, integ.ID, app, expected, err)
+			if runErr == nil {
+				runErr = err
+			}
 			log.Printf("googleworkspacepoller: integ=%s app=%s poll failed: %v", integ.ID, app, err)
 			continue
 		}

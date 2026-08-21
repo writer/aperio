@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -54,13 +54,12 @@ function serviceRpcNames(proto: string) {
 test("frontend-consumed AperioService RPC inventory is implemented and wrapped", () => {
   const proto = readRepoFile("proto/aperio/v1/api.proto");
   const client = readRepoFile("packages/connect/src/client.ts");
-  const appSources = [
-    readRepoFile("internal/bootstrap/app.go"),
-    readRepoFile("internal/bootstrap/typed_compat.go"),
-    readRepoFile("internal/bootstrap/saas_dr.go"),
-    readRepoFile("internal/bootstrap/oauth_clients.go"),
-    readRepoFile("internal/bootstrap/detection_packs.go")
-  ].join("\n");
+  const bootstrapDir = path.join(repoRoot, "internal/bootstrap");
+  const appSources = readdirSync(bootstrapDir)
+    .filter((name) => name.endsWith(".go") && !name.endsWith("_test.go"))
+    .sort()
+    .map((name) => readFileSync(path.join(bootstrapDir, name), "utf8"))
+    .join("\n");
 
   const rpcs = serviceRpcNames(proto);
   assert.ok(rpcs.length > 40, "expected complete AperioService RPC inventory");
