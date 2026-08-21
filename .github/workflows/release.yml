@@ -13,25 +13,50 @@ on:
 
 permissions:
   contents: read
-  packages: write
-  id-token: write
-  actions: write
 
 env:
   IMAGE: ghcr.io/writer/aperio
 
 jobs:
+  validate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 20
+          cache: npm
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: "1.26.6"
+      - run: npm ci
+      - run: npm run db:validate
+      - run: npm run typecheck
+      - run: npm run audit:prod
+      - run: go test ./...
+      - run: go run golang.org/x/vuln/cmd/govulncheck@v1.3.0 ./...
+      - run: npm run leak:check
+
   image:
     runs-on: ubuntu-latest
+    needs: [validate]
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
     outputs:
       image_tag: ${{ steps.meta.outputs.tag }}
       image_digest: ${{ steps.build.outputs.digest }}
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
-      - uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+      - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -48,7 +73,7 @@ jobs:
             exit 1
           fi
           echo "tag=${tag}" >> "$GITHUB_OUTPUT"
-      - uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+      - uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         id: build
         with:
           context: .
@@ -64,48 +89,25 @@ jobs:
           IMAGE_TAG: ${{ steps.meta.outputs.tag }}
           IMAGE_DIGEST: ${{ steps.build.outputs.digest }}
         run: cosign sign --yes "${IMAGE}@${IMAGE_DIGEST}"
-  notify-infra-release:
-    runs-on: ubuntu-latest
-    needs: [image]
-    if: startsWith(needs.image.outputs.image_tag, 'v')
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - target_environment: sec-dev
-          - target_environment: go-prod
-    steps:
-      - name: Dispatch release deployment request
-        shell: bash
+
+      - name: Write release receipt
         env:
-          GH_TOKEN: ${{ secrets.APERIO_INFRA_PROMOTION_TOKEN }}
-          INFRA_REPOSITORY: ${{ secrets.APERIO_INFRA_REPOSITORY }}
-          IMAGE_TAG: ${{ needs.image.outputs.image_tag }}
-          IMAGE_DIGEST: ${{ needs.image.outputs.image_digest }}
-          TARGET_ENVIRONMENT: ${{ matrix.target_environment }}
-          SOURCE_REPOSITORY: ${{ github.repository }}
+          IMAGE_TAG: ${{ steps.meta.outputs.tag }}
+          IMAGE_DIGEST: ${{ steps.build.outputs.digest }}
+          SOURCE_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
-          if [ -z "${GH_TOKEN}" ]; then
-            echo "::warning::APERIO_INFRA_PROMOTION_TOKEN is not configured; skipping ${TARGET_ENVIRONMENT} deploy dispatch for ${IMAGE_TAG}"
-            exit 0
-          fi
-          if ! [[ "${INFRA_REPOSITORY}" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]; then
-            echo "ERROR: APERIO_INFRA_REPOSITORY must be configured as owner/repo" >&2
-            exit 1
-          fi
-          handler="$(mktemp)"
-          gh api "repos/${INFRA_REPOSITORY}/contents/.github/workflows/propose-image-tag.yml?ref=main" --jq .content \
-            | base64 -d > "${handler}"
-          if ! grep -Eq '^[[:space:]]*repository_dispatch:' "${handler}" || ! grep -Eq 'aperio-release-published' "${handler}"; then
-            echo "ERROR: configured deploy repository does not have the aperio-release-published handler installed" >&2
-            exit 1
-          fi
+          mkdir -p tmp
+          jq -n \
+            --arg image "${IMAGE}" \
+            --arg tag "${IMAGE_TAG}" \
+            --arg digest "${IMAGE_DIGEST}" \
+            --arg source_sha "${SOURCE_SHA}" \
+            '{image: $image, tag: $tag, digest: $digest, source_sha: $source_sha, signed: true, deployment: "operator-owned"}' \
+            > tmp/release-receipt.json
 
-          gh api -X POST "repos/${INFRA_REPOSITORY}/dispatches" \
-            -f event_type=aperio-release-published \
-            -F "client_payload[image_tag]=${IMAGE_TAG}" \
-            -F "client_payload[image_digest]=${IMAGE_DIGEST}" \
-            -F "client_payload[target_environment]=${TARGET_ENVIRONMENT}" \
-            -F "client_payload[source_repository]=${SOURCE_REPOSITORY}" \
-            -F "client_payload[source_ref]=refs/tags/${IMAGE_TAG}"
+      - name: Upload release receipt
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-receipt
+          path: tmp/release-receipt.json
